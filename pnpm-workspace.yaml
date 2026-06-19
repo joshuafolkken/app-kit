@@ -21,7 +21,7 @@ minimumReleaseAgeExclude:
   - vite
   - '@types/node'
   - tsx
-  - '@joshuafolkken/kit@0.262.0'
+  - '@joshuafolkken/kit@0.264.0'
 
 overrides:
   svelte: ^5.55.7

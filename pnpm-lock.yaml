@@ -218,8 +218,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.8.4)
       '@joshuafolkken/kit':
-        specifier: 0.262.0
-        version: 0.262.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.61.1(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.61.1))(typescript@6.0.3)
+        specifier: 0.264.0
+        version: 0.264.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.61.1(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.61.1))(typescript@6.0.3)
       '@playwright/test':
         specifier: ^1.61.0
         version: 1.61.0
@@ -1206,8 +1206,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@0.262.0':
-    resolution: {integrity: sha512-kh0jpfG9fHohekMPwth6Mc1NbLYl+/EBXVJvtC/2lVveOENT/14zSQsnUVOsQZdRp7N03KcZmtSZXTL8DQ+M5A==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.262.0/6a243d2c01b3eb59107a1fdfe101389b84c512a6}
+  '@joshuafolkken/kit@0.264.0':
+    resolution: {integrity: sha512-D5lbTAMVuchq7QgjEo/Dy9j622jYVTqbCsaG/075ViaUgtKJrG00sgl99BkdiieXTcgI1IPZy4/AkHNHdPHEJQ==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.264.0/995f2e4bd2d8c8fceab2b7757a31e745eefd18b5}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -3938,7 +3938,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@joshuafolkken/kit@0.262.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.61.1(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.61.1))(typescript@6.0.3)':
+  '@joshuafolkken/kit@0.264.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.61.1(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.61.1))(typescript@6.0.3)':
     dependencies:
       '@eslint/compat': 2.1.0(eslint@10.5.0(jiti@2.7.0))
       '@eslint/js': 10.0.1(eslint@10.5.0(jiti@2.7.0))
