@@ -1,0 +1,219 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright-image:
+    name: Resolve Playwright image
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve image
+        id: resolve
+        run: |
+          version=$(node -p "require('./package.json').devDependencies['@playwright/test']" | tr -d '^~')
+          echo "image=mcr.microsoft.com/playwright:v${version}-noble" >> $GITHUB_OUTPUT
+
+  checks:
+    name: Checks
+    needs: playwright-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.playwright-image.outputs.image }}
+      options: --user root
+    timeout-minutes: 8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Setup ESLint cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: eslint-cache
+        with:
+          path: |
+            .eslintcache
+          key: ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-eslint-cache-
+
+      - name: Setup safe-chain
+        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run spell check
+        run: pnpm exec cspell . --dot
+
+      - name: Prepare
+        run: pnpm prepare
+
+      - name: Run type check
+        run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig ./tsconfig.json --threshold error
+
+      - name: Run prettier check
+        run: pnpm exec prettier --check .
+
+      # Build before eslint so generated outputs exist for type-aware linting.
+      # The same build output is reused by the size check below.
+      - name: Build
+        run: pnpm build
+
+      - name: Run eslint check
+        run: pnpm exec eslint . --cache --cache-strategy content
+
+      - name: Run unit tests
+        run: pnpm josh test:unit
+
+      - name: Check bundle size
+        run: pnpm size-limit
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Run security audit
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        with:
+          scan-args: --lockfile=pnpm-lock.yaml
+
+  e2e-detect:
+    name: Detect E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Check for Playwright config
+        id: check
+        run: |
+          if [ -f playwright.config.ts ] && find tests src/routes \( -name "*.e2e.ts" -o -name "*.e2e.js" \) 2>/dev/null | grep -q .; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    name: E2E
+    needs: [playwright-image, e2e-detect]
+    if: needs.e2e-detect.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.playwright-image.outputs.image }}
+      options: --user root
+    timeout-minutes: 10
+    # Playwright preview は localhost:4173。ワークフロー共通の BETTER_AUTH_URL（本番）を
+    # 引き継ぐと Better Auth が origin を拒否する（CI E2E では本番 URL は使わない）。
+    # ホスト/ポートは playwright.config.ts の PREVIEW_PORT（4173）と一致させること。
+    env:
+      BETTER_AUTH_URL: http://localhost:4173
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Setup build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: build-cache
+        with:
+          path: |
+            .svelte-kit
+          key: ${{ runner.os }}-build-cache-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('svelte.config.js', 'vite.config.ts', 'tsconfig.json', 'src/lib/server/auth.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-build-cache-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-build-cache-e2e-
+
+      - name: Setup safe-chain
+        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run E2E tests
+        run: pnpm exec playwright test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+  notify-auto-tag:
+    name: Notify Auto Tag
+    needs: [checks, security, e2e-detect, e2e]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.checks.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.e2e-detect.result == 'success' &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Dispatch auto-tag
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          event-type: ci-passed-on-main
+          client-payload: '{"sha": "${{ github.sha }}"}'

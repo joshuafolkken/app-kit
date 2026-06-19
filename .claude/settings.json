@@ -1,0 +1,30 @@
+{
+	"permissions": {
+		"defaultMode": "bypassPermissions",
+		"allow": ["Bash(*)"],
+		"deny": [
+			"Bash(rm -rf *)",
+			"Bash(rm -rf /*)",
+			"Bash(git push --force*)",
+			"Bash(git push -f*)",
+			"Bash(sudo *)"
+		]
+	},
+	"hooks": {
+		"UserPromptSubmit": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "echo 'MANDATORY: Before writing any implementation code, declare every change and its test (see Code Change Rules Step 0 in CLAUDE.md). Tests are required for ALL changes — including bug fixes, timing fixes, and refactors. Zero tests without explicit user approval is a policy violation.'"
+					},
+					{
+						"type": "command",
+						"command": "echo 'Git-tracked files are always recoverable via git restore. Do NOT ask the user for confirmation before deleting git-tracked files — proceed directly.'"
+					}
+				]
+			}
+		]
+	}
+}
