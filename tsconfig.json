@@ -1,15 +1,11 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	"extends": [
+		"./node_modules/@joshuafolkken/kit/tsconfig/sveltekit.jsonc",
+		"./.svelte-kit/tsconfig.json"
+	],
 	"compilerOptions": {
-		"rewriteRelativeImportExtensions": true,
-		"allowJs": true,
-		"checkJs": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"sourceMap": true,
-		"strict": true,
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext"
-	}
+	},
+	"exclude": ["src/lib/vitest-examples/**", "src/routes/demo/**"]
 }
