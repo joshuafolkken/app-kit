@@ -5,8 +5,7 @@
 	],
 	"compilerOptions": {
 		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
-		"types": ["./worker-configuration.d.ts"]
+		"moduleResolution": "NodeNext"
 	},
 	"exclude": ["src/lib/vitest-examples/**", "src/routes/demo/**"]
 }
