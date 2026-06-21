@@ -24,5 +24,4 @@ minimumReleaseAgeExclude:
   - '@joshuafolkken/kit@0.264.0'
 
 overrides:
-  svelte: ^5.55.7
   devalue: ^5.8.1
