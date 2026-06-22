@@ -12,10 +12,26 @@ function is_browser(): boolean {
 	return typeof document !== 'undefined'
 }
 
+function read_storage(key: string): string | undefined {
+	try {
+		return localStorage.getItem(key) ?? undefined
+	} catch {
+		return undefined
+	}
+}
+
+function write_storage(key: string, value: string): void {
+	try {
+		localStorage.setItem(key, value)
+	} catch {
+		// Restricted storage (private mode / disabled): keep in-memory + DOM state.
+	}
+}
+
 function read_stored(): Theme | undefined {
 	if (!is_browser()) return undefined
 
-	const value = localStorage.getItem(STORAGE_KEY)
+	const value = read_storage(STORAGE_KEY)
 
 	return value === DARK || value === LIGHT ? value : undefined
 }
@@ -24,7 +40,7 @@ function reflect_to_dom(theme: Theme): void {
 	if (!is_browser()) return
 
 	document.documentElement.classList.toggle(DARK, theme === DARK)
-	localStorage.setItem(STORAGE_KEY, theme)
+	write_storage(STORAGE_KEY, theme)
 }
 
 class ThemeStore {

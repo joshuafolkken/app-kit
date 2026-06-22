@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { theme_store, type Theme } from './Theme.svelte.js'
 
 const STORAGE_KEY = 'app-kit-theme'
 const DARK: Theme = 'dark'
 const LIGHT: Theme = 'light'
+const STORAGE_ERROR = 'storage blocked'
 
 beforeEach(() => {
 	localStorage.clear()
@@ -40,5 +41,34 @@ describe('theme_store (browser)', () => {
 		theme_store.init()
 
 		expect(theme_store.is_dark).toBe(true)
+	})
+})
+
+describe('theme_store storage resilience', () => {
+	it('set_theme survives a throwing localStorage.setItem (private mode)', () => {
+		const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+			throw new Error(STORAGE_ERROR)
+		})
+
+		expect(() => {
+			theme_store.set_theme(DARK)
+		}).not.toThrow()
+		expect(theme_store.is_dark).toBe(true)
+		expect(document.documentElement.classList.contains(DARK)).toBe(true)
+
+		spy.mockRestore()
+	})
+
+	it('init survives a throwing localStorage.getItem (private mode)', () => {
+		const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+			throw new Error(STORAGE_ERROR)
+		})
+
+		expect(() => {
+			theme_store.init()
+		}).not.toThrow()
+		expect(theme_store.is_dark).toBe(false)
+
+		spy.mockRestore()
 	})
 })
