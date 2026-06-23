@@ -1,6 +1,11 @@
 {
-	"name": "app-kit",
-	"version": "0.7.0",
+	"name": "@joshuafolkken/app-kit",
+	"version": "0.8.0",
+	"private": false,
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com",
+		"access": "public"
+	},
 	"keywords": [
 		"svelte"
 	],
