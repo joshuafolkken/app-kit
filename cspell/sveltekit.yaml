@@ -1,0 +1,13 @@
+# app-kit's SvelteKit cspell preset: @joshuafolkken/kit's base dictionary plus
+# only the SvelteKit-specific delta (words + ignore paths). Owned by app-kit
+# (kit base + delta, no fork). Consumers import this via
+# `@joshuafolkken/app-kit/cspell/sveltekit`.
+version: '0.2'
+import:
+  - '@joshuafolkken/kit/cspell'
+words:
+  - Stylesheet
+  - sveltekit
+ignorePaths:
+  - '.svelte-kit/**'
+  - '.fast-check/**'
