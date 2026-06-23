@@ -6,8 +6,9 @@ export default [
 		tsconfig_root_dir: import.meta.dirname,
 	}),
 	{
-		// sv-generated demo/example code is excluded from the kit's strict rules.
-		ignores: ['src/lib/vitest-examples/**', 'src/routes/demo/**'],
+		// sv-generated demo/example code + distributed templates (copied verbatim into
+		// consumer scaffolds, not app-kit source) are excluded from the kit's strict rules.
+		ignores: ['src/lib/vitest-examples/**', 'src/routes/demo/**', 'templates/**'],
 	},
 	{
 		rules: {
