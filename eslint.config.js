@@ -1,4 +1,4 @@
-import { create_sveltekit_config } from '@joshuafolkken/kit/eslint/sveltekit'
+import { create_sveltekit_config } from './eslint/sveltekit.js'
 
 export default [
 	...create_sveltekit_config({
