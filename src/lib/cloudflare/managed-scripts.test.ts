@@ -18,6 +18,15 @@ function read(path: string): string {
 	return readFileSync(path, ENCODING)
 }
 
+function line_with(text: string, key: string): string | undefined {
+	return text.split('\n').find((line) => line.includes(key))
+}
+
+// True only when the key appears as a real (uncommented) JSON field, not a `// "key"` placeholder.
+function has_uncommented_key(text: string, key: string): boolean {
+	return text.split('\n').some((line) => line.trimStart().startsWith(`"${key}"`))
+}
+
 // S2 (#27): app-kit's own package.json is the single source of the Cloudflare
 // lifecycle scripts. These guards fail CI if app-kit drifts from the set it
 // distributes, or if a managed script is renamed / removed.
@@ -52,5 +61,20 @@ describe('app-shell templates mirror app-kit own files', () => {
 
 	it('templates/app.d.ts equals src/app.d.ts', () => {
 		expect(read('templates/app.d.ts')).toBe(read('src/app.d.ts'))
+	})
+
+	// The wrangler template is NOT byte-equal to app-kit's own: it shares the canonical
+	// framework fields but replaces the per-project ones (name, routes) with commented
+	// placeholders so a consumer never inherits app-kit's worker name or domain.
+	it('templates/wrangler.jsonc shares app-kit canonical fields, placeholders per-project ones', () => {
+		const template = read('templates/wrangler.jsonc')
+		const own = read('wrangler.jsonc')
+		const date = 'compatibility_date'
+		const flags = 'compatibility_flags'
+
+		expect(line_with(template, date)).toBe(line_with(own, date))
+		expect(line_with(template, flags)).toBe(line_with(own, flags))
+		expect(has_uncommented_key(template, 'name')).toBe(false)
+		expect(has_uncommented_key(template, 'routes')).toBe(false)
 	})
 })

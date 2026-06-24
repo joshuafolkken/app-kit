@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "app-kit",
+	// Set this to your project name — the Worker name the consumer owns.
+	// "name": "your-project-name",
 	"compatibility_date": "2026-06-23",
 	"compatibility_flags": ["nodejs_compat"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
@@ -21,14 +22,15 @@
 			"enabled": true,
 			"head_sampling_rate": 0.1
 		}
-	},
+	}
 
-	"routes": [
-		{
-			"pattern": "app-kit.joshuafolkken.com",
-			"custom_domain": true
-		}
-	]
+	// Uncomment and set your custom domain to route production traffic.
+	// "routes": [
+	// 	{
+	// 		"pattern": "your-project.joshuafolkken.com",
+	// 		"custom_domain": true
+	// 	}
+	// ],
 
 	// "kv_namespaces": [
 	// 	{
