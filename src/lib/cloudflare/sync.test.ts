@@ -16,6 +16,8 @@ const KIT_OWNED = 'eslint.config.js'
 const KIT_OWNED_CONTENT = '// kit-owned — must not be touched\n'
 const DEV_KEY = 'dev'
 const DEV_VALUE = 'vite dev'
+const FIXTURE_NAME = 'fixture'
+const PLACEHOLDER_MARKER = 'your-project-name'
 
 // Holder avoids reassigning a top-level binding from inside the lifecycle hooks.
 const state = { directory: '' }
@@ -34,7 +36,7 @@ function fixture_scripts(): Record<string, string> {
 
 beforeEach(() => {
 	state.directory = mkdtempSync(path.join(tmpdir(), 'app-kit-overlay-'))
-	const manifest = { name: 'fixture', scripts: { [DEV_KEY]: DEV_VALUE } }
+	const manifest = { name: FIXTURE_NAME, scripts: { [DEV_KEY]: DEV_VALUE } }
 
 	writeFileSync(fixture_path(PACKAGE_JSON), `${JSON.stringify(manifest, undefined, '\t')}\n`)
 	writeFileSync(fixture_path(KIT_OWNED), KIT_OWNED_CONTENT)
@@ -110,5 +112,14 @@ describe('cloudflare sync overlay — wrangler.jsonc', () => {
 		expect(result).toContain(worker)
 		expect(result).toContain(template_date)
 		expect(result).not.toContain(old_date)
+	})
+
+	it('leaves the name placeholder — sync never derives the Worker name (init does)', () => {
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		const wrangler = read_fixture(WRANGLER_JSONC)
+
+		expect(wrangler).toContain(PLACEHOLDER_MARKER)
+		expect(wrangler).not.toContain(`"name": "${FIXTURE_NAME}"`)
 	})
 })
