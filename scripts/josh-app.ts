@@ -21,15 +21,17 @@ const COMMAND_ARG_INDEX = 2
 // templates, seeded wrangler.jsonc), leaving the Worker name for the consumer to own.
 function run(command: string | undefined): void {
 	if (command === 'init') {
-		cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
-		console.info(INIT_MESSAGE)
+		const changes = cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
+
+		console.info(`${cloudflare_sync.summarize(changes)}\n${INIT_MESSAGE}`)
 
 		return
 	}
 
 	if (command === 'sync') {
-		cloudflare_sync.apply_overlay(process.cwd(), PACKAGE_ROOT)
-		console.info(SYNC_MESSAGE)
+		const changes = cloudflare_sync.apply_overlay(process.cwd(), PACKAGE_ROOT)
+
+		console.info(`${cloudflare_sync.summarize(changes)}\n${SYNC_MESSAGE}`)
 
 		return
 	}
