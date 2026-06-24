@@ -217,8 +217,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.8.4)
       '@joshuafolkken/kit':
-        specifier: ^0.271.0
-        version: 0.271.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.62.0))(typescript@6.0.3)
+        specifier: 0.272.0
+        version: 0.272.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.62.0))(typescript@6.0.3)
       '@playwright/test':
         specifier: ^1.61.0
         version: 1.61.0
@@ -255,6 +255,9 @@ importers:
       cspell:
         specifier: ^10.0.1
         version: 10.0.1
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       eslint:
         specifier: ^10.5.0
         version: 10.5.0(jiti@2.7.0)
@@ -1055,8 +1058,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@0.271.0':
-    resolution: {integrity: sha512-YpHU31+9dvFRdqVQFp4Vbxsq60YNXR6RvYbTdLSDpuL2IKRCntrOxCZeVKK5hdRWvkiR78QK6FbwbapBHBfGfA==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.271.0/e6f836afed8059310879ed60686f10b912047fe2}
+  '@joshuafolkken/kit@0.272.0':
+    resolution: {integrity: sha512-fwzUjhXA1Jn5AFkkQrWerJMUWKDBcqi54vIQF9aJ4fc12YNCh+k+g7EePPqbXfDujfjsXSrgc3CQOPtbgR3Q4w==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.272.0/ce9b38ccb7a2583a9257943b140510b2447d346c}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -3700,7 +3703,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@joshuafolkken/kit@0.271.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.62.0))(typescript@6.0.3)':
+  '@joshuafolkken/kit@0.272.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.3(@typescript-eslint/types@8.62.0))(typescript@6.0.3)':
     dependencies:
       '@eslint/compat': 2.1.0(eslint@10.5.0(jiti@2.7.0))
       '@eslint/js': 10.0.1(eslint@10.5.0(jiti@2.7.0))

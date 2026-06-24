@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.12.0",
+	"version": "0.13.0",
 	"private": false,
 	"packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
 	"publishConfig": {
@@ -41,6 +41,12 @@
 	},
 	"type": "module",
 	"types": "./dist/index.d.ts",
+	"bin": {
+		"josh-app": "./dist/scripts/josh-app.js"
+	},
+	"imports": {
+		"#cloudflare/*": "./src/lib/cloudflare/*"
+	},
 	"scripts": {
 		"preinstall": "pnpm dlx @aikidosec/safe-chain setup-ci",
 		"dev": "vite dev",
@@ -51,7 +57,8 @@
 		"prepare:sync": "svelte-kit sync || echo ''",
 		"prepare:lefthook": "[ -n \"$CI\" ] || ! command -v lefthook >/dev/null 2>&1 || lefthook install",
 		"prepare:gh-packages": "[ -n \"$CI\" ] || ! command -v tsx >/dev/null 2>&1 || tsx node_modules/@joshuafolkken/kit/scripts/fix-gh-packages.ts",
-		"prepack": "svelte-kit sync && svelte-package && publint",
+		"prepack": "svelte-kit sync && svelte-package && pnpm run build:scripts && publint",
+		"build:scripts": "pnpm exec esbuild scripts/josh-app.ts --bundle --platform=node --packages=external --outdir=dist/scripts/ --format=esm --banner:js='#!/usr/bin/env node'",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"gen": "pnpm gen:pre && wrangler types",
 		"gen:pre": "node -e \"const fs=require('node:fs');const d='.svelte-kit/cloudflare';if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>f.startsWith('_worker.')&&fs.rmSync(d+'/'+f,{force:true}))\"",
@@ -61,7 +68,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^0.271.0",
+		"@joshuafolkken/kit": "0.272.0",
 		"@playwright/test": "^1.61.0",
 		"@size-limit/file": "^12.1.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
@@ -74,6 +81,7 @@
 		"@types/node": "^26.0.0",
 		"@vitest/browser-playwright": "^4.1.9",
 		"cspell": "^10.0.1",
+		"esbuild": "^0.28.1",
 		"eslint": "^10.5.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
