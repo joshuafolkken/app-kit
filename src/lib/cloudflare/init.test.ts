@@ -95,4 +95,13 @@ describe('run_init', () => {
 
 		expect(read_fixture(WRANGLER_JSONC)).toContain('"name": "from-pkg",')
 	})
+
+	it('leaves the placeholder when the package.json name is not a string', () => {
+		const manifest = { name: 123, scripts: {} }
+
+		writeFileSync(fixture_path(PACKAGE_JSON), `${JSON.stringify(manifest, undefined, '\t')}\n`)
+		cloudflare_init.run_init(state.directory, SOURCE_DIR)
+
+		expect(read_fixture(WRANGLER_JSONC)).toContain(PLACEHOLDER_MARKER)
+	})
 })

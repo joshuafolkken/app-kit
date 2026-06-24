@@ -54,10 +54,14 @@ function init_overlay(target: string, source: string, project_name: string): voi
 // root (holds the canonical package.json + templates/).
 function run_init(target: string, source: string): void {
 	const manifest = JSON.parse(readFileSync(path.join(target, MANIFEST), 'utf8')) as {
-		name?: string
+		name?: unknown
 	}
 
-	init_overlay(target, source, manifest.name ?? '')
+	// A malformed package.json (non-string name) is treated like a missing name: fall back
+	// to '' so set_worker_name leaves the placeholder rather than crashing on `.replace`.
+	const project_name = typeof manifest.name === 'string' ? manifest.name : ''
+
+	init_overlay(target, source, project_name)
 }
 
 const cloudflare_init = { derive_worker_name, set_worker_name, init_overlay, run_init }
