@@ -17,4 +17,15 @@ export default [
 			'no-undef': 'off',
 		},
 	},
+	{
+		// scripts/ (the josh-app CLI) sits outside the SvelteKit tsconfig, so point ESLint
+		// at scripts/tsconfig.json for type-aware rules (mirrors game-kit). tsconfigRootDir
+		// is already set by the kit base config, so only the project path is overridden here.
+		files: ['scripts/**/*.ts'],
+		languageOptions: {
+			parserOptions: {
+				project: './scripts/tsconfig.json',
+			},
+		},
+	},
 ]
