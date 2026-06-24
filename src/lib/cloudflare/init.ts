@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { cloudflare_sync } from './sync.js'
+import { cloudflare_sync, type OverlayChange } from './sync.js'
 
 const MANIFEST = 'package.json'
 const WRANGLER_JSONC = 'wrangler.jsonc'
@@ -44,15 +44,18 @@ function set_worker_name(target: string, name: string): void {
 // app-kit's init-time overlay: the sync overlay plus the one init-only step — setting the
 // Worker name from the project name. `sync` never touches the name (the consumer owns it
 // after init), so auto-naming lives here in init rather than in the sync overlay.
-function init_overlay(target: string, source: string, project_name: string): void {
-	cloudflare_sync.apply_overlay(target, source)
+function init_overlay(target: string, source: string, project_name: string): Array<OverlayChange> {
+	const changes = cloudflare_sync.apply_overlay(target, source)
+
 	set_worker_name(target, derive_worker_name(project_name))
+
+	return changes
 }
 
 // Entry the `josh-app init` CLI calls: apply the init overlay to `target`, deriving the
 // Worker name from that project's own package.json#name. `source` is app-kit's package
 // root (holds the canonical package.json + templates/).
-function run_init(target: string, source: string): void {
+function run_init(target: string, source: string): Array<OverlayChange> {
 	const manifest = JSON.parse(readFileSync(path.join(target, MANIFEST), 'utf8')) as {
 		name?: unknown
 	}
@@ -61,7 +64,7 @@ function run_init(target: string, source: string): void {
 	// to '' so set_worker_name leaves the placeholder rather than crashing on `.replace`.
 	const project_name = typeof manifest.name === 'string' ? manifest.name : ''
 
-	init_overlay(target, source, project_name)
+	return init_overlay(target, source, project_name)
 }
 
 const cloudflare_init = { derive_worker_name, set_worker_name, init_overlay, run_init }
