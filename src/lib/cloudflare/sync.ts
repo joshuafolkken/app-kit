@@ -12,19 +12,27 @@ interface ConsumerPackage {
 	[key: string]: unknown
 }
 
-interface TemplateEntry {
+interface SeedEntry {
 	template: string
 	dest: string
 }
 
-// App-shell files refreshed on every overlay — framework config that should evolve
-// with app-kit, so a re-run always re-applies the canonical content.
-const SYNC_ENTRIES: ReadonlyArray<TemplateEntry> = [
+type OverlayAction = 'created' | 'skipped' | 'updated'
+
+interface OverlayChange {
+	file: string
+	action: OverlayAction
+}
+
+// Files app-kit seeds once, then the consumer owns. These are heavily customized
+// downstream — app.html (lang, analytics/consent, preconnect), app.d.ts (env types),
+// wrangler.jsonc (name, routes, bindings, compatibility_date) — so a re-run must never
+// clobber them. Seeded only when absent; an existing file is left untouched.
+const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: 'app.html', dest: 'src/app.html' },
 	{ template: 'app.d.ts', dest: 'src/app.d.ts' },
+	{ template: WRANGLER_JSONC, dest: WRANGLER_JSONC },
 ]
-
-const COMPATIBILITY_DATE_PATTERN = /"compatibility_date"\s*:\s*"([^"]*)"/u
 
 function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
 	const scripts = consumer.scripts ?? {}
@@ -42,75 +50,56 @@ function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: Managed
 	return did_change
 }
 
-function sync_scripts(target: string, source: string): void {
+// The Cloudflare lifecycle scripts are app-kit-owned: a merge that overwrites only the
+// managed keys, leaving the consumer's other scripts intact.
+function sync_scripts(target: string, source: string): OverlayChange {
 	const target_manifest = path.join(target, MANIFEST)
 	const consumer = JSON.parse(readFileSync(target_manifest, ENCODING)) as ConsumerPackage
 	const canonical = managed_scripts.read_canonical_scripts(path.join(source, MANIFEST))
 
-	if (!did_apply_managed_scripts(consumer, canonical)) return
+	if (!did_apply_managed_scripts(consumer, canonical)) return { file: MANIFEST, action: 'skipped' }
 
 	writeFileSync(target_manifest, `${JSON.stringify(consumer, undefined, '\t')}\n`)
+
+	return { file: MANIFEST, action: 'updated' }
 }
 
-function copy_template(entry: TemplateEntry, target: string, source: string): void {
+// Seed a file from its template only when absent; an existing file is the consumer's
+// and is left untouched, so customized content is never clobbered.
+function seed_file(entry: SeedEntry, target: string, source: string): OverlayChange {
 	const destination = path.join(target, entry.dest)
-	const content = readFileSync(path.join(source, TEMPLATES_DIR, entry.template), ENCODING)
 
-	// Skip the write when the content already matches, so a re-run touches nothing
-	// (no mtime churn that could retrigger a watcher / rebuild).
-	if (existsSync(destination) && readFileSync(destination, ENCODING) === content) return
+	if (existsSync(destination)) return { file: entry.dest, action: 'skipped' }
+
+	const content = readFileSync(path.join(source, TEMPLATES_DIR, entry.template), ENCODING)
 
 	mkdirSync(path.dirname(destination), { recursive: true })
 	writeFileSync(destination, content)
+
+	return { file: entry.dest, action: 'created' }
 }
 
-// Refresh only the `compatibility_date` from the template (the one framework-managed
-// field), leaving every consumer-owned field — name, routes, bindings — untouched.
-// Mirrors kit's merge_wrangler_jsonc; app-kit now owns this since kit goes
-// framework-agnostic.
-function merge_compatibility_date(existing: string, template: string): string {
-	const date = COMPATIBILITY_DATE_PATTERN.exec(template)?.[1]
-	if (date === undefined) return existing
-
-	return existing.replace(COMPATIBILITY_DATE_PATTERN, () => `"compatibility_date": "${date}"`)
+// Format an overlay result as an indented, auditable per-file summary.
+function summarize(changes: ReadonlyArray<OverlayChange>): string {
+	return changes.map((change) => `  ${change.action}: ${change.file}`).join('\n')
 }
 
-// wrangler.jsonc is seeded from the template when absent, then consumer-owned: a
-// re-sync only advances its compatibility_date, never clobbering name / routes.
-function sync_wrangler(target: string, source: string): void {
-	const destination = path.join(target, WRANGLER_JSONC)
-	const template = readFileSync(path.join(source, TEMPLATES_DIR, WRANGLER_JSONC), ENCODING)
+// Idempotent, non-destructive overlay: merge app-kit's Cloudflare lifecycle scripts into
+// package.json, and seed the app-shell + wrangler files when absent. Re-running an
+// already-overlaid project changes nothing. Touches only app-kit-owned files — never the
+// kit-owned eslint / svelte.config / tsconfig. `source` is app-kit's package root (holds
+// the canonical package.json + templates/); `target` is the consumer project.
+function apply_overlay(target: string, source: string): Array<OverlayChange> {
+	const changes = [sync_scripts(target, source)]
 
-	if (!existsSync(destination)) {
-		mkdirSync(path.dirname(destination), { recursive: true })
-		writeFileSync(destination, template)
-
-		return
+	for (const entry of SEED_ENTRIES) {
+		changes.push(seed_file(entry, target, source))
 	}
 
-	const existing = readFileSync(destination, ENCODING)
-	const merged = merge_compatibility_date(existing, template)
-	if (merged === existing) return
-
-	writeFileSync(destination, merged)
+	return changes
 }
 
-// Idempotent overlay: apply app-kit's SvelteKit + Cloudflare layer onto a project that
-// `josh sync` already manages — the canonical Cloudflare lifecycle scripts, the
-// refreshed app-shell templates, and a seeded wrangler.jsonc. Re-running makes no
-// change. Touches only app-kit-owned files — never the kit-owned eslint /
-// svelte.config / tsconfig. `source` is app-kit's package root (holds the canonical
-// package.json + templates/); `target` is the consumer project.
-function apply_overlay(target: string, source: string): void {
-	sync_scripts(target, source)
-
-	for (const entry of SYNC_ENTRIES) {
-		copy_template(entry, target, source)
-	}
-
-	sync_wrangler(target, source)
-}
-
-const cloudflare_sync = { apply_overlay }
+const cloudflare_sync = { apply_overlay, summarize }
 
 export { cloudflare_sync }
+export type { OverlayChange }

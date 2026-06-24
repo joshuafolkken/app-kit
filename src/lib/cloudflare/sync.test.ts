@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ const PACKAGE_JSON = 'package.json'
 const WRANGLER_JSONC = 'wrangler.jsonc'
 const WRANGLER_TEMPLATE = 'templates/wrangler.jsonc'
 const APP_HTML = 'src/app.html'
+const APP_D_TS = 'src/app.d.ts'
 const KIT_OWNED = 'eslint.config.js'
 const KIT_OWNED_CONTENT = '// kit-owned — must not be touched\n'
 const DEV_KEY = 'dev'
@@ -86,6 +87,30 @@ describe('cloudflare sync overlay', () => {
 	})
 })
 
+describe('cloudflare sync overlay — non-destructive & summary', () => {
+	it('does not overwrite an already-customized app.html / app.d.ts', () => {
+		const custom_html = '<!doctype html><html lang="%lang%"><!-- analytics --></html>\n'
+		const custom_dts = '// custom env types\nexport {}\n'
+
+		mkdirSync(fixture_path('src'), { recursive: true })
+		writeFileSync(fixture_path(APP_HTML), custom_html)
+		writeFileSync(fixture_path(APP_D_TS), custom_dts)
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(read_fixture(APP_HTML)).toBe(custom_html)
+		expect(read_fixture(APP_D_TS)).toBe(custom_dts)
+	})
+
+	it('reports created files when absent and skipped on a re-run', () => {
+		const first = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+		const second = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(first.find((change) => change.file === APP_HTML)?.action).toBe('created')
+		expect(second.find((change) => change.file === APP_HTML)?.action).toBe('skipped')
+		expect(cloudflare_sync.summarize(first)).toContain('created: src/app.html')
+	})
+})
+
 describe('cloudflare sync overlay — wrangler.jsonc', () => {
 	it('does not re-seed a wrangler.jsonc the consumer already customized', () => {
 		const custom = '{ "name": "my-worker" }\n'
@@ -96,22 +121,13 @@ describe('cloudflare sync overlay — wrangler.jsonc', () => {
 		expect(read_fixture(WRANGLER_JSONC)).toBe(custom)
 	})
 
-	it('refreshes an existing wrangler.jsonc compatibility_date but keeps its other fields', () => {
-		const old_date = '2020-01-01'
-		const worker = 'kept-worker'
-		const template_date = /"compatibility_date":\s*"([^"]+)"/u.exec(
-			readFileSync(WRANGLER_TEMPLATE, ENCODING),
-		)?.[1]
-		const existing = `{\n\t"name": "${worker}",\n\t"compatibility_date": "${old_date}"\n}\n`
+	it('preserves an existing wrangler.jsonc compatibility_date — never advances it', () => {
+		const existing = '{\n\t"name": "kept-worker",\n\t"compatibility_date": "2020-01-01"\n}\n'
 
 		writeFileSync(fixture_path(WRANGLER_JSONC), existing)
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 
-		const result = read_fixture(WRANGLER_JSONC)
-
-		expect(result).toContain(worker)
-		expect(result).toContain(template_date)
-		expect(result).not.toContain(old_date)
+		expect(read_fixture(WRANGLER_JSONC)).toBe(existing)
 	})
 
 	it('leaves the name placeholder — sync never derives the Worker name (init does)', () => {
