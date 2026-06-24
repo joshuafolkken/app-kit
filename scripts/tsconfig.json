@@ -1,0 +1,10 @@
+{
+	"extends": "../tsconfig.json",
+	// app-kit's root tsconfig uses module/moduleResolution NodeNext, under which
+	// @types/node is not auto-included for this standalone scripts program (unlike
+	// kit/game-kit's bundler base). List it explicitly so node:* + process resolve.
+	"compilerOptions": {
+		"types": ["node"]
+	},
+	"include": ["**/*.ts"]
+}
