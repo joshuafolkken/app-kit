@@ -19,6 +19,10 @@ const DEV_KEY = 'dev'
 const DEV_VALUE = 'vite dev'
 const FIXTURE_NAME = 'fixture'
 const PLACEHOLDER_MARKER = 'your-project-name'
+const CSPELL_FILE = 'cspell.config.yaml'
+const TSCONFIG_FILE = 'tsconfig.json'
+const KIT_CSPELL = '@joshuafolkken/kit/cspell/sveltekit'
+const APP_KIT_CSPELL = '@joshuafolkken/app-kit/cspell/sveltekit'
 
 // Holder avoids reassigning a top-level binding from inside the lifecycle hooks.
 const state = { directory: '' }
@@ -108,6 +112,27 @@ describe('cloudflare sync overlay — non-destructive & summary', () => {
 		expect(first.find((change) => change.file === APP_HTML)?.action).toBe('created')
 		expect(second.find((change) => change.file === APP_HTML)?.action).toBe('skipped')
 		expect(cloudflare_sync.summarize(first)).toContain('created: src/app.html')
+	})
+})
+
+describe('cloudflare sync overlay — cspell / tsconfig SvelteKit lines', () => {
+	it('reconciles the kit sveltekit import to app-kit when the consumer config exists', () => {
+		const cspell = `version: '0.2'\nimport:\n  - '${KIT_CSPELL}'\nwords: []\n`
+
+		writeFileSync(fixture_path(CSPELL_FILE), cspell)
+
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(changes.find((change) => change.file === CSPELL_FILE)?.action).toBe('updated')
+		expect(read_fixture(CSPELL_FILE)).toContain(APP_KIT_CSPELL)
+		expect(read_fixture(CSPELL_FILE)).not.toContain(KIT_CSPELL)
+	})
+
+	it('skips the cspell / tsconfig patch when the consumer config files are absent', () => {
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(changes.find((change) => change.file === CSPELL_FILE)?.action).toBe('skipped')
+		expect(changes.find((change) => change.file === TSCONFIG_FILE)?.action).toBe('skipped')
 	})
 })
 
