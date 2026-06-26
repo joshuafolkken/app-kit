@@ -217,8 +217,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.8.4)
       '@joshuafolkken/kit':
-        specifier: 0.275.0
-        version: 0.275.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.0))(typescript@6.0.3)
+        specifier: 0.279.0
+        version: 0.279.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.0))(typescript@6.0.3)
       '@playwright/test':
         specifier: ^1.61.0
         version: 1.61.0
@@ -1058,8 +1058,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@0.275.0':
-    resolution: {integrity: sha512-11V9o68PvTZ8FuyN0yvrOuUFbtVwT51DqRqa1yN6+NHlsXqfWwYlyde9glZqxTVeF6MAf9vcNQr65EkkZoOg5Q==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.275.0/fb79b5776787db40e45a39995c8b31eeb118044c}
+  '@joshuafolkken/kit@0.279.0':
+    resolution: {integrity: sha512-PfChWBlgRyg6eyQUh4UmYW8oW9mvF0qaQ5VA6QBY6ep3A7/6iwdQSgQEdwD4TNzVxSKP+EaJqEUAgp3YSIPhpw==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/0.279.0/c0e1824ff625f4dd060ac75f13a34aecfd8608b8}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -1982,8 +1982,8 @@ packages:
       svelte:
         optional: true
 
-  eslint-plugin-unicorn@68.0.0:
-    resolution: {integrity: sha512-mHYWvX948Q4H3bGc39bsNMxD/leOuNI+Iws9NVsoSz5VA7EGP86wnz7mZ/SPSvRhefT8L4hd8DHfDuGC+lIoCQ==}
+  eslint-plugin-unicorn@69.0.0:
+    resolution: {integrity: sha512-ZN/KtHr9hQ6AOByANSNJpsDbo/+Nn+EyQ6blK4w+dcmS/xpYkqLLfrUc+NA/wOK6vF5uEUvhn8my5B/3sruB9g==}
     engines: {node: '>=22'}
     peerDependencies:
       eslint: '>=10.4'
@@ -3703,7 +3703,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@joshuafolkken/kit@0.275.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.0))(typescript@6.0.3)':
+  '@joshuafolkken/kit@0.279.0(@playwright/test@1.61.0)(@typescript-eslint/utils@8.62.0(eslint@10.5.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.0))(typescript@6.0.3)':
     dependencies:
       '@eslint/compat': 2.1.0(eslint@10.5.0(jiti@2.7.0))
       '@eslint/js': 10.0.1(eslint@10.5.0(jiti@2.7.0))
@@ -3715,7 +3715,7 @@ snapshots:
       eslint-plugin-promise: 7.3.0(eslint@10.5.0(jiti@2.7.0))
       eslint-plugin-sonarjs: 4.1.0(eslint@10.5.0(jiti@2.7.0))
       eslint-plugin-svelte: 3.19.0(eslint@10.5.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.0))
-      eslint-plugin-unicorn: 68.0.0(eslint@10.5.0(jiti@2.7.0))
+      eslint-plugin-unicorn: 69.0.0(eslint@10.5.0(jiti@2.7.0))
       execa: 9.6.1
       globals: 17.7.0
       js-yaml: 5.1.0
@@ -4633,7 +4633,7 @@ snapshots:
     transitivePeerDependencies:
       - ts-node
 
-  eslint-plugin-unicorn@68.0.0(eslint@10.5.0(jiti@2.7.0)):
+  eslint-plugin-unicorn@69.0.0(eslint@10.5.0(jiti@2.7.0)):
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
       '@eslint-community/eslint-utils': 4.9.1(eslint@10.5.0(jiti@2.7.0))
