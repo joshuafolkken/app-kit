@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { config_patch } from './config-patch.js'
 import { managed_scripts, type ManagedScripts } from './managed-scripts.js'
 
 const ENCODING = 'utf8'
@@ -85,16 +86,19 @@ function summarize(changes: ReadonlyArray<OverlayChange>): string {
 }
 
 // Idempotent, non-destructive overlay: merge app-kit's Cloudflare lifecycle scripts into
-// package.json, and seed the app-shell + wrangler files when absent. Re-running an
-// already-overlaid project changes nothing. Touches only app-kit-owned files — never the
-// kit-owned eslint / svelte.config / tsconfig. `source` is app-kit's package root (holds
-// the canonical package.json + templates/); `target` is the consumer project.
+// package.json, seed the app-shell + wrangler files when absent, and reconcile the SvelteKit
+// lines app-kit owns in the layered cspell / tsconfig configs. Re-running an already-overlaid
+// project changes nothing. Touches only app-kit-owned files and the app-kit-owned `*/sveltekit`
+// config lines — never kit's base lines. `source` is app-kit's package root (holds the canonical
+// package.json + templates/); `target` is the consumer project.
 function apply_overlay(target: string, source: string): Array<OverlayChange> {
 	const changes = [sync_scripts(target, source)]
 
 	for (const entry of SEED_ENTRIES) {
 		changes.push(seed_file(entry, target, source))
 	}
+
+	changes.push(...config_patch.patch_configs(target))
 
 	return changes
 }

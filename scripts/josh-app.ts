@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cloudflare_init } from '#cloudflare/init.js'
+import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_version } from '#version/version.js'
 
@@ -19,13 +20,19 @@ const EXIT_USAGE = 1
 // process.argv[0] is node, [1] is this script, [2] is the first user argument.
 const COMMAND_ARG_INDEX = 2
 
+// Orchestrate kit's framework-agnostic base (`josh init`) first, then apply the app-kit overlay —
+// one command delivers base + overlay without app-kit duplicating kit's managed file list.
 function run_init(): void {
+	cloudflare_orchestrate.run_base_init(process.cwd())
 	const changes = cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
 
 	console.info(`${cloudflare_sync.summarize(changes)}\n${INIT_MESSAGE}`)
 }
 
+// Orchestrate kit's base (`josh sync`) first, then apply the app-kit overlay (scripts, seeds, and
+// the SvelteKit-line reconciliation in cspell / tsconfig) — base + overlay in one command.
 function run_sync(): void {
+	cloudflare_orchestrate.run_base_sync(process.cwd())
 	const changes = cloudflare_sync.apply_overlay(process.cwd(), PACKAGE_ROOT)
 
 	console.info(`${cloudflare_sync.summarize(changes)}\n${SYNC_MESSAGE}`)
