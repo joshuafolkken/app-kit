@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.18.0",
+	"version": "0.19.0",
 	"private": false,
 	"packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
 	"publishConfig": {
@@ -54,7 +54,7 @@
 		"build": "vite build && pnpm run prepack",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
 		"prepare": "pnpm prepare:gen && pnpm prepare:sync && pnpm prepare:lefthook && pnpm prepare:gh-packages",
-		"prepare:gen": "[ ! -f wrangler.jsonc ] || pnpm gen || true",
+		"prepare:gen": "[ ! -f wrangler.jsonc ] || pnpm gen",
 		"prepare:sync": "svelte-kit sync || echo ''",
 		"prepare:lefthook": "[ -n \"$CI\" ] || ! command -v lefthook >/dev/null 2>&1 || lefthook install",
 		"prepare:gh-packages": "[ -n \"$CI\" ] || ! command -v tsx >/dev/null 2>&1 || tsx node_modules/@joshuafolkken/kit/scripts/fix-gh-packages.ts",

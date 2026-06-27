@@ -50,6 +50,17 @@ describe('Cloudflare managed-scripts single source', () => {
 			expect(canonical[key]).toBeTruthy()
 		}
 	})
+
+	// #56: prepare:gen is the only automatic `wrangler types` invocation and
+	// worker-configuration.d.ts is gitignored, so a swallowed gen failure ships a
+	// misleading `Cannot find name 'Env'` from svelte-check instead of the real cause.
+	// Guard the fail-loud form so a `|| true` is never re-introduced (here or in a consumer).
+	it('prepare:gen is fail-loud — it never swallows wrangler-types failures with `|| true`', () => {
+		const prepare_gen = managed_scripts.read_canonical_scripts(MANIFEST)['prepare:gen']
+
+		expect(prepare_gen).toBe('[ ! -f wrangler.jsonc ] || pnpm gen')
+		expect(prepare_gen).not.toContain('|| true')
+	})
 })
 
 // The published app-shell templates must stay byte-identical to the files app-kit
