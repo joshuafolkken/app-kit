@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
@@ -17,6 +18,21 @@ const APP_KIT_TSCONFIG = '@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const CONSUMER_WORD = 'middleware'
 const CONSUMER_EXCLUDE = 'src/demo/**'
 
+const IGNORE_FIELD = 'ignorePaths'
+const SVELTE_KIT_GLOB = '.svelte-kit/**'
+const WRANGLER_GLOB = '.wrangler/**'
+const CONSUMER_IGNORE = 'coverage/**'
+
+// The real app-kit cspell preset and the cspell binary, resolved from the repo root (vitest cwd).
+const PRESET_PATH = path.join(process.cwd(), 'cspell', 'sveltekit.yaml')
+const CSPELL_BIN = path.join(process.cwd(), 'node_modules', '.bin', 'cspell')
+// Generated dirs the preset must ignore through the import, plus a control file that must stay
+// flagged, proving cspell actually ran and the misspelling is otherwise detected.
+const GENERATED_DIRS: ReadonlyArray<string> = ['.svelte-kit', '.fast-check', '.wrangler']
+const CONTROL_FILE = 'control.txt'
+// cspell:ignore zzqwxmisspelledtoken -- intentional gibberish that must trip cspell in the probe
+const MISSPELLED_TOKEN = 'zzqwxmisspelledtoken'
+
 // A consumer cspell.config.yaml carrying both kit's base import and kit's sveltekit import, a
 // custom word, and an empty ignorePaths — the state `josh sync` leaves behind.
 const CSPELL_WITH_KIT = `version: '0.2'
@@ -26,6 +42,18 @@ import:
 words:
   - ${CONSUMER_WORD}
 ignorePaths: []
+`
+
+// A consumer cspell.config.yaml an earlier sync already migrated to the app-kit import but that
+// still carries the redundant cloned ignorePaths plus the consumer's own entry.
+const CSPELL_WITH_REDUNDANT_IGNORES = `version: '0.2'
+import:
+  - '${KIT_CSPELL_BASE}'
+  - '${APP_KIT_CSPELL}'
+ignorePaths:
+  - '${SVELTE_KIT_GLOB}'
+  - '${WRANGLER_GLOB}'
+  - '${CONSUMER_IGNORE}'
 `
 
 // A consumer tsconfig.json extending kit's sveltekit preset plus the generated SvelteKit config,
@@ -45,6 +73,34 @@ function fixture_path(relative_path: string): string {
 
 function read_fixture(relative_path: string): string {
 	return readFileSync(fixture_path(relative_path), ENCODING)
+}
+
+// Seed a consumer whose cspell.config.yaml only imports the real app-kit preset (empty local
+// ignorePaths) and drop a misspelled file into every generated dir plus a control file at the root.
+function seed_import_only_consumer(): void {
+	const config = `version: '0.2'\nimport:\n  - '${PRESET_PATH}'\nwords: []\nignorePaths: []\n`
+
+	writeFileSync(fixture_path(CSPELL_FILE), config)
+	writeFileSync(fixture_path(CONTROL_FILE), `${MISSPELLED_TOKEN}\n`)
+
+	for (const generated_directory of GENERATED_DIRS) {
+		mkdirSync(fixture_path(generated_directory), { recursive: true })
+		writeFileSync(fixture_path(path.join(generated_directory, 'gen.txt')), `${MISSPELLED_TOKEN}\n`)
+	}
+}
+
+// Run cspell over the fixture and return its combined output (cspell exits non-zero when it finds
+// issues, so the issue listing arrives via the thrown error's stdout).
+function run_cspell_report(): string {
+	const args = ['lint', '--no-progress', '--dot', '--config', fixture_path(CSPELL_FILE), '**/*.txt']
+
+	try {
+		return execFileSync(CSPELL_BIN, args, { cwd: state.directory, encoding: ENCODING })
+	} catch (error) {
+		const result = error as { stdout?: string; stderr?: string }
+
+		return `${result.stdout ?? ''}${result.stderr ?? ''}`
+	}
 }
 
 beforeEach(() => {
@@ -84,17 +140,51 @@ describe('config patch — cspell.config.yaml', () => {
 		expect(imports).not.toContain(KIT_CSPELL)
 	})
 
-	it('ensures the SvelteKit + Cloudflare ignorePaths', () => {
-		const patched = config_patch.patch_cspell_content(CSPELL_WITH_KIT)
-
-		expect(patched).toContain('.svelte-kit/**')
-		expect(patched).toContain('.wrangler/**')
-	})
-
 	it('is idempotent — a second cspell pass returns identical content', () => {
 		const once = config_patch.patch_cspell_content(CSPELL_WITH_KIT)
 
 		expect(config_patch.patch_cspell_content(once)).toBe(once)
+	})
+})
+
+describe('config patch — cspell ignorePaths single-sourcing', () => {
+	it('does not clone ignorePaths locally — the preset import single-sources them', () => {
+		const ignore_paths = config_merge.read_yaml_list_field(
+			config_patch.patch_cspell_content(CSPELL_WITH_KIT),
+			IGNORE_FIELD,
+		)
+
+		expect(ignore_paths).not.toContain(SVELTE_KIT_GLOB)
+		expect(ignore_paths).not.toContain(WRANGLER_GLOB)
+	})
+
+	it('strips redundant cloned ignorePaths from a prior sync, keeping the consumer entry', () => {
+		const ignore_paths = config_merge.read_yaml_list_field(
+			config_patch.patch_cspell_content(CSPELL_WITH_REDUNDANT_IGNORES),
+			IGNORE_FIELD,
+		)
+
+		expect(ignore_paths).toStrictEqual([CONSUMER_IGNORE])
+	})
+
+	it('converges after stripping redundant ignorePaths — a second pass is identical', () => {
+		const once = config_patch.patch_cspell_content(CSPELL_WITH_REDUNDANT_IGNORES)
+
+		expect(config_patch.patch_cspell_content(once)).toBe(once)
+	})
+})
+
+describe('config patch — cspell preset import propagation', () => {
+	it('ignores generated dirs through the import alone, still flagging the control file', () => {
+		seed_import_only_consumer()
+
+		const report = run_cspell_report()
+
+		expect(report).toContain(CONTROL_FILE)
+
+		for (const generated_directory of GENERATED_DIRS) {
+			expect(report).not.toContain(generated_directory)
+		}
 	})
 })
 
