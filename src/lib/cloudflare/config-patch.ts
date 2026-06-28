@@ -22,9 +22,11 @@ const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
 const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
 
-// SvelteKit + Cloudflare build artifacts a consumer should never spell-check. Ensured at the
-// consumer level because cspell does not reliably inherit ignorePaths from an imported config.
-const CSPELL_IGNORE_PATHS: ReadonlyArray<string> = ['.svelte-kit/**', '.wrangler/**']
+// SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
+// now single-sources these (via position-independent `**/<dir>/**` globs that propagate through the
+// import), so sync no longer clones them into the consumer's local ignorePaths and instead strips
+// any redundant copies an earlier sync left behind — converging every consumer on the import.
+const CSPELL_REDUNDANT_IGNORE_PATHS: ReadonlyArray<string> = ['.svelte-kit/**', '.wrangler/**']
 
 // cspell places the `import` block right after `version`; emit double-quoted scalars to match the
 // VSCode cspell extension (and kit's own sync output), avoiding quote churn.
@@ -42,8 +44,7 @@ function patch_cspell_content(content: string): string {
 
 	return config_merge.patch_yaml_list_field(with_import, {
 		field: CSPELL_IGNORE_FIELD,
-		ensure: CSPELL_IGNORE_PATHS,
-		position: 'end',
+		remove: CSPELL_REDUNDANT_IGNORE_PATHS,
 		quote_style: CSPELL_QUOTE_STYLE,
 	})
 }

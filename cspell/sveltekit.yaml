@@ -9,6 +9,9 @@ words:
   - Stylesheet
   - sveltekit
 ignorePaths:
-  - '.svelte-kit/**'
-  - '.fast-check/**'
-  - '.wrangler/**'
+  # Position-independent (**/) globs so the ignore propagates through `import:` to consumers —
+  # cspell resolves an imported config's relative globs against the preset's own directory, so an
+  # anchored `.svelte-kit/**` would only match inside node_modules, never the consumer root.
+  - '**/.svelte-kit/**'
+  - '**/.fast-check/**'
+  - '**/.wrangler/**'
