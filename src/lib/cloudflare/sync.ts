@@ -87,7 +87,7 @@ function summarize(changes: ReadonlyArray<OverlayChange>): string {
 
 // Idempotent, non-destructive overlay: merge app-kit's Cloudflare lifecycle scripts into
 // package.json, seed the app-shell + wrangler files when absent, and reconcile the SvelteKit
-// lines app-kit owns in the layered cspell / tsconfig configs. Re-running an already-overlaid
+// lines app-kit owns in the layered cspell / tsconfig / lefthook configs. Re-running an already-overlaid
 // project changes nothing. Touches only app-kit-owned files and the app-kit-owned `*/sveltekit`
 // config lines — never kit's base lines. `source` is app-kit's package root (holds the canonical
 // package.json + templates/); `target` is the consumer project.
