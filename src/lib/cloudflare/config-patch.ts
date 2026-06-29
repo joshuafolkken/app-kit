@@ -6,10 +6,12 @@ import type { OverlayChange } from './sync.js'
 const ENCODING = 'utf8'
 const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
+const LEFTHOOK_FILE = 'lefthook.yml'
 
 const CSPELL_IMPORT_FIELD = 'import'
 const CSPELL_IGNORE_FIELD = 'ignorePaths'
 const TSCONFIG_EXTENDS_FIELD = 'extends'
+const LEFTHOOK_EXTENDS_FIELD = 'extends'
 
 // The layered-ownership boundary: kit owns the framework-agnostic base line, app-kit owns the
 // SvelteKit line. The patcher ensures app-kit's line and removes any kit-emitted SvelteKit line,
@@ -21,6 +23,13 @@ const APP_KIT_CSPELL_IMPORT = '@joshuafolkken/app-kit/cspell/sveltekit'
 const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
 const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
+// lefthook references presets as raw root-relative node_modules paths (not package-export
+// subpaths), so the swap mirrors the kit→app-kit extends migration. `front` matches the
+// `extends`-first layout `josh init` emits; the regex anchors `sveltekit` to a full path
+// segment so an unrelated `sveltekit-*` entry is left untouched.
+const APP_KIT_LEFTHOOK_EXTENDS = 'node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml'
+const KIT_LEFTHOOK_SVELTEKIT = /@joshuafolkken\/kit\/lefthook\/sveltekit(?![\w-])/u
+const LEFTHOOK_EXTENDS_POSITION = 'front' as const
 
 // SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
 // now single-sources these (via position-independent `**/<dir>/**` globs that propagate through the
@@ -57,6 +66,15 @@ function patch_tsconfig_content(content: string): string {
 	})
 }
 
+function patch_lefthook_content(content: string): string {
+	return config_merge.patch_yaml_list_field(content, {
+		field: LEFTHOOK_EXTENDS_FIELD,
+		ensure: [APP_KIT_LEFTHOOK_EXTENDS],
+		remove: [KIT_LEFTHOOK_SVELTEKIT],
+		position: LEFTHOOK_EXTENDS_POSITION,
+	})
+}
+
 type ContentPatcher = (content: string) => string
 
 // Patch one already-existing config file in place, preserving every untouched entry. A file the
@@ -76,14 +94,21 @@ function patch_file(target: string, file: string, patch: ContentPatcher): Overla
 	return { file, action: 'updated' }
 }
 
-// Reconcile the SvelteKit-specific lines app-kit owns in the layered cspell / tsconfig configs.
+// Reconcile the SvelteKit-specific lines app-kit owns in the layered cspell / tsconfig / lefthook
+// configs.
 function patch_configs(target: string): Array<OverlayChange> {
 	return [
 		patch_file(target, CSPELL_FILE, patch_cspell_content),
 		patch_file(target, TSCONFIG_FILE, patch_tsconfig_content),
+		patch_file(target, LEFTHOOK_FILE, patch_lefthook_content),
 	]
 }
 
-const config_patch = { patch_cspell_content, patch_tsconfig_content, patch_configs }
+const config_patch = {
+	patch_cspell_content,
+	patch_tsconfig_content,
+	patch_lefthook_content,
+	patch_configs,
+}
 
 export { config_patch }

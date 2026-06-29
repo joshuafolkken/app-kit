@@ -1,0 +1,50 @@
+# app-kit's SvelteKit lefthook preset: kit's framework-agnostic base.yml plus the
+# SvelteKit-only delta. Owned by app-kit (kit base + delta, no fork). Consumers extend this
+# via `node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml`.
+#
+# Two non-obvious lefthook facts (verified against lefthook 1.10.x via `lefthook dump`) shape
+# this file:
+#   1. Nested `extends` paths resolve from the CONSUMER git root, not from this file — so base
+#      is referenced by its root-relative node_modules path, never `./base.yml` (which silently
+#      fails to merge and drops every base hook). See joshuafolkken/kit#629.
+#   2. On a command-name collision the EXTENDED file (base) wins over the extender. So the
+#      SvelteKit commands use distinct `*-svelte` names: they ADD svelte coverage ALONGSIDE
+#      base's commands rather than trying (and failing) to override them.
+#
+# Globs: base's `cspell`/`prettier`/`eslint` already cover every non-svelte type with the SAME
+# tool, so the `*-svelte` siblings only need `*.svelte` — base + sibling union = full coverage.
+# `type-check` is the exception: base runs `tsc --noEmit` (which cannot see `.svelte` files),
+# whereas SvelteKit needs `svelte-check`. So `type-check-svelte` keeps the original preset's wide
+# trigger (`*.{svelte,ts,js,mjs,cjs}`) so `svelte-check` still runs when a `.ts`/`.js` change
+# breaks a `.svelte` consumer — base's `tsc` co-runs on those (redundant, and a brief
+# `.svelte-kit/tsconfig.json` sync/read overlap is possible). Removing base's `tsc` for SvelteKit
+# consumers needs the kit-level fix tracked in joshuafolkken/kit#629.
+extends:
+  - node_modules/@joshuafolkken/kit/lefthook/base.yml
+
+pre-commit:
+  commands:
+    cspell-svelte:
+      glob: '*.svelte'
+      run: pnpm exec cspell lint --no-must-find-files --no-progress {staged_files}
+
+    prettier-svelte:
+      glob: '*.svelte'
+      run: pnpm exec prettier --check --ignore-unknown {staged_files}
+
+    eslint-svelte:
+      glob: '*.svelte'
+      run: pnpm exec eslint --quiet --cache --cache-strategy content {staged_files}
+
+    type-check-svelte:
+      glob: '*.{svelte,ts,js,mjs,cjs}'
+      run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig ./tsconfig.json
+
+pre-push:
+  commands:
+    test-e2e:
+      glob: '{*.{svelte,ts,js,mjs,cjs},package.json}'
+      env:
+        CI: '1'
+        PLAYWRIGHT_HTML_OPEN: never
+      run: pnpm josh test:e2e

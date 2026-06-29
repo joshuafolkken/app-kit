@@ -9,12 +9,18 @@ import { config_patch } from './config-patch.js'
 const ENCODING = 'utf8'
 const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
+const LEFTHOOK_FILE = 'lefthook.yml'
 
 const KIT_CSPELL = '@joshuafolkken/kit/cspell/sveltekit'
 const KIT_CSPELL_BASE = '@joshuafolkken/kit/cspell'
 const APP_KIT_CSPELL = '@joshuafolkken/app-kit/cspell/sveltekit'
 const KIT_TSCONFIG = '@joshuafolkken/kit/tsconfig/sveltekit.jsonc'
 const APP_KIT_TSCONFIG = '@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
+const KIT_LEFTHOOK = 'node_modules/@joshuafolkken/kit/lefthook/sveltekit.yml'
+const APP_KIT_LEFTHOOK = 'node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml'
+const CONSUMER_LEFTHOOK_EXTEND = 'lefthook/local.yml'
+const CONSUMER_LEFTHOOK_COMMAND = 'consumer-hook'
+const EXTENDS_FIELD = 'extends'
 const CONSUMER_WORD = 'middleware'
 const CONSUMER_EXCLUDE = 'src/demo/**'
 
@@ -63,6 +69,18 @@ const TSCONFIG_WITH_KIT = `{
 	"compilerOptions": { "module": "NodeNext" },
 	"exclude": ["${CONSUMER_EXCLUDE}"]
 }
+`
+
+// A consumer lefthook.yml extending kit's sveltekit preset plus a consumer-local extends and a
+// consumer-owned hook block — the multi-key state `josh sync` leaves behind before the
+// kit→app-kit migration. The block proves the patch touches only the `extends` list.
+const LEFTHOOK_WITH_KIT = `extends:
+  - ${KIT_LEFTHOOK}
+  - ${CONSUMER_LEFTHOOK_EXTEND}
+pre-commit:
+  commands:
+    ${CONSUMER_LEFTHOOK_COMMAND}:
+      run: echo consumer
 `
 
 const state = { directory: '' }
@@ -205,17 +223,60 @@ describe('config patch — tsconfig.json', () => {
 	})
 })
 
+describe('config patch — lefthook.yml', () => {
+	it('replaces the kit sveltekit extends with app-kit and preserves consumer entries', () => {
+		const patched = config_patch.patch_lefthook_content(LEFTHOOK_WITH_KIT)
+		const extends_list = config_merge.read_yaml_list_field(patched, EXTENDS_FIELD)
+
+		expect(extends_list).toContain(APP_KIT_LEFTHOOK)
+		expect(extends_list).not.toContain(KIT_LEFTHOOK)
+		expect(extends_list).toContain(CONSUMER_LEFTHOOK_EXTEND)
+		// the consumer's own hook block survives — only the extends list is rewritten
+		expect(patched).toContain(CONSUMER_LEFTHOOK_COMMAND)
+	})
+
+	it('ensures the app-kit extends when no kit sveltekit line is present', () => {
+		const without_kit = `extends:\n  - ${CONSUMER_LEFTHOOK_EXTEND}\n`
+
+		expect(config_patch.patch_lefthook_content(without_kit)).toContain(APP_KIT_LEFTHOOK)
+	})
+
+	it('drops only the exact sveltekit extend, keeping a sveltekit-prefixed sibling', () => {
+		// a sibling preset filename whose segment starts with `sveltekit-`; the `(?![\w-])` anchor
+		// must treat it as a distinct segment and leave it untouched
+		const sibling = 'node_modules/@joshuafolkken/kit/lefthook/sveltekit-extra.yml'
+		const with_sibling = `extends:\n  - ${KIT_LEFTHOOK}\n  - ${sibling}\n`
+
+		const extends_list = config_merge.read_yaml_list_field(
+			config_patch.patch_lefthook_content(with_sibling),
+			EXTENDS_FIELD,
+		)
+
+		expect(extends_list).toContain(sibling)
+		expect(extends_list).not.toContain(KIT_LEFTHOOK)
+	})
+
+	it('is idempotent — a second lefthook pass returns identical content', () => {
+		const once = config_patch.patch_lefthook_content(LEFTHOOK_WITH_KIT)
+
+		expect(config_patch.patch_lefthook_content(once)).toBe(once)
+	})
+})
+
 describe('config patch — patch_configs file handling', () => {
 	it('updates existing config files and reports the change', () => {
 		writeFileSync(fixture_path(CSPELL_FILE), CSPELL_WITH_KIT)
 		writeFileSync(fixture_path(TSCONFIG_FILE), TSCONFIG_WITH_KIT)
+		writeFileSync(fixture_path(LEFTHOOK_FILE), LEFTHOOK_WITH_KIT)
 
 		const changes = config_patch.patch_configs(state.directory)
 
 		expect(changes.find((change) => change.file === CSPELL_FILE)?.action).toBe('updated')
 		expect(changes.find((change) => change.file === TSCONFIG_FILE)?.action).toBe('updated')
+		expect(changes.find((change) => change.file === LEFTHOOK_FILE)?.action).toBe('updated')
 		expect(read_fixture(CSPELL_FILE)).toContain(APP_KIT_CSPELL)
 		expect(read_fixture(TSCONFIG_FILE)).toContain(APP_KIT_TSCONFIG)
+		expect(read_fixture(LEFTHOOK_FILE)).toContain(APP_KIT_LEFTHOOK)
 	})
 
 	it('skips absent config files — the orchestrated base seeds them first', () => {
