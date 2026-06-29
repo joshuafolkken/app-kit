@@ -1,2 +1,5 @@
+# app-kit consumes its own SvelteKit preset. It references the in-repo file directly (there is
+# no `node_modules/@joshuafolkken/app-kit` self-symlink); consumers instead extend
+# `node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml`, which `josh-app sync` patches in.
 extends:
-  - node_modules/@joshuafolkken/kit/lefthook/sveltekit.yml
+  - lefthook/sveltekit.yml
