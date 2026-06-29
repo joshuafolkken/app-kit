@@ -95,8 +95,10 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 	it('runs svelte-kit sync before svelte-check so a clean checkout has generated types', () => {
 		const source = read_lefthook_preset()
 
+		// anchored to type-check-svelte's OWN run line (no cross-command [\s\S]*), so gutting this
+		// command's run can't pass by the string surviving under a different command
 		expect(source).toMatch(
-			/type-check-svelte:[\s\S]*svelte-kit sync && pnpm exec svelte-check --tsconfig \.\/tsconfig\.json/u,
+			/type-check-svelte:\n\s+glob:[^\n]*\n\s+run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig \.\/tsconfig\.json/u,
 		)
 	})
 
