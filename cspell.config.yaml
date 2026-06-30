@@ -3,4 +3,5 @@ import:
   - './cspell/sveltekit.yaml'
 words:
   - jgame
+  - sonarlint
 ignorePaths: []
