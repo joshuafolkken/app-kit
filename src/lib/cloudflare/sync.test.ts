@@ -23,6 +23,8 @@ const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
 const KIT_CSPELL = '@joshuafolkken/kit/cspell/sveltekit'
 const APP_KIT_CSPELL = '@joshuafolkken/app-kit/cspell/sveltekit'
+const VSCODE_SETTINGS = '.vscode/settings.json'
+const VSCODE_TEMPLATE = 'templates/settings.sveltekit.json'
 
 // Holder avoids reassigning a top-level binding from inside the lifecycle hooks.
 const state = { directory: '' }
@@ -63,6 +65,7 @@ describe('cloudflare sync overlay', () => {
 
 		expect(read_fixture(APP_HTML)).toBe(readFileSync('templates/app.html', ENCODING))
 		expect(read_fixture(WRANGLER_JSONC)).toBe(readFileSync(WRANGLER_TEMPLATE, ENCODING))
+		expect(read_fixture(VSCODE_SETTINGS)).toBe(readFileSync(VSCODE_TEMPLATE, ENCODING))
 	})
 
 	it('preserves the consumer non-managed scripts and kit-owned files', () => {
@@ -162,5 +165,42 @@ describe('cloudflare sync overlay — wrangler.jsonc', () => {
 
 		expect(wrangler).toContain(PLACEHOLDER_MARKER)
 		expect(wrangler).not.toContain(`"name": "${FIXTURE_NAME}"`)
+	})
+})
+
+function vscode_template(): Record<string, unknown> {
+	return JSON.parse(readFileSync(VSCODE_TEMPLATE, ENCODING)) as Record<string, unknown>
+}
+
+describe('cloudflare sync overlay — .vscode SvelteKit settings (#67)', () => {
+	it('seeds .vscode/settings.json from the template when absent', () => {
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(changes.find((change) => change.file === VSCODE_SETTINGS)?.action).toBe('created')
+		expect(read_fixture(VSCODE_SETTINGS)).toBe(readFileSync(VSCODE_TEMPLATE, ENCODING))
+	})
+
+	it('does not overwrite a consumer-customized .vscode/settings.json', () => {
+		const custom = '{ "editor.formatOnSave": false }\n'
+
+		mkdirSync(fixture_path('.vscode'), { recursive: true })
+		writeFileSync(fixture_path(VSCODE_SETTINGS), custom)
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(changes.find((change) => change.file === VSCODE_SETTINGS)?.action).toBe('skipped')
+		expect(read_fixture(VSCODE_SETTINGS)).toBe(custom)
+	})
+
+	it('ships the svelte editor delta and excludes project-specific / author-only keys', () => {
+		const settings = vscode_template()
+
+		expect(settings['eslint.validate']).toContain('svelte')
+		expect(settings['eslint.probe']).toContain('svelte')
+		expect(settings['svelte.language-server.runtime']).toBe('node')
+		expect(settings['css.lint.unknownAtRules']).toBe('ignore')
+		expect(settings).toHaveProperty('[svelte]')
+		// project-specific (sonarlint) and author-only (claudeCode.*) keys must not be distributed
+		expect(settings).not.toHaveProperty('sonarlint.connectedMode.project')
+		expect(Object.keys(settings).some((key) => key.startsWith('claudeCode.'))).toBe(false)
 	})
 })

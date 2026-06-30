@@ -29,10 +29,24 @@ interface OverlayChange {
 // downstream — app.html (lang, analytics/consent, preconnect), app.d.ts (env types),
 // wrangler.jsonc (name, routes, bindings, compatibility_date) — so a re-run must never
 // clobber them. Seeded only when absent; an existing file is left untouched.
+//
+// settings.sveltekit.json carries the SvelteKit editor delta kit#601 drops (svelte formatter,
+// eslint validate/probe incl. svelte, svelte language-server, [svelte]/[css]/[html] formatters,
+// playwright.reuseBrowser, css.lint.unknownAtRules). Seed-if-absent rather than a deep JSON merge:
+// config-merge exposes no object-merge primitive, and a fresh scaffold has no .vscode/settings.json
+// to preserve — once present it is the consumer's. Project-specific (sonarlint) and author-only
+// (claudeCode.*) keys are intentionally excluded from the template. See #67.
+//
+// Two kit-dropped items are intentionally NOT scaffolded (per #67): a consumer vite.config.ts +
+// rollup-plugin-visualizer injection (a SvelteKit project always already owns vite.config.ts, so
+// seed-if-absent never fires and the anchor-merge is fragile), and the size-limit script/config/
+// devDeps (an opt-in bundle-budget tool, too invasive to inject into every consumer). Consumers
+// own both.
 const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: 'app.html', dest: 'src/app.html' },
 	{ template: 'app.d.ts', dest: 'src/app.d.ts' },
 	{ template: WRANGLER_JSONC, dest: WRANGLER_JSONC },
+	{ template: 'settings.sveltekit.json', dest: '.vscode/settings.json' },
 ]
 
 function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
