@@ -186,3 +186,22 @@ describe('SvelteKit reserved route boolean exports (#58)', () => {
 		expect(source).toMatch(/'\^ssr\$',\s*'\^csr\$',\s*'\^prerender\$'/u)
 	})
 })
+
+// Issue #65: the reserved-boolean-name list is single-sourced for consumers. game-kit lints a
+// verbatim route mirror at `templates/src/routes/**` that lives outside app-kit's `src/routes/**`
+// glob, so it must apply the same scope-off itself — and without an export it would clone the
+// literal `['^ssr$', '^csr$', '^prerender$']` (see game-kit#364). Exporting the constant lets the
+// consumer import it. Asserted via source text for the same reason as the #58 block above:
+// importing the untyped preset would drag it into the typed test program.
+describe('SvelteKit reserved route boolean export surface (#65)', () => {
+	it('exports SVELTEKIT_RESERVED_BOOLEAN_OPTIONS from the preset entrypoint', () => {
+		const source = read_file(ESLINT_PRESET)
+
+		// exported alongside create_sveltekit_config so consumers single-source it (no clone)
+		expect(source).toMatch(/export\s*\{[^}]*\bSVELTEKIT_RESERVED_BOOLEAN_OPTIONS\b[^}]*\}/u)
+		// the exported constant still holds the reserved SvelteKit page-option names
+		expect(source).toMatch(
+			/const\s+SVELTEKIT_RESERVED_BOOLEAN_OPTIONS\s*=\s*\['\^ssr\$',\s*'\^csr\$',\s*'\^prerender\$'\]/u,
+		)
+	})
+})

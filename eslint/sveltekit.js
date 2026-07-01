@@ -170,4 +170,7 @@ function create_sveltekit_config(options) {
 	)
 }
 
-export { create_sveltekit_config }
+// SVELTEKIT_RESERVED_BOOLEAN_OPTIONS is exported so consumers that lint a route mirror
+// living outside app-kit's `src/routes/**` glob (e.g. game-kit's `templates/src/routes/**`)
+// can single-source the reserved-name list instead of cloning the literal (#65 / game-kit#364).
+export { create_sveltekit_config, SVELTEKIT_RESERVED_BOOLEAN_OPTIONS }
