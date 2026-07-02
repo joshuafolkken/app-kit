@@ -18,4 +18,15 @@ describe('app version commands', () => {
 
 		expect(config.fix_gh_packages_path).toContain(PACKAGE_NAME)
 	})
+
+	it('includes the kit upstream in the version chain', () => {
+		const config = app_version.build_config(SELF_DIR)
+
+		expect(config.upstreams).toHaveLength(1)
+
+		const [kit_upstream] = config.upstreams
+
+		expect(kit_upstream?.package_name).toBe('@joshuafolkken/kit')
+		expect(kit_upstream?.versions_endpoint).toContain('/npm/kit/versions')
+	})
 })
