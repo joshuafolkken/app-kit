@@ -224,8 +224,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.9.4)
       '@joshuafolkken/kit':
-        specifier: ^1.0.0
-        version: 1.0.0(@playwright/test@1.61.1)(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.6.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)
+        specifier: ^1.1.0
+        version: 1.1.0(@playwright/test@1.61.1)(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.6.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -1059,8 +1059,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@1.0.0':
-    resolution: {integrity: sha512-euEvXVreW/YdRmnhfPxcXFX97R7OlI9XaT94SI9uF351Etn5TKTLxWoIHFVPCM19d1S9aif4go+GSSQ8UbE0sw==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.0.0/db4521ac33dea2b80932a4c4e78f288965138ee4}
+  '@joshuafolkken/kit@1.1.0':
+    resolution: {integrity: sha512-8yNigcdZavN7sD3k8SHCEi5U+pOAYulCOIP6gRDc4U3gXoyDW42YM0jPZKEtxU7y3WiQE95jc8aEFLfH0YQeTg==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.1.0/0a2d33a7a90ea955956cc433c2a5c7285750e391}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -3704,7 +3704,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@joshuafolkken/kit@1.0.0(@playwright/test@1.61.1)(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.6.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)':
+  '@joshuafolkken/kit@1.1.0(@playwright/test@1.61.1)(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.6.0(jiti@2.7.0))(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)':
     dependencies:
       '@eslint/compat': 2.1.0(eslint@10.6.0(jiti@2.7.0))
       '@eslint/js': 10.0.1(eslint@10.6.0(jiti@2.7.0))
