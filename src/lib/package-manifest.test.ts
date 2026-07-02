@@ -1,14 +1,20 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { isBuiltin } from 'node:module'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const SCOPED_NAME = '@joshuafolkken/app-kit'
 const GH_PACKAGES_REGISTRY = 'https://npm.pkg.github.com'
+const ESLINT_PRESET_DIR = 'eslint'
+const SCOPED_PACKAGE_SEGMENTS = 2
 
 interface Manifest {
 	name: string
 	publishConfig?: { registry?: string; access?: string }
+	dependencies?: Record<string, string>
+	peerDependencies?: Record<string, string>
 }
 
 function load_manifest(): Manifest {
@@ -28,5 +34,75 @@ describe('package publish contract', () => {
 
 		expect(publish_config?.registry).toBe(GH_PACKAGES_REGISTRY)
 		expect(publish_config?.access).toBe('public')
+	})
+})
+
+const PRESET_MODULE_EXTENSIONS = ['.js', '.mjs', '.cjs']
+
+function list_preset_js_files(directory: string): Array<string> {
+	return readdirSync(directory, { recursive: true, encoding: ENCODING })
+		.filter((entry) => PRESET_MODULE_EXTENSIONS.some((extension) => entry.endsWith(extension)))
+		.map((entry) => path.join(directory, entry))
+}
+
+const IMPORT_SPECIFIER_PATTERNS = [
+	// `import x from '...'` / `export ... from '...'`
+	/from\s+['"]([^'"]+)['"]/gu,
+	// side-effect imports: `import '...'`
+	/^import\s+['"]([^'"]+)['"]/gmu,
+	// dynamic `import('...')` and CJS `require('...')`
+	/(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/gu,
+]
+
+function extract_import_specifiers(source: string): Array<string> {
+	return IMPORT_SPECIFIER_PATTERNS.flatMap((pattern) =>
+		source
+			.matchAll(pattern)
+			.map((match) => match[1] ?? '')
+			.toArray(),
+	)
+}
+
+function is_bare_specifier(specifier: string): boolean {
+	return specifier !== '' && !specifier.startsWith('.') && !isBuiltin(specifier)
+}
+
+function to_package_name(specifier: string): string {
+	const segments = specifier.split('/')
+	const length = specifier.startsWith('@') ? SCOPED_PACKAGE_SEGMENTS : 1
+
+	return segments.slice(0, length).join('/')
+}
+
+function collect_preset_package_imports(): Array<string> {
+	const files = list_preset_js_files(ESLINT_PRESET_DIR)
+	const specifiers = files.flatMap((file) =>
+		extract_import_specifiers(readFileSync(file, ENCODING)),
+	)
+	const names = specifiers
+		.filter((specifier) => is_bare_specifier(specifier))
+		.map((specifier) => to_package_name(specifier))
+
+	return [...new Set(names)]
+}
+
+// Regression guard for #74: the shipped ESLint preset (eslint/**/*.js) is executed
+// inside the consumer's node_modules, where app-kit's devDependencies are NOT
+// installed. Every package the preset imports must therefore be declared as a
+// regular dependency or a peerDependency, or consumers hit ERR_MODULE_NOT_FOUND.
+describe('shipped eslint preset dependencies', () => {
+	it('declares every package imported by eslint/**/*.js outside devDependencies', () => {
+		const manifest = load_manifest()
+		const declared = new Set([
+			...Object.keys(manifest.dependencies ?? {}),
+			...Object.keys(manifest.peerDependencies ?? {}),
+		])
+		const undeclared = collect_preset_package_imports().filter((name) => !declared.has(name))
+
+		expect(undeclared).toEqual([])
+	})
+
+	it('ships eslint-plugin-svelte as a regular dependency', () => {
+		expect(load_manifest().dependencies).toHaveProperty('eslint-plugin-svelte')
 	})
 })
