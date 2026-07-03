@@ -25,6 +25,7 @@ const KIT_CSPELL = '@joshuafolkken/kit/cspell/sveltekit'
 const APP_KIT_CSPELL = '@joshuafolkken/app-kit/cspell/sveltekit'
 const VSCODE_SETTINGS = '.vscode/settings.json'
 const VSCODE_TEMPLATE = 'templates/settings.sveltekit.json'
+const FAST_CHECK_PACKAGE = 'svelte-fast-check'
 
 // Holder avoids reassigning a top-level binding from inside the lifecycle hooks.
 const state = { directory: '' }
@@ -91,6 +92,62 @@ describe('cloudflare sync overlay', () => {
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 
 		expect(statSync(fixture_path(APP_HTML)).mtimeMs).toBe(before)
+	})
+})
+
+function fixture_development_dependencies(): Record<string, string> {
+	const manifest = JSON.parse(read_fixture(PACKAGE_JSON)) as {
+		devDependencies?: Record<string, string>
+	}
+
+	return manifest.devDependencies ?? {}
+}
+
+function write_fixture_manifest(development_dependencies: Record<string, string>): void {
+	const manifest = {
+		name: FIXTURE_NAME,
+		scripts: { [DEV_KEY]: DEV_VALUE },
+		devDependencies: development_dependencies,
+	}
+
+	writeFileSync(fixture_path(PACKAGE_JSON), `${JSON.stringify(manifest, undefined, '\t')}\n`)
+}
+
+describe('cloudflare sync overlay — svelte-fast-check devDependency (#78)', () => {
+	it('seeds svelte-fast-check into consumer devDependencies when absent', () => {
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		const source_range = (
+			JSON.parse(readFileSync(PACKAGE_JSON, ENCODING)) as {
+				devDependencies: Record<string, string>
+			}
+		).devDependencies[FAST_CHECK_PACKAGE]
+
+		expect(fixture_development_dependencies()[FAST_CHECK_PACKAGE]).toBe(source_range)
+	})
+
+	it('leaves an existing consumer svelte-fast-check pin untouched', () => {
+		const pinned = '0.0.1'
+
+		write_fixture_manifest({ [FAST_CHECK_PACKAGE]: pinned })
+
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(fixture_development_dependencies()[FAST_CHECK_PACKAGE]).toBe(pinned)
+	})
+
+	it('appends the seed while preserving the consumer existing key order', () => {
+		write_fixture_manifest({ vitest: '^4.0.0', eslint: '^10.0.0' })
+
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		// no re-sort: the consumer's ordering is untouched and the seed lands at the end,
+		// so the sync diff stays a one-line change instead of reshuffling every entry
+		expect(Object.keys(fixture_development_dependencies())).toEqual([
+			'vitest',
+			'eslint',
+			FAST_CHECK_PACKAGE,
+		])
 	})
 })
 

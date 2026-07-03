@@ -116,6 +116,7 @@ function run_base_init(cwd: string, spawn: SpawnRunner = default_spawn): void {
 }
 
 const cloudflare_orchestrate = {
+	find_package_root,
 	resolve_kit_josh_bin,
 	run_kit_base,
 	run_base_sync,

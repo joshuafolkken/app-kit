@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.28.0",
+	"version": "0.29.0",
 	"private": false,
 	"packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
 	"publishConfig": {
@@ -18,6 +18,7 @@
 		"lefthook",
 		"templates",
 		"!dist/**/*.test.*",
+		"!dist/check/**",
 		"!dist/cloudflare/**",
 		"!dist/lint-guards/**"
 	],
@@ -47,6 +48,7 @@
 		"josh-app": "./dist/scripts/josh-app.js"
 	},
 	"imports": {
+		"#check/*": "./src/lib/check/*",
 		"#cloudflare/*": "./src/lib/cloudflare/*",
 		"#version/*": "./src/lib/version/*"
 	},
@@ -66,6 +68,7 @@
 		"gen": "pnpm gen:pre && wrangler types",
 		"gen:pre": "node -e \"const fs=require('node:fs');const d='.svelte-kit/cloudflare';if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>f.startsWith('_worker.')&&fs.rmSync(d+'/'+f,{force:true}))\"",
 		"josh": "josh",
+		"josh-app": "tsx scripts/josh-app.ts",
 		"size-limit": "size-limit"
 	},
 	"dependencies": {
@@ -75,17 +78,17 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.1.0",
+		"@joshuafolkken/kit": "^1.4.0",
 		"@playwright/test": "^1.61.1",
 		"@size-limit/file": "^12.1.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
-		"@sveltejs/kit": "^2.68.0",
+		"@sveltejs/kit": "^2.69.0",
 		"@sveltejs/package": "^2.5.8",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tailwindcss/forms": "^0.5.11",
 		"@tailwindcss/typography": "^0.5.20",
 		"@tailwindcss/vite": "^4.3.2",
-		"@types/node": "^26.0.1",
+		"@types/node": "^26.1.0",
 		"@vitest/browser-playwright": "^4.1.9",
 		"cspell": "^10.0.1",
 		"esbuild": "^0.28.1",
@@ -101,15 +104,17 @@
 		"size-limit": "^12.1.0",
 		"svelte": "^5.56.4",
 		"svelte-check": "^4.7.1",
+		"svelte-fast-check": "^0.4.5",
 		"tailwindcss": "^4.3.2",
+		"tsx": "^4.22.4",
 		"typescript": "^6.0.3",
 		"vite": "^8.1.2",
 		"vitest": "^4.1.9",
 		"vitest-browser-svelte": "^2.2.0",
-		"wrangler": "^4.105.0"
+		"wrangler": "^4.106.0"
 	},
 	"peerDependencies": {
-		"@joshuafolkken/kit": ">=1.1.0",
+		"@joshuafolkken/kit": ">=1.4.0",
 		"eslint": "^10.0.0",
 		"svelte": "^5.0.0"
 	},

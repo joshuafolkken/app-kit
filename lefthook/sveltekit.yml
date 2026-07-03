@@ -14,7 +14,10 @@
 # Globs: base's `cspell`/`prettier`/`eslint` already cover every non-svelte type with the SAME
 # tool, so the `*-svelte` siblings only need `*.svelte` — base + sibling union = full coverage.
 # `type-check` is the exception: base runs `tsc --noEmit` (which cannot see `.svelte` files),
-# whereas SvelteKit needs `svelte-check`. So `type-check-svelte` keeps the original preset's wide
+# whereas SvelteKit needs `svelte-check`. Its run line delegates to `pnpm josh-app check:ci` —
+# the single source of the sync+check command (app-kit#78): consumers resolve the installed
+# `josh-app` bin, app-kit itself resolves its own `josh-app` package script (pnpm falls back
+# from script to .bin). So `type-check-svelte` keeps the original preset's wide
 # trigger (`*.{svelte,ts,js,mjs,cjs}`) so `svelte-check` still runs when a `.ts`/`.js` change
 # breaks a `.svelte` consumer — base's `tsc` co-runs on those (redundant, and a brief
 # `.svelte-kit/tsconfig.json` sync/read overlap is possible). Removing base's `tsc` for SvelteKit
@@ -38,7 +41,7 @@ pre-commit:
 
     type-check-svelte:
       glob: '*.{svelte,ts,js,mjs,cjs}'
-      run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig ./tsconfig.json
+      run: pnpm josh-app check:ci
 
 pre-push:
   commands:
