@@ -36,6 +36,18 @@ describe('cloudflare orchestrate — bin resolution', () => {
 		expect(bin.endsWith('josh.js')).toBe(true)
 		expect(existsSync(bin)).toBe(true)
 	})
+
+	it('finds a package root by name from any directory depth inside it', () => {
+		const repo_root = process.cwd()
+		const nested = `${repo_root}/scripts`
+
+		// josh-app.ts relies on this to locate app-kit's root from BOTH scripts/ (tsx source run,
+		// one level deep) and dist/scripts/ (published bin, two levels deep)
+		expect(cloudflare_orchestrate.find_package_root(nested, '@joshuafolkken/app-kit')).toBe(
+			repo_root,
+		)
+		expect(cloudflare_orchestrate.find_package_root(nested, 'no-such-package')).toBeUndefined()
+	})
 })
 
 describe('cloudflare orchestrate — command construction', () => {

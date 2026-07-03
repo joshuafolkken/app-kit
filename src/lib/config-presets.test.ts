@@ -92,14 +92,12 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 		expect(source).toMatch(/type-check-svelte:\n\s+glob:\s*'\*\.\{svelte,ts,js,mjs,cjs\}'/u)
 	})
 
-	it('runs svelte-kit sync before svelte-check so a clean checkout has generated types', () => {
+	it('delegates type-check to josh-app check:ci — the single source of sync+svelte-check (#78)', () => {
 		const source = read_lefthook_preset()
 
 		// anchored to type-check-svelte's OWN run line (no cross-command [\s\S]*), so gutting this
 		// command's run can't pass by the string surviving under a different command
-		expect(source).toMatch(
-			/type-check-svelte:\n\s+glob:[^\n]*\n\s+run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig \.\/tsconfig\.json/u,
-		)
+		expect(source).toMatch(/type-check-svelte:\n\s+glob:[^\n]*\n\s+run: pnpm josh-app check:ci/u)
 	})
 
 	it('gates pre-push on test:e2e nested under pre-push with the CI env', () => {

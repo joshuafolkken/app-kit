@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { app_check } from '#check/check.js'
 import { config_patch } from './config-patch.js'
 import { managed_scripts, type ManagedScripts } from './managed-scripts.js'
 
@@ -10,6 +11,7 @@ const WRANGLER_JSONC = 'wrangler.jsonc'
 
 interface ConsumerPackage {
 	scripts?: Record<string, string>
+	devDependencies?: Record<string, string>
 	[key: string]: unknown
 }
 
@@ -65,14 +67,45 @@ function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: Managed
 	return did_change
 }
 
-// The Cloudflare lifecycle scripts are app-kit-owned: a merge that overwrites only the
-// managed keys, leaving the consumer's other scripts intact.
+// `josh-app check` spawns the FAST_CHECK_PACKAGE bin (imported from #check so the seeded
+// dependency and the spawned bin can never drift apart) in the consumer, and pnpm exposes only
+// the consumer's OWN dependency bins — a transitive dep would not resolve. So the overlay seeds
+// the devDependency: add-if-absent (an existing pin is the consumer's), appended without
+// re-sorting the map (the next `pnpm add` normalizes ordering; a re-sort here would churn
+// every devDependency line just to insert one key).
+function fast_check_range_of(manifest: ConsumerPackage): string {
+	const range = manifest.devDependencies?.[app_check.FAST_CHECK_PACKAGE]
+	if (typeof range === 'string') return range
+
+	throw new TypeError(
+		`@joshuafolkken/app-kit package.json is missing devDependencies.${app_check.FAST_CHECK_PACKAGE}`,
+	)
+}
+
+function did_seed_fast_check(consumer: ConsumerPackage, range: string): boolean {
+	const development_dependencies = consumer.devDependencies ?? {}
+	if (typeof development_dependencies[app_check.FAST_CHECK_PACKAGE] === 'string') return false
+
+	development_dependencies[app_check.FAST_CHECK_PACKAGE] = range
+	consumer.devDependencies = development_dependencies
+
+	return true
+}
+
+// The Cloudflare lifecycle scripts (and the check-command devDependency) are app-kit-owned:
+// a merge that overwrites only the managed keys, leaving the consumer's other entries intact.
+// The source manifest is parsed once and shared by both extractions.
 function sync_scripts(target: string, source: string): OverlayChange {
 	const target_manifest = path.join(target, MANIFEST)
 	const consumer = JSON.parse(readFileSync(target_manifest, ENCODING)) as ConsumerPackage
-	const canonical = managed_scripts.read_canonical_scripts(path.join(source, MANIFEST))
+	const source_package = JSON.parse(
+		readFileSync(path.join(source, MANIFEST), ENCODING),
+	) as ConsumerPackage
+	const canonical = managed_scripts.pick_managed_scripts(source_package.scripts ?? {})
 
-	if (!did_apply_managed_scripts(consumer, canonical)) return { file: MANIFEST, action: 'skipped' }
+	const did_scripts = did_apply_managed_scripts(consumer, canonical)
+	const did_dependency = did_seed_fast_check(consumer, fast_check_range_of(source_package))
+	if (!did_scripts && !did_dependency) return { file: MANIFEST, action: 'skipped' }
 
 	writeFileSync(target_manifest, `${JSON.stringify(consumer, undefined, '\t')}\n`)
 

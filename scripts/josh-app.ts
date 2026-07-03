@@ -1,19 +1,30 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_version } from '#version/version.js'
 
 // esbuild bundles this to dist/scripts/josh-app.js; SELF_DIR is the running bin's own directory
-// (version uses it for running-binary detection) and the package root (with templates/) is two
-// levels up.
+// (version uses it for running-binary detection). The package root (with templates/) is found by
+// walking up to app-kit's own package.json — a fixed `../..` would be wrong when this entry runs
+// from source via the repo's `josh-app` script (scripts/ is one level deep, dist/scripts/ two).
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url))
-const PACKAGE_ROOT = path.resolve(SELF_DIR, '../..')
+const PACKAGE_NAME = '@joshuafolkken/app-kit'
+
+function resolve_package_root(start: string): string {
+	const root = cloudflare_orchestrate.find_package_root(start, PACKAGE_NAME)
+	if (root !== undefined) return root
+
+	throw new Error(`Cannot locate ${PACKAGE_NAME} from ${start}`)
+}
+
+const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
-const USAGE_MESSAGE = 'Usage: josh-app <init|sync|version|v|version:upgrade|vu>'
+const USAGE_MESSAGE = 'Usage: josh-app <init|sync|check|check:ci|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
 
@@ -38,6 +49,10 @@ function run_sync(): void {
 	console.info(`${cloudflare_sync.summarize(changes)}\n${SYNC_MESSAGE}`)
 }
 
+function exit_on_failure(code: number): void {
+	if (code !== 0) process.exit(code)
+}
+
 // `version` shows the installed-vs-latest report; `version:upgrade` upgrades and exits non-zero
 // only when a pnpm upgrade fails. Both delegate to kit's shared version library.
 function run_version(): void {
@@ -45,9 +60,17 @@ function run_version(): void {
 }
 
 function run_version_upgrade(): void {
-	const code = app_version.run_upgrade(SELF_DIR)
+	exit_on_failure(app_version.run_upgrade(SELF_DIR))
+}
 
-	if (code !== 0) process.exit(code)
+// SvelteKit type-check commands hosted by app-kit (the receiver for kit#628's removal of kit's
+// `check:svelte*`): `check` is the fast incremental dev loop, `check:ci` the strict CI variant.
+function run_check(): void {
+	exit_on_failure(app_check.run_check(process.cwd()))
+}
+
+function run_check_ci(): void {
+	exit_on_failure(app_check.run_check_ci(process.cwd()))
 }
 
 const VERSION = 'version'
@@ -58,6 +81,8 @@ const VERSION_UPGRADE = 'version:upgrade'
 const COMMAND_HANDLERS = new Map<string, () => void>([
 	['init', run_init],
 	['sync', run_sync],
+	['check', run_check],
+	['check:ci', run_check_ci],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],
 ])
