@@ -13,10 +13,12 @@ describe('app version commands', () => {
 		expect(config.self_directory).toBe(SELF_DIR)
 	})
 
-	it('derives the fix-gh-packages path from the app-kit package name', () => {
+	it('derives the fix-gh-packages path to kit single published copy (kit#637)', () => {
 		const config = app_version.build_config(SELF_DIR)
 
-		expect(config.fix_gh_packages_path).toContain(PACKAGE_NAME)
+		// kit >=1.4.0 always targets its own shipped script — app-kit publishes no scripts/, so a
+		// package-name-derived path would point at a file that does not exist (kit#622 / kit#637)
+		expect(config.fix_gh_packages_path).toContain('@joshuafolkken/kit/scripts/fix-gh-packages')
 	})
 
 	it('includes the kit upstream in the version chain', () => {
