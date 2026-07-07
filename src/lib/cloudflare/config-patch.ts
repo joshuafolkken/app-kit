@@ -17,10 +17,17 @@ const LEFTHOOK_EXTENDS_FIELD = 'extends'
 // SvelteKit line. The patcher ensures app-kit's line and removes any kit-emitted SvelteKit line,
 // so the two tools never write the same field to different values. The `remove` patterns match
 // `*/sveltekit` regardless of the consumer's path prefix / extension, but the `(?![\w-])` tail
-// anchors `sveltekit` to a complete path segment — kit's base `cspell` / `tsconfig/base` lines and
-// any unrelated `sveltekit-*` entry are left untouched.
+// anchors `sveltekit` to a complete path segment — kit's `tsconfig/base` line and any unrelated
+// `sveltekit-*` entry are left untouched.
 const APP_KIT_CSPELL_IMPORT = '@joshuafolkken/app-kit/cspell/sveltekit'
 const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
+// kit#601 made kit's base cspell merge framework-agnostic, so `josh init` / `josh sync` now always
+// ensures the bare `@joshuafolkken/kit/cspell` base — even when the app-kit preset (which already
+// re-exports that base) is present, leaving a redundant line. The app-kit preset is the sole owner
+// of the SvelteKit cspell config, so when it is ensured we also strip the now-redundant base. The
+// `(?![\w/-])` tail anchors `cspell` to a complete path segment, so the `/cspell/sveltekit` line and
+// any `cspell-*` sibling are left for their own matchers.
+const KIT_CSPELL_BASE = /@joshuafolkken\/kit\/cspell(?![\w/-])/u
 const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
 // lefthook references presets as raw root-relative node_modules paths (not package-export
@@ -46,7 +53,7 @@ function patch_cspell_content(content: string): string {
 	const with_import = config_merge.patch_yaml_list_field(content, {
 		field: CSPELL_IMPORT_FIELD,
 		ensure: [APP_KIT_CSPELL_IMPORT],
-		remove: [KIT_CSPELL_SVELTEKIT],
+		remove: [KIT_CSPELL_SVELTEKIT, KIT_CSPELL_BASE],
 		position: CSPELL_IMPORT_POSITION,
 		quote_style: CSPELL_QUOTE_STYLE,
 	})

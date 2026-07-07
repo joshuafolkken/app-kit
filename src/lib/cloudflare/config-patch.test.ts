@@ -130,12 +130,14 @@ afterEach(() => {
 })
 
 describe('config patch — cspell.config.yaml', () => {
-	it('replaces the kit sveltekit import with app-kit and preserves the base + words', () => {
+	it('replaces the kit imports with app-kit, strips the redundant base, and preserves words', () => {
 		const patched = config_patch.patch_cspell_content(CSPELL_WITH_KIT)
+		const imports = config_merge.read_yaml_list_field(patched, 'import')
 
-		expect(patched).toContain(APP_KIT_CSPELL)
-		expect(patched).not.toContain(KIT_CSPELL)
-		expect(patched).toContain(KIT_CSPELL_BASE)
+		expect(imports).toContain(APP_KIT_CSPELL)
+		expect(imports).not.toContain(KIT_CSPELL)
+		// kit#601: the app-kit preset re-exports the base, so the bare base line is now stripped
+		expect(imports).not.toContain(KIT_CSPELL_BASE)
 		expect(patched).toContain(CONSUMER_WORD)
 	})
 
@@ -160,6 +162,40 @@ describe('config patch — cspell.config.yaml', () => {
 
 	it('is idempotent — a second cspell pass returns identical content', () => {
 		const once = config_patch.patch_cspell_content(CSPELL_WITH_KIT)
+
+		expect(config_patch.patch_cspell_content(once)).toBe(once)
+	})
+})
+
+describe('config patch — cspell base import dedup', () => {
+	it('strips the redundant kit base import when the app-kit preset is already present', () => {
+		const with_base = `version: '0.2'\nimport:\n  - '${KIT_CSPELL_BASE}'\n  - '${APP_KIT_CSPELL}'\n`
+
+		const imports = config_merge.read_yaml_list_field(
+			config_patch.patch_cspell_content(with_base),
+			'import',
+		)
+
+		expect(imports).toStrictEqual([APP_KIT_CSPELL])
+	})
+
+	it('strips the base but leaves a kit cspell-prefixed sibling untouched', () => {
+		const sibling = '@joshuafolkken/kit/cspell-extra'
+		const with_sibling = `version: '0.2'\nimport:\n  - '${KIT_CSPELL_BASE}'\n  - '${sibling}'\n  - '${APP_KIT_CSPELL}'\n`
+
+		const imports = config_merge.read_yaml_list_field(
+			config_patch.patch_cspell_content(with_sibling),
+			'import',
+		)
+
+		expect(imports).toContain(sibling)
+		expect(imports).not.toContain(KIT_CSPELL_BASE)
+	})
+
+	it('converges after stripping the base — a second pass is identical', () => {
+		const once = config_patch.patch_cspell_content(
+			`version: '0.2'\nimport:\n  - '${KIT_CSPELL_BASE}'\n  - '${APP_KIT_CSPELL}'\n`,
+		)
 
 		expect(config_patch.patch_cspell_content(once)).toBe(once)
 	})
