@@ -13,8 +13,27 @@ const WRANGLER_JSONC = 'wrangler.jsonc'
 const WRANGLER_TEMPLATE = 'templates/wrangler.jsonc'
 const APP_HTML = 'src/app.html'
 const APP_D_TS = 'src/app.d.ts'
-const KIT_OWNED = 'eslint.config.js'
-const KIT_OWNED_CONTENT = '// kit-owned — must not be touched\n'
+const ESLINT_FILE = 'eslint.config.js'
+// A consumer's own ESLint config with neither the kit vanilla marker nor a `*.configs.recommended`
+// marker — so neither kit's `josh sync` (which would treat a `*.configs.recommended` config as a
+// convertible vanilla scaffold) nor app-kit's overlay reshapes it. The overlay must leave it as-is.
+const CONSUMER_ESLINT_CONTENT = `export default [
+	{
+		rules: {
+			'no-console': 'error',
+		},
+	},
+]
+`
+// kit's `josh init` vanilla scaffold — the overlay migrates it to the app-kit sveltekit preset.
+const KIT_VANILLA_ESLINT_CONTENT = `import { create_vanilla_config } from '@joshuafolkken/kit/eslint/vanilla'
+
+export default create_vanilla_config({
+	gitignore_path: new URL('./.gitignore', import.meta.url),
+	tsconfig_root_dir: import.meta.dirname,
+})
+`
+const APP_KIT_ESLINT_MODULE = '@joshuafolkken/app-kit/eslint/sveltekit'
 const DEV_KEY = 'dev'
 const DEV_VALUE = 'vite dev'
 const FIXTURE_NAME = 'fixture'
@@ -47,7 +66,7 @@ beforeEach(() => {
 	const manifest = { name: FIXTURE_NAME, scripts: { [DEV_KEY]: DEV_VALUE } }
 
 	writeFileSync(fixture_path(PACKAGE_JSON), `${JSON.stringify(manifest, undefined, '\t')}\n`)
-	writeFileSync(fixture_path(KIT_OWNED), KIT_OWNED_CONTENT)
+	writeFileSync(fixture_path(ESLINT_FILE), CONSUMER_ESLINT_CONTENT)
 })
 
 afterEach(() => {
@@ -69,11 +88,20 @@ describe('cloudflare sync overlay', () => {
 		expect(read_fixture(VSCODE_SETTINGS)).toBe(readFileSync(VSCODE_TEMPLATE, ENCODING))
 	})
 
-	it('preserves the consumer non-managed scripts and kit-owned files', () => {
+	it('preserves the consumer non-managed scripts and a consumer-customized eslint config', () => {
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 
 		expect(fixture_scripts()[DEV_KEY]).toBe(DEV_VALUE)
-		expect(read_fixture(KIT_OWNED)).toBe(KIT_OWNED_CONTENT)
+		expect(read_fixture(ESLINT_FILE)).toBe(CONSUMER_ESLINT_CONTENT)
+	})
+
+	it('migrates a kit vanilla eslint.config.js to the app-kit sveltekit preset', () => {
+		writeFileSync(fixture_path(ESLINT_FILE), KIT_VANILLA_ESLINT_CONTENT)
+
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(read_fixture(ESLINT_FILE)).toContain(APP_KIT_ESLINT_MODULE)
+		expect(read_fixture(ESLINT_FILE)).not.toContain('@joshuafolkken/kit/eslint/vanilla')
 	})
 
 	it('is idempotent — a second overlay leaves package.json byte-identical', () => {
