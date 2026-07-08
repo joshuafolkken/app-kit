@@ -30,12 +30,26 @@ const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
 const KIT_CSPELL_BASE = /@joshuafolkken\/kit\/cspell(?![\w/-])/u
 const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
+// kit's `josh sync` / `josh init` unconditionally ensures the framework-agnostic base entry
+// (`kit/tsconfig/base.jsonc`), even when the app-kit SvelteKit preset is present. The preset is
+// self-contained (repeats every base option) and, being later in the `extends` array, always wins,
+// so the base entry is inert — the app-kit preset is the sole owner of the SvelteKit tsconfig, so
+// when it is ensured we also strip the now-redundant base. The `(?![\w-])` tail anchors `base` to a
+// complete path segment, so the `/tsconfig/sveltekit` line and any `base-*` sibling are untouched.
+const KIT_TSCONFIG_BASE = /@joshuafolkken\/kit\/tsconfig\/base(?![\w-])/u
 // lefthook references presets as raw root-relative node_modules paths (not package-export
 // subpaths), so the swap mirrors the kit→app-kit extends migration. `front` matches the
 // `extends`-first layout `josh init` emits; the regex anchors `sveltekit` to a full path
 // segment so an unrelated `sveltekit-*` entry is left untouched.
 const APP_KIT_LEFTHOOK_EXTENDS = 'node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_SVELTEKIT = /@joshuafolkken\/kit\/lefthook\/sveltekit(?![\w-])/u
+// kit's `josh sync` / `josh init` unconditionally ensures the base entry (`kit/lefthook/vanilla.yml`),
+// even when the app-kit SvelteKit preset is present. Both `vanilla.yml` and the app-kit preset only
+// `extends: kit/lefthook/base.yml`, so the base is pulled in twice and the vanilla entry adds no
+// commands — the app-kit preset is the sole owner of the SvelteKit lefthook config, so when it is
+// ensured we also strip the now-redundant vanilla entry. The `(?![\w-])` tail anchors `vanilla` to a
+// complete path segment, so the `/lefthook/sveltekit` line and any `vanilla-*` sibling are untouched.
+const KIT_LEFTHOOK_VANILLA = /@joshuafolkken\/kit\/lefthook\/vanilla(?![\w-])/u
 const LEFTHOOK_EXTENDS_POSITION = 'front' as const
 
 // SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
@@ -69,7 +83,7 @@ function patch_tsconfig_content(content: string): string {
 	return config_merge.patch_json_list_field(content, {
 		field: TSCONFIG_EXTENDS_FIELD,
 		ensure: [APP_KIT_TSCONFIG_EXTENDS],
-		remove: [KIT_TSCONFIG_SVELTEKIT],
+		remove: [KIT_TSCONFIG_SVELTEKIT, KIT_TSCONFIG_BASE],
 	})
 }
 
@@ -77,7 +91,7 @@ function patch_lefthook_content(content: string): string {
 	return config_merge.patch_yaml_list_field(content, {
 		field: LEFTHOOK_EXTENDS_FIELD,
 		ensure: [APP_KIT_LEFTHOOK_EXTENDS],
-		remove: [KIT_LEFTHOOK_SVELTEKIT],
+		remove: [KIT_LEFTHOOK_SVELTEKIT, KIT_LEFTHOOK_VANILLA],
 		position: LEFTHOOK_EXTENDS_POSITION,
 	})
 }

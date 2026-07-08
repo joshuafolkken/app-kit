@@ -15,9 +15,12 @@ const KIT_CSPELL = '@joshuafolkken/kit/cspell/sveltekit'
 const KIT_CSPELL_BASE = '@joshuafolkken/kit/cspell'
 const APP_KIT_CSPELL = '@joshuafolkken/app-kit/cspell/sveltekit'
 const KIT_TSCONFIG = '@joshuafolkken/kit/tsconfig/sveltekit.jsonc'
+const KIT_TSCONFIG_BASE = '@joshuafolkken/kit/tsconfig/base.jsonc'
 const APP_KIT_TSCONFIG = '@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_LEFTHOOK = 'node_modules/@joshuafolkken/kit/lefthook/sveltekit.yml'
+const KIT_LEFTHOOK_VANILLA = 'node_modules/@joshuafolkken/kit/lefthook/vanilla.yml'
 const APP_KIT_LEFTHOOK = 'node_modules/@joshuafolkken/app-kit/lefthook/sveltekit.yml'
+const SVELTE_KIT_TSCONFIG = './.svelte-kit/tsconfig.json'
 const CONSUMER_LEFTHOOK_EXTEND = 'lefthook/local.yml'
 const CONSUMER_LEFTHOOK_COMMAND = 'consumer-hook'
 const EXTENDS_FIELD = 'extends'
@@ -65,10 +68,27 @@ ignorePaths:
 // A consumer tsconfig.json extending kit's sveltekit preset plus the generated SvelteKit config,
 // with a consumer exclude — the state `josh sync` leaves behind.
 const TSCONFIG_WITH_KIT = `{
-	"extends": ["./node_modules/${KIT_TSCONFIG}", "./.svelte-kit/tsconfig.json"],
+	"extends": ["./node_modules/${KIT_TSCONFIG}", "${SVELTE_KIT_TSCONFIG}"],
 	"compilerOptions": { "module": "NodeNext" },
 	"exclude": ["${CONSUMER_EXCLUDE}"]
 }
+`
+
+// A consumer tsconfig.json that an earlier sync migrated to the app-kit sveltekit preset but that
+// still carries kit's redundant base entry in front of it — the state the layered `josh sync`
+// (kit base, then app-kit patch) leaves behind.
+const TSCONFIG_WITH_BASE = `{
+	"extends": ["./node_modules/${KIT_TSCONFIG_BASE}", "./node_modules/${APP_KIT_TSCONFIG}", "${SVELTE_KIT_TSCONFIG}"],
+	"exclude": ["${CONSUMER_EXCLUDE}"]
+}
+`
+
+// A consumer lefthook.yml carrying kit's redundant vanilla base entry in front of the app-kit
+// sveltekit preset plus a consumer-local extends — the state the layered `josh sync` leaves behind.
+const LEFTHOOK_WITH_VANILLA = `extends:
+  - ${KIT_LEFTHOOK_VANILLA}
+  - ${APP_KIT_LEFTHOOK}
+  - ${CONSUMER_LEFTHOOK_EXTEND}
 `
 
 // A consumer lefthook.yml extending kit's sveltekit preset plus a consumer-local extends and a
@@ -248,7 +268,7 @@ describe('config patch — tsconfig.json', () => {
 
 		expect(patched).toContain(APP_KIT_TSCONFIG)
 		expect(patched).not.toContain(KIT_TSCONFIG)
-		expect(patched).toContain('./.svelte-kit/tsconfig.json')
+		expect(patched).toContain(SVELTE_KIT_TSCONFIG)
 		expect(patched).toContain(CONSUMER_EXCLUDE)
 	})
 
@@ -256,6 +276,30 @@ describe('config patch — tsconfig.json', () => {
 		const once = config_patch.patch_tsconfig_content(TSCONFIG_WITH_KIT)
 
 		expect(config_patch.patch_tsconfig_content(once)).toBe(once)
+	})
+})
+
+describe('config patch — tsconfig base extends dedup', () => {
+	it('strips the redundant kit base extends, keeps the rest, and converges on re-run', () => {
+		const patched = config_patch.patch_tsconfig_content(TSCONFIG_WITH_BASE)
+
+		expect(patched).not.toContain(KIT_TSCONFIG_BASE)
+		expect(patched).toContain(APP_KIT_TSCONFIG)
+		expect(patched).toContain(SVELTE_KIT_TSCONFIG)
+		expect(patched).toContain(CONSUMER_EXCLUDE)
+		expect(config_patch.patch_tsconfig_content(patched)).toBe(patched)
+	})
+
+	it('strips the base but leaves a kit tsconfig base-prefixed sibling untouched', () => {
+		// a sibling preset filename whose segment starts with `base-`; the `(?![\w-])` anchor must
+		// treat it as a distinct segment and leave it untouched
+		const sibling = '@joshuafolkken/kit/tsconfig/base-extra.jsonc'
+		const with_sibling = `{\n\t"extends": ["./node_modules/${KIT_TSCONFIG_BASE}", "./node_modules/${sibling}", "./node_modules/${APP_KIT_TSCONFIG}"]\n}\n`
+
+		const patched = config_patch.patch_tsconfig_content(with_sibling)
+
+		expect(patched).toContain(sibling)
+		expect(patched).not.toContain(`${KIT_TSCONFIG_BASE}"`)
 	})
 })
 
@@ -296,6 +340,34 @@ describe('config patch — lefthook.yml', () => {
 		const once = config_patch.patch_lefthook_content(LEFTHOOK_WITH_KIT)
 
 		expect(config_patch.patch_lefthook_content(once)).toBe(once)
+	})
+})
+
+describe('config patch — lefthook vanilla extends dedup', () => {
+	it('strips the redundant kit vanilla extends, keeps app-kit at the front, and converges', () => {
+		const patched = config_patch.patch_lefthook_content(LEFTHOOK_WITH_VANILLA)
+		const extends_list = config_merge.read_yaml_list_field(patched, EXTENDS_FIELD)
+
+		expect(extends_list).not.toContain(KIT_LEFTHOOK_VANILLA)
+		expect(extends_list).toContain(CONSUMER_LEFTHOOK_EXTEND)
+		// the app-kit preset stays first — `front` position is preserved after the vanilla strip
+		expect(extends_list[0]).toBe(APP_KIT_LEFTHOOK)
+		expect(config_patch.patch_lefthook_content(patched)).toBe(patched)
+	})
+
+	it('strips vanilla but leaves a kit lefthook vanilla-prefixed sibling untouched', () => {
+		// a sibling preset filename whose segment starts with `vanilla-`; the `(?![\w-])` anchor must
+		// treat it as a distinct segment and leave it untouched
+		const sibling = 'node_modules/@joshuafolkken/kit/lefthook/vanilla-extra.yml'
+		const with_sibling = `extends:\n  - ${KIT_LEFTHOOK_VANILLA}\n  - ${sibling}\n  - ${APP_KIT_LEFTHOOK}\n`
+
+		const extends_list = config_merge.read_yaml_list_field(
+			config_patch.patch_lefthook_content(with_sibling),
+			EXTENDS_FIELD,
+		)
+
+		expect(extends_list).toContain(sibling)
+		expect(extends_list).not.toContain(KIT_LEFTHOOK_VANILLA)
 	})
 })
 
