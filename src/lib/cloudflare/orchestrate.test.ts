@@ -1,8 +1,9 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { cloudflare_orchestrate, type SpawnOutcome } from './orchestrate.js'
 
 const CWD = '/work/consumer-project'
+const KIT_MANIFEST = `${process.cwd()}/node_modules/@joshuafolkken/kit/package.json`
 
 interface SpawnCall {
 	bin: string
@@ -35,6 +36,15 @@ describe('cloudflare orchestrate — bin resolution', () => {
 
 		expect(bin.endsWith('josh.js')).toBe(true)
 		expect(existsSync(bin)).toBe(true)
+	})
+
+	it('reports the effective kit version from the running-relative install', () => {
+		// `josh-app v`/`vu` show kit's effective Global line from this — it must be the version `sync`
+		// actually runs (createRequire-resolved), i.e. the kit installed relative to the running bin.
+		const version = cloudflare_orchestrate.resolve_kit_effective_version()
+		const installed = JSON.parse(readFileSync(KIT_MANIFEST, 'utf8')) as { version: string }
+
+		expect(version).toBe(installed.version)
 	})
 
 	it('finds a package root by name from any directory depth inside it', () => {
