@@ -17,9 +17,11 @@ const GLOBAL_UPGRADE_PREFIX = `pnpm add -g ${PACKAGE_NAME}@`
 // Fetches app-kit's own latest; injectable so hook wiring is unit-testable without a network call.
 type LatestResolver = () => string
 
-// Memoize app-kit's latest so the upstream upgrade-command hook reuses the already-fetched value
-// instead of issuing a second `gh api` call, and reuse kit's `read_snapshot` fetch rather than
-// re-implementing it (single-source). `latest` is the only field the hook needs (kit#648).
+// Resolve app-kit's own latest for the upstream upgrade-command hook, reusing kit's `read_snapshot`
+// fetch rather than re-implementing it (single-source; `latest` is the only field the hook needs).
+// The memo dedupes repeat hook invocations within one run. It does NOT reuse the `latest` kit already
+// fetched for app-kit's primary report — kit's `() => string` hook signature exposes no such value,
+// so `v`/`vu` currently fetch app-kit's latest twice; kit#650 tracks closing that gap upstream.
 function create_app_kit_latest_resolver(): LatestResolver {
 	const state: { latest?: string } = {}
 
