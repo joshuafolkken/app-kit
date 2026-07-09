@@ -27,6 +27,7 @@ type SpawnRunner = (bin: string, argv: ReadonlyArray<string>, cwd: string) => Sp
 
 const NAME_FIELD = 'name'
 const BIN_FIELD = 'bin'
+const VERSION_FIELD = 'version'
 
 function is_record(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null
@@ -69,14 +70,35 @@ function read_bin_path(root: string): string {
 	throw new Error(`${KIT_PACKAGE_NAME} declares no ${BIN_NAME} bin`)
 }
 
-// Resolve the absolute path to kit's `josh` CLI entry inside the consumer's installed kit.
-function resolve_kit_josh_bin(): string {
+// Resolve kit's package root relative to the running app-kit binary. `createRequire(import.meta.url)`
+// resolves against the running bundle, so this is the *effective* kit — the copy `sync` actually runs
+// (global app-kit → its bundled kit; project app-kit → the project's kit).
+function resolve_kit_root(): string {
 	const require = createRequire(import.meta.url)
 	const marker = require.resolve(KIT_RESOLVE_MARKER)
 	const root = find_package_root(path.dirname(marker), KIT_PACKAGE_NAME)
 	if (root === undefined) throw new Error(`Cannot locate ${KIT_PACKAGE_NAME} from ${marker}`)
 
+	return root
+}
+
+// Resolve the absolute path to kit's `josh` CLI entry inside the effective kit.
+function resolve_kit_josh_bin(): string {
+	const root = resolve_kit_root()
+
 	return path.join(root, read_bin_path(root))
+}
+
+// Read the effective (running-relative) kit version, or undefined when kit cannot be located — never
+// guess. `josh-app v`/`vu` use this to report kit's effective Global line (kit#648 / app-kit#83).
+function resolve_kit_effective_version(): string | undefined {
+	try {
+		const version = read_manifest_field(path.join(resolve_kit_root(), MANIFEST), VERSION_FIELD)
+
+		return typeof version === 'string' ? version : undefined
+	} catch {
+		return undefined
+	}
 }
 
 function default_spawn(bin: string, argv: ReadonlyArray<string>, cwd: string): SpawnOutcome {
@@ -118,6 +140,7 @@ function run_base_init(cwd: string, spawn: SpawnRunner = default_spawn): void {
 const cloudflare_orchestrate = {
 	find_package_root,
 	resolve_kit_josh_bin,
+	resolve_kit_effective_version,
 	run_kit_base,
 	run_base_sync,
 	run_base_init,
