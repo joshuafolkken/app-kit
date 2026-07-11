@@ -36,7 +36,11 @@ josh-app init                        # scaffold base + SvelteKit/Cloudflare over
 >
 > Once the target version ages past 24h, a bare `pnpm add -g @joshuafolkken/app-kit` resolves to the latest.
 
-`josh-app init` also adds `@joshuafolkken/app-kit` to the project's `devDependencies` — not to run the CLI (that comes from the global install), but so the scaffolded `eslint.config.js` / `tsconfig.json` / cspell config can resolve app-kit's presets.
+`josh-app init` wires app-kit's presets into the scaffolded `eslint.config.js` / `tsconfig.json` / cspell / lefthook config. For those imports to resolve, add app-kit to the project's `devDependencies` too — this is separate from the global CLI install:
+
+```bash
+pnpm add -D @joshuafolkken/app-kit
+```
 
 ## CLI commands
 
@@ -53,7 +57,7 @@ Run from the root of a SvelteKit project:
 
 ## Library usage
 
-Add app-kit as a devDependency (or let `josh-app init` do it), then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
+Add app-kit as a devDependency, then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
 
 | Import                                      | Provides                                                       |
 | ------------------------------------------- | -------------------------------------------------------------- |
