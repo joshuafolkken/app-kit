@@ -1,65 +1,83 @@
-# Svelte library
+# @joshuafolkken/app-kit
 
-Everything you need to build a Svelte library, powered by [`sv`](https://npmjs.com/package/sv).
+The SvelteKit layer on top of [`@joshuafolkken/kit`](https://github.com/joshuafolkken/kit): a modular runtime feature kit (auth, theme, i18n) plus a toolchain CLI that scaffolds and maintains the SvelteKit + Cloudflare project setup. Runtime features are tree-shakeable via subpath exports.
 
-Read more about creating a library [in the docs](https://svelte.dev/docs/kit/packaging).
+Like the base kit, app-kit has two roles:
 
-## Creating a project
+- **`josh-app` CLI** — scaffold (`init`) and re-sync (`sync`) the SvelteKit + Cloudflare overlay, run SvelteKit type-checks (`check`), and manage versions — installed globally, run from any project directory.
+- **Feature + config package** — runtime feature modules (`./theme`, `./i18n`) and SvelteKit config presets (ESLint / tsconfig / cspell) consumed as a devDependency.
 
-If you're seeing this, you've probably already done this step. Congrats!
+`josh-app` orchestrates kit's framework-agnostic base first (`josh init` / `josh sync`), then applies the SvelteKit + Cloudflare overlay on top — one command delivers base + overlay.
 
-```sh
-# create a new project in the current directory
-npx sv create
+## Prerequisites
 
-# create a new project in my-app
-npx sv create my-app
+- [Node.js](https://nodejs.org/) with [pnpm](https://pnpm.io/)
+- [gh CLI](https://cli.github.com/) — required for GitHub Packages authentication. Install via `brew install gh` (macOS), `winget install GitHub.cli` (Windows), or see the [gh installation docs](https://github.com/cli/cli#installation).
+- **GitHub Packages auth.** app-kit is published to the GitHub Packages registry, so a one-time auth setup is required:
+  - `~/.npmrc` (user-level) contains:
+    ```
+    @joshuafolkken:registry=https://npm.pkg.github.com
+    //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+    ```
+  - `NODE_AUTH_TOKEN` is set to a GitHub PAT with the `read:packages` scope (the same token used for other `@joshuafolkken/*` packages). Without it, install fails with `ERR_PNPM_FETCH_401`.
+
+## Global install (CLI)
+
+```bash
+pnpm add -g @joshuafolkken/app-kit   # install the josh-app CLI globally
+josh-app init                        # scaffold base + SvelteKit/Cloudflare overlay
 ```
 
-To recreate this project with the same configuration:
+> **Version-age gotcha.** A supply-chain safety delay (`minimum-release-age`, 24h) can resolve a bare `pnpm add -g @joshuafolkken/app-kit` to an **older** published version. While the version you want is still inside its 24h window, pin it and skip the age gate:
+>
+> ```bash
+> pnpm add -g @joshuafolkken/app-kit@<version> --safe-chain-skip-minimum-package-age
+> ```
+>
+> Once the target version ages past 24h, a bare `pnpm add -g @joshuafolkken/app-kit` resolves to the latest.
 
-```sh
-# recreate this project
-pnpm dlx sv@0.16.1 create --template library --types ts --install pnpm .
+`josh-app init` also adds `@joshuafolkken/app-kit` to the project's `devDependencies` — not to run the CLI (that comes from the global install), but so the scaffolded `eslint.config.js` / `tsconfig.json` / cspell config can resolve app-kit's presets.
+
+## CLI commands
+
+Run from the root of a SvelteKit project:
+
+| Command                           | What it does                                                              |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `josh-app init`                   | Apply kit's base then the SvelteKit + Cloudflare overlay to a project     |
+| `josh-app sync`                   | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently |
+| `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                          |
+| `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                  |
+| `josh-app version` / `v`          | Report installed-vs-latest version                                        |
+| `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                             |
+
+## Library usage
+
+Add app-kit as a devDependency (or let `josh-app init` do it), then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
+
+| Import                                      | Provides                                                       |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `@joshuafolkken/app-kit`                    | Package entry — runtime feature namespaces                     |
+| `@joshuafolkken/app-kit/theme`              | `theme_store` and the `Theme` type                             |
+| `@joshuafolkken/app-kit/i18n`               | `locale_store` and the `Locale` type                           |
+| `@joshuafolkken/app-kit/eslint/sveltekit`   | SvelteKit ESLint flat-config preset                            |
+| `@joshuafolkken/app-kit/tsconfig/sveltekit` | SvelteKit `tsconfig` preset (extend from your `tsconfig.json`) |
+| `@joshuafolkken/app-kit/cspell/sveltekit`   | SvelteKit cspell word/config preset                            |
+
+Example — extend the ESLint preset:
+
+```js
+// eslint.config.js
+import { create_sveltekit_config } from '@joshuafolkken/app-kit/eslint/sveltekit'
+
+export default [
+	...create_sveltekit_config({
+		gitignore_path: new URL('./.gitignore', import.meta.url),
+		tsconfig_root_dir: import.meta.dirname,
+	}),
+]
 ```
 
-## Developing
+## Contributing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-Everything inside `src/lib` is part of your library, everything inside `src/routes` can be used as a showcase or preview app.
-
-## Building
-
-To build your library:
-
-```sh
-npm pack
-```
-
-To create a production version of your showcase app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
-
-## Publishing
-
-Go into the `package.json` and give your package the desired name through the `"name"` option. Also consider adding a `"license"` field and point it to a `LICENSE` file which you can create from a template (one popular option is the [MIT license](https://opensource.org/license/mit/)).
-
-To publish your library to [npm](https://www.npmjs.com):
-
-```sh
-npm publish
-```
+Community standards live in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md); security reports go through [SECURITY.md](./SECURITY.md). Development conventions are documented in `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`.
