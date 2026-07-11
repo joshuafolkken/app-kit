@@ -51,6 +51,18 @@ describe('Cloudflare managed-scripts single source', () => {
 		}
 	})
 
+	// #88: the distributed `preview` script must run `wrangler dev` in local mode.
+	// Without `--local`, a consumer with a remote-only binding (AI Search / `remote: true`)
+	// makes wrangler open a remote proxy session that needs credentials, so `pnpm preview`
+	// — and therefore Playwright's webServer — fails to start in non-interactive CI.
+	it('preview runs wrangler dev in local mode — never a credential-requiring remote proxy', () => {
+		const { preview } = managed_scripts.read_canonical_scripts(MANIFEST)
+
+		expect(preview).toContain('wrangler dev')
+		expect(preview).toContain('--local')
+		expect(preview).not.toContain('--remote')
+	})
+
 	// #56: prepare:gen is the only automatic `wrangler types` invocation and
 	// worker-configuration.d.ts is gitignored, so a swallowed gen failure ships a
 	// misleading `Cannot find name 'Env'` from svelte-check instead of the real cause.
