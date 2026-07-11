@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { resolve_effective_upstream_version } from '@joshuafolkken/kit/version'
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
@@ -27,7 +28,6 @@ type SpawnRunner = (bin: string, argv: ReadonlyArray<string>, cwd: string) => Sp
 
 const NAME_FIELD = 'name'
 const BIN_FIELD = 'bin'
-const VERSION_FIELD = 'version'
 
 function is_record(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null
@@ -91,14 +91,12 @@ function resolve_kit_josh_bin(): string {
 
 // Read the effective (running-relative) kit version, or undefined when kit cannot be located — never
 // guess. `josh-app v`/`vu` use this to report kit's effective Global line (kit#648 / app-kit#83).
+// Single-sourced from kit's own walk-up primitive (kit#651) rather than a private copy: it resolves
+// the marker via createRequire against this bundle and returns kit's version, and never throws.
 function resolve_kit_effective_version(): string | undefined {
-	try {
-		const version = read_manifest_field(path.join(resolve_kit_root(), MANIFEST), VERSION_FIELD)
-
-		return typeof version === 'string' ? version : undefined
-	} catch {
-		return undefined
-	}
+	return resolve_effective_upstream_version(import.meta.url, KIT_PACKAGE_NAME, {
+		resolve_marker: KIT_RESOLVE_MARKER,
+	})
 }
 
 function default_spawn(bin: string, argv: ReadonlyArray<string>, cwd: string): SpawnOutcome {
