@@ -3,6 +3,8 @@ import:
   - './cspell/sveltekit.yaml'
 words:
   - dedup
+  - idempotently
   - jgame
   - sonarlint
+  - winget
 ignorePaths: []
