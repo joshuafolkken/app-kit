@@ -46,15 +46,16 @@ pnpm add -D @joshuafolkken/app-kit
 
 Run from the root of a SvelteKit project:
 
-| Command                           | What it does                                                              |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `josh-app init`                   | Apply kit's base then the SvelteKit + Cloudflare overlay to a project     |
-| `josh-app sync`                   | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently |
-| `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                          |
-| `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                  |
-| `josh-app dast`                   | Dynamic baseline security scan against the running preview server         |
-| `josh-app version` / `v`          | Report installed-vs-latest version                                        |
-| `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                             |
+| Command                           | What it does                                                               |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `josh-app init`                   | Apply kit's base then the SvelteKit + Cloudflare overlay to a project      |
+| `josh-app sync`                   | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently  |
+| `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                           |
+| `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                   |
+| `josh-app dast`                   | Dynamic baseline security scan against the running preview server          |
+| `josh-app verify`                 | Unified pre-push gate: build once, boot once, run E2E + DAST scan together |
+| `josh-app version` / `v`          | Report installed-vs-latest version                                         |
+| `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                              |
 
 ## Security scanning (DAST)
 
@@ -67,17 +68,28 @@ unset or weak CSP, and `Secure` / `HttpOnly` / `SameSite` gaps on cookies.
 
 It runs in three places, all sharing one implementation:
 
-| Where         | How                                                                          |
-| ------------- | ---------------------------------------------------------------------------- |
-| Manually      | `pnpm josh-app dast`                                                         |
-| Before a push | The `dast` command in `lefthook/sveltekit.yml` (`pre-push`, narrowly scoped) |
-| CI            | `.github/workflows/dast.yml`, distributed by `josh-app sync`                 |
+| Where         | How                                                              |
+| ------------- | ---------------------------------------------------------------- |
+| Manually      | `pnpm josh-app dast`                                             |
+| Before a push | Inside `josh-app verify` — the unified pre-push gate (see below) |
+| CI            | `.github/workflows/dast.yml`, distributed by `josh-app sync`     |
 
-The pre-push hook fires only on files that can change the verdict — `_headers`,
-`src/hooks.server.ts`, `+server.ts`, `wrangler.jsonc`, `svelte.config.js`, and
-`zap-baseline.conf`. A baseline scan is passive, so it only observes response headers and cookie
-attributes; a component or utility change cannot alter the result, and spending ~45s per push on
-one is how hooks end up bypassed.
+### Unified pre-push gate (`josh-app verify`)
+
+The E2E suite and the DAST scan both need the built app running on port 4173. Rather than each
+building and booting its own preview (duplicate work serially, a port/build collision in
+parallel), the pre-push hook runs one `josh-app verify` command that **builds once, boots the
+preview once, then runs Playwright and the ZAP scan against that single server**, and tears it
+down. Playwright reuses the already-booted server via `PLAYWRIGHT_REUSE_SERVER=1` (kit#673), so it
+never rebuilds.
+
+`verify` receives the pushed file list and keeps the scan narrowly triggered: E2E always runs, but
+the ~34s ZAP scan runs **only** when a header/cookie-affecting file changed — `_headers`,
+`src/hooks.server.ts`, `+server.ts` / `+*.server.ts`, `wrangler.jsonc`, `svelte.config.js`, or
+`zap-baseline.conf`. A baseline scan is passive (it only observes response headers and cookie
+attributes), so a component or utility change cannot alter its result, and spending ~34s per push
+on one is how hooks end up bypassed. An empty file list is fail-safe → scan (a security check is
+never skipped silently).
 
 `package.json` and `pnpm-lock.yaml` are excluded on purpose: a version bump rewrites
 `package.json` on essentially every commit, so including it would fire the scan every time and

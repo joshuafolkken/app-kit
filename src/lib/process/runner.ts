@@ -66,6 +66,24 @@ function run_pnpm(argv: ReadonlyArray<string>, cwd: string): SpawnOutcome {
 	return run_command(invocation.command, to_pnpm_argv(invocation, argv), cwd)
 }
 
+// Like run_pnpm, but layers extra environment variables over the inherited env — the `verify`
+// orchestrator uses this to hand Playwright PLAYWRIGHT_REUSE_SERVER=1 (and the CI flags) so it
+// reuses the already-booted preview instead of building and starting its own.
+function run_pnpm_with_environment(
+	argv: ReadonlyArray<string>,
+	cwd: string,
+	environment: Readonly<Record<string, string>>,
+): SpawnOutcome {
+	const invocation = current_pnpm_invocation()
+	const result = spawnSync(invocation.command, to_pnpm_argv(invocation, argv), {
+		cwd,
+		stdio: 'inherit',
+		env: { ...process.env, ...environment },
+	})
+
+	return { status: result.status, error: result.error }
+}
+
 // A spawn that could not start at all is a programming/environment error, not a check failure,
 // so it throws rather than collapsing into an exit status the caller would report as findings.
 function to_exit_status(outcome: SpawnOutcome): number {
@@ -81,6 +99,7 @@ const process_runner = {
 	to_pnpm_argv,
 	run_command,
 	run_pnpm,
+	run_pnpm_with_environment,
 	to_exit_status,
 }
 
