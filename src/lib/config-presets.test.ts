@@ -1,6 +1,19 @@
 import { readFileSync } from 'node:fs'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
+import { app_verify } from '#verify/verify.js'
 import { describe, expect, it } from 'vitest'
+
+// Each DAST-relevant lefthook glob entry paired with a file that should match it — used to guard
+// that the lefthook glob and verify.ts's is_dast_relevant predicate stay in lockstep.
+const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
+	["- '_headers'", '_headers'],
+	["- 'zap-baseline.conf'", 'zap-baseline.conf'],
+	["- 'wrangler.jsonc'", 'wrangler.jsonc'],
+	["- 'svelte.config.js'", 'svelte.config.js'],
+	["- 'src/hooks.server.ts'", 'src/hooks.server.ts'],
+	["- '**/+server.ts'", 'src/routes/api/+server.ts'],
+	["- '**/+*.server.ts'", 'src/routes/dashboard/+page.server.ts'],
+]
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
@@ -100,12 +113,16 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 		expect(source).toMatch(/type-check-svelte:\n\s+glob:[^\n]*\n\s+run: pnpm josh-app check:ci/u)
 	})
 
-	it('gates pre-push on test:e2e nested under pre-push with the CI env', () => {
+	it('gates pre-push on the unified verify command (#97)', () => {
+		// E2E moved from a standalone `test-e2e` command into the merged `verify` orchestrator; the
+		// CI env for Playwright now lives in verify.ts (E2E_ENV), not the lefthook.
 		const source = read_lefthook_preset()
+		const commands_index = source.indexOf('pre-push:\n  commands:')
+		const verify_index = source.indexOf('\n    verify:\n')
 
-		expect(source).toMatch(
-			/pre-push:\n\s+commands:\n\s+test-e2e:\n\s+glob:[\s\S]*CI:\s*'1'[\s\S]*pnpm josh test:e2e/u,
-		)
+		expect(commands_index).toBeGreaterThanOrEqual(0)
+		expect(verify_index).toBeGreaterThan(commands_index)
+		expect(source).toContain('run: pnpm josh-app verify {push_files}')
 	})
 })
 
@@ -204,49 +221,41 @@ describe('SvelteKit reserved route boolean export surface (#65)', () => {
 	})
 })
 
-// #94: the DAST scan is expensive (~45s), so its placement and trigger are load-bearing. These
-// lock in both halves of the trade-off: it must stay off pre-commit, and its narrow glob must
-// still cover every file that can actually change a baseline verdict.
-describe('SvelteKit lefthook preset — DAST scan trigger (#94)', () => {
-	it('runs on pre-push, never pre-commit', () => {
+// #94 / #97: the unified `verify` command (build once → boot once → E2E + ZAP scan) is expensive,
+// so its placement and glob are load-bearing. It must stay off pre-commit, its UNION glob must
+// fire for both E2E and every DAST-relevant file, and it must forward the pushed files so verify
+// can gate the ~34s scan narrowly (the scan-gating itself is tested in verify.test.ts).
+describe('SvelteKit lefthook preset — unified verify command (#94, #97)', () => {
+	it('runs the unified verify command on pre-push, never pre-commit', () => {
 		const source = read_lefthook_preset()
 		const pre_push_index = source.indexOf('pre-push:')
-		const dast_index = source.indexOf('dast:')
+		const verify_index = source.indexOf('verify:')
 
-		// A ~45s Docker scan on every commit trains contributors into habitual --no-verify,
-		// which disables every hook including the cheap ones.
-		expect(dast_index).toBeGreaterThan(pre_push_index)
+		// A minutes-long build + boot + E2E + scan on every commit trains contributors into habitual
+		// --no-verify, which disables every hook including the cheap ones.
+		expect(verify_index).toBeGreaterThan(pre_push_index)
 	})
 
-	it('triggers on every file that can change a baseline verdict', () => {
+	it('includes the broad E2E trigger verbatim so its per-file behavior is unchanged', () => {
+		expect(read_lefthook_preset()).toContain(`- '{*.{svelte,ts,js,mjs,cjs},package.json}'`)
+	})
+
+	it('forwards the pushed file list so verify can gate the scan narrowly', () => {
+		// The scan is gated in verify.ts (is_dast_relevant); lefthook just hands verify the files.
+		expect(read_lefthook_preset()).toContain('pnpm josh-app verify {push_files}')
+	})
+
+	it('keeps the lefthook DAST glob and verify.ts is_dast_relevant in lockstep', () => {
+		// The union glob fires verify; is_dast_relevant then decides whether to scan. If a
+		// header/cookie file is added to one representation but not the other, the scan silently
+		// never runs (or verify never fires) — the exact "gate disabled without noticing" failure
+		// this pairing guards against. Adding a DAST file requires updating both, and this list.
+		// Also covers +server.ts / +*.server.ts, the only place a route sets its own Set-Cookie.
 		const source = read_lefthook_preset()
 
-		// A passive baseline scan only sees response headers and cookie attributes. These are the
-		// files that produce them — dropping one lets a real regression reach CI unnoticed.
-		for (const trigger of [
-			'_headers',
-			'zap-baseline.conf',
-			'wrangler.jsonc',
-			'src/hooks.server.ts',
-		]) {
-			expect(source).toContain(`- '${trigger}'`)
+		for (const [glob_entry, sample] of DAST_GLOB_SAMPLES) {
+			expect(source).toContain(glob_entry)
+			expect(app_verify.is_dast_relevant(sample)).toBe(true)
 		}
-	})
-
-	it('excludes the files that change on every commit, or the narrowing buys nothing', () => {
-		// `josh bump` rewrites package.json's version on every change (40/40 commits measured), and
-		// pnpm-lock.yaml moved in 26/40. Either one would fire the ~45s scan on essentially every
-		// push — the exact always-on cost this glob exists to avoid. CI covers dependency drift.
-		const glob_block = read_lefthook_preset().split('dast:', 2)[1]?.split('run:', 2)[0] ?? ''
-
-		expect(glob_block).not.toContain(`- 'package.json'`)
-		expect(glob_block).not.toContain(`- 'pnpm-lock.yaml'`)
-	})
-
-	it('triggers on server routes, the only place a route sets its own headers or cookies', () => {
-		// Without these a new +server.ts could ship a Set-Cookie missing HttpOnly/SameSite and the
-		// local hook would stay silent.
-		expect(read_lefthook_preset()).toContain(`- '**/+server.ts'`)
-		expect(read_lefthook_preset()).toContain(`- '**/+*.server.ts'`)
 	})
 })

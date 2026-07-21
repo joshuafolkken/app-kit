@@ -103,31 +103,30 @@ function assert_docker_available(deps: DastDependencies, cwd: string): void {
 	}
 }
 
-// The scan's exit status is passed through untouched: zap-baseline.py exits 0 only when nothing
-// was reported, so any finding — FAIL or WARN — fails the command.
-async function run_scan(
-	cwd: string,
-	workspace: ZapWorkspace,
-	deps: DastDependencies,
-): Promise<number> {
-	const server = await deps.start_preview(cwd, PREVIEW_PORT)
-
-	try {
-		const argv = zap.build_scan_argv(workspace.directory, PREVIEW_PORT, workspace.config_file)
-
-		return process_runner.to_exit_status(deps.docker(argv, cwd))
-	} finally {
-		server.stop()
-	}
+// Public preflight for callers (the `verify` orchestrator) that need to fail fast on a missing
+// Docker daemon before doing expensive work, using the default runner.
+function preflight_docker(cwd: string, deps: DastDependencies = DEFAULT_DEPENDENCIES): void {
+	assert_docker_available(deps, cwd)
 }
 
-// The workspace is opened outside run_scan's try so that a preview server which never boots still
-// gets its temp directory cleaned up.
-async function scan_against_preview(cwd: string, deps: DastDependencies): Promise<number> {
+// Run the ZAP baseline scan against a server ALREADY LISTENING on `port` — no build, no preview
+// lifecycle here. The disposable workspace (mounted at /zap/wrk) is opened and torn down in this
+// function, so the caller only has to guarantee the server is up and reachable. Shared by the
+// standalone `josh-app dast` (which boots its own preview first) and the `verify` orchestrator
+// (which shares one preview server with the E2E run). The scan's exit status is passed through
+// untouched: zap-baseline.py exits 0 only when nothing was reported, so any finding — FAIL or
+// WARN — fails the caller.
+async function scan_running_server(
+	cwd: string,
+	port: number,
+	deps: DastDependencies = DEFAULT_DEPENDENCIES,
+): Promise<number> {
 	const workspace = deps.open_workspace(cwd)
 
 	try {
-		return await run_scan(cwd, workspace, deps)
+		const argv = zap.build_scan_argv(workspace.directory, port, workspace.config_file)
+
+		return process_runner.to_exit_status(deps.docker(argv, cwd))
 	} finally {
 		deps.close_workspace(workspace)
 	}
@@ -144,6 +143,9 @@ function describe_result(status: number): string {
 	return `❌ josh-app dast: scan failed with status ${String(status)} — see the ZAP summary above.`
 }
 
+// Standalone `josh-app dast`: preflight Docker, build, boot the preview it owns, scan it, tear it
+// down. The preview lifecycle lives here (not in scan_running_server) so the scan step stays a
+// pure "scan a running server" primitive the orchestrator can reuse.
 async function run_dast(
 	cwd: string,
 	deps: DastDependencies = DEFAULT_DEPENDENCIES,
@@ -153,7 +155,13 @@ async function run_dast(
 	const build_status = process_runner.to_exit_status(deps.pnpm(BUILD_ARGV, cwd))
 	if (build_status !== process_runner.SUCCESS_STATUS) return build_status
 
-	return await scan_against_preview(cwd, deps)
+	const server = await deps.start_preview(cwd, PREVIEW_PORT)
+
+	try {
+		return await scan_running_server(cwd, PREVIEW_PORT, deps)
+	} finally {
+		server.stop()
+	}
 }
 
 const app_dast = {
@@ -162,6 +170,8 @@ const app_dast = {
 	DOCKER_UNAVAILABLE_MESSAGE,
 	DastEnvironmentError,
 	describe_result,
+	preflight_docker,
+	scan_running_server,
 	open_workspace,
 	close_workspace,
 	run_dast,
