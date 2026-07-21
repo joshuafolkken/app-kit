@@ -49,15 +49,27 @@ function make_state(): HarnessState {
 	return { docker_argv: [], pnpm_argv: [], stops: 0, boots: 0, opens: 0, closes: 0 }
 }
 
-function make_dependencies(state: HarnessState, options: HarnessOptions): DastDependencies {
-	function docker(argv: ReadonlyArray<string>): SpawnOutcome {
-		state.docker_argv.push(argv)
-		const is_scan = state.docker_argv.length > PREFLIGHT_CALL_COUNT
+// Both docker paths record into docker_argv (preflight at [0], scan at [SCAN_CALL_INDEX]) and read
+// their scripted status by call index; only the injected error differs.
+function record_docker(
+	state: HarnessState,
+	options: HarnessOptions,
+	argv: ReadonlyArray<string>,
+	error: Error | undefined,
+): SpawnOutcome {
+	state.docker_argv.push(argv)
 
-		return {
-			status: options.docker_statuses?.[state.docker_argv.length - 1] ?? SUCCESS,
-			error: is_scan ? options.scan_error : options.docker_error,
-		}
+	return { status: options.docker_statuses?.[state.docker_argv.length - 1] ?? SUCCESS, error }
+}
+
+function make_dependencies(state: HarnessState, options: HarnessOptions): DastDependencies {
+	// Preflight (`docker info`) is synchronous; the scan container run is async.
+	function docker(argv: ReadonlyArray<string>): SpawnOutcome {
+		return record_docker(state, options, argv, options.docker_error)
+	}
+
+	async function docker_scan(argv: ReadonlyArray<string>): Promise<SpawnOutcome> {
+		return record_docker(state, options, argv, options.scan_error)
 	}
 
 	function pnpm(argv: ReadonlyArray<string>): SpawnOutcome {
@@ -87,7 +99,7 @@ function make_dependencies(state: HarnessState, options: HarnessOptions): DastDe
 		state.closes += 1
 	}
 
-	return { docker, pnpm, start_preview, open_workspace, close_workspace }
+	return { docker, docker_scan, pnpm, start_preview, open_workspace, close_workspace }
 }
 
 function make_harness(options: HarnessOptions = {}): {

@@ -66,3 +66,28 @@ describe('spawn outcome interpretation', () => {
 		expect(() => process_runner.to_exit_status({ status: null, error: failure })).toThrow(failure)
 	})
 })
+
+describe('async command runner', () => {
+	const EXIT_CODE = 3
+
+	it('resolves with the child exit status once it closes', async () => {
+		const outcome = await process_runner.run_command_async(
+			process.execPath,
+			['-e', `process.exit(${String(EXIT_CODE)})`],
+			process.cwd(),
+		)
+
+		expect(outcome.error).toBeUndefined()
+		expect(outcome.status).toBe(EXIT_CODE)
+	})
+
+	it('resolves with an error (not a rejection) when the binary cannot be spawned', async () => {
+		const outcome = await process_runner.run_command_async(
+			'definitely-not-a-real-binary-xyz',
+			[],
+			process.cwd(),
+		)
+
+		expect(outcome.error).toBeInstanceOf(Error)
+	})
+})
