@@ -52,21 +52,90 @@ Run from the root of a SvelteKit project:
 | `josh-app sync`                   | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently |
 | `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                          |
 | `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                  |
+| `josh-app dast`                   | Dynamic baseline security scan against the running preview server         |
 | `josh-app version` / `v`          | Report installed-vs-latest version                                        |
 | `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                             |
+
+## Security scanning (DAST)
+
+The static layers inherited from kit (CodeQL, SonarCloud, OSV-Scanner, secretlint) never start
+the app. `josh-app dast` closes that gap: it builds the project, boots the preview server, runs
+the [OWASP ZAP](https://www.zaproxy.org/) baseline scan against it, and tears the server down —
+including on failure. The scan is passive (no attack traffic), so it is safe against a local
+preview. It catches the class static analysis structurally cannot see: missing security headers,
+unset or weak CSP, and `Secure` / `HttpOnly` / `SameSite` gaps on cookies.
+
+It runs in three places, all sharing one implementation:
+
+| Where         | How                                                                          |
+| ------------- | ---------------------------------------------------------------------------- |
+| Manually      | `pnpm josh-app dast`                                                         |
+| Before a push | The `dast` command in `lefthook/sveltekit.yml` (`pre-push`, narrowly scoped) |
+| CI            | `.github/workflows/dast.yml`, distributed by `josh-app sync`                 |
+
+The pre-push hook fires only on files that can change the verdict — `_headers`,
+`src/hooks.server.ts`, `+server.ts`, `wrangler.jsonc`, `svelte.config.js`, and
+`zap-baseline.conf`. A baseline scan is passive, so it only observes response headers and cookie
+attributes; a component or utility change cannot alter the result, and spending ~45s per push on
+one is how hooks end up bypassed.
+
+`package.json` and `pnpm-lock.yaml` are excluded on purpose: a version bump rewrites
+`package.json` on essentially every commit, so including it would fire the scan every time and
+undo the narrowing. Dependency-driven header changes are caught by CI, which runs the scan
+unconditionally on every PR.
+
+**Docker is required.** The scan runs in a container, and a missing daemon fails the command
+loudly rather than skipping it — a security check that silently no-ops is worse than one that is
+absent, because the green result gets misread as coverage.
+
+**Triage findings in `zap-baseline.conf`.** Every ZAP rule defaults to `WARN`, and the scan exits
+non-zero when anything is reported, so an untriaged finding fails the build. Silence one only
+with a recorded reason:
+
+```text
+10038	IGNORE	(CSP is set at the CDN edge, not by the worker — verified in production headers)
+```
+
+### Security headers
+
+`josh-app sync` seeds a root `_headers` file with a baseline (`X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`), which closes ZAP findings
+10020 / 10021 / 10063.
+
+**`_headers` covers static assets only.** Cloudflare applies it to asset responses; anything the
+Worker renders — every SSR page — bypasses it. Apply the same baseline in your server hook:
+
+```ts
+// src/hooks.server.ts
+import { security_headers } from '@joshuafolkken/app-kit/security'
+import type { Handle } from '@sveltejs/kit'
+
+export const handle: Handle = async ({ event, resolve }) =>
+	security_headers.apply_security_headers(await resolve(event))
+```
+
+Content-Security-Policy is deliberately **not** included: a working SvelteKit CSP needs
+nonce/hash wiring via `kit.csp` in `svelte.config.js`, not a static header line.
+
+`josh-app sync` seeds both `zap-baseline.conf` and `_headers` once and never rewrites them: the
+triage decisions and header policy are yours.
+`.github/workflows/dast.yml`, by contrast, is fully managed and overwritten on every sync — it is
+a **separate, additive** workflow that never touches `.github/workflows/ci.yml`, which kit
+single-sources. Two packages mastering one path would make the result depend on sync order.
 
 ## Library usage
 
 Add app-kit as a devDependency, then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
 
-| Import                                      | Provides                                                       |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| `@joshuafolkken/app-kit`                    | Package entry — runtime feature namespaces                     |
-| `@joshuafolkken/app-kit/theme`              | `theme_store` and the `Theme` type                             |
-| `@joshuafolkken/app-kit/i18n`               | `locale_store` and the `Locale` type                           |
-| `@joshuafolkken/app-kit/eslint/sveltekit`   | SvelteKit ESLint flat-config preset                            |
-| `@joshuafolkken/app-kit/tsconfig/sveltekit` | SvelteKit `tsconfig` preset (extend from your `tsconfig.json`) |
-| `@joshuafolkken/app-kit/cspell/sveltekit`   | SvelteKit cspell word/config preset                            |
+| Import                                      | Provides                                                         |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| `@joshuafolkken/app-kit`                    | Package entry — runtime feature namespaces                       |
+| `@joshuafolkken/app-kit/theme`              | `theme_store` and the `Theme` type                               |
+| `@joshuafolkken/app-kit/i18n`               | `locale_store` and the `Locale` type                             |
+| `@joshuafolkken/app-kit/security`           | `security_headers` — baseline security headers for SSR responses |
+| `@joshuafolkken/app-kit/eslint/sveltekit`   | SvelteKit ESLint flat-config preset                              |
+| `@joshuafolkken/app-kit/tsconfig/sveltekit` | SvelteKit `tsconfig` preset (extend from your `tsconfig.json`)   |
+| `@joshuafolkken/app-kit/cspell/sveltekit`   | SvelteKit cspell word/config preset                              |
 
 Example — extend the ESLint preset:
 
