@@ -1,6 +1,7 @@
 import { chmodSync, copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
 import { process_runner, type CommandRunner } from '#process/runner.js'
 import { preview_server, type PreviewHandle } from './preview.js'
 import { zap } from './zap.js'
@@ -39,8 +40,14 @@ interface ZapWorkspace {
 	config_file: string | undefined
 }
 
+// The scan container run is async so the `verify` fan-out can run it concurrently with E2E; the
+// preflight (`docker info`) stays synchronous — it is quick and its result gates whether the
+// expensive work starts at all.
+type AsyncCommandRunner = (argv: ReadonlyArray<string>, cwd: string) => Promise<SpawnOutcome>
+
 interface DastDependencies {
 	docker: CommandRunner
+	docker_scan: AsyncCommandRunner
 	pnpm: CommandRunner
 	start_preview: (cwd: string, port: number) => Promise<PreviewHandle>
 	open_workspace: (cwd: string) => ZapWorkspace
@@ -49,6 +56,13 @@ interface DastDependencies {
 
 function default_docker(argv: ReadonlyArray<string>, cwd: string): ReturnType<CommandRunner> {
 	return process_runner.run_command(zap.DOCKER_BIN, argv, cwd)
+}
+
+async function default_docker_scan(
+	argv: ReadonlyArray<string>,
+	cwd: string,
+): Promise<SpawnOutcome> {
+	return await process_runner.run_command_async(zap.DOCKER_BIN, argv, cwd)
 }
 
 // zap-baseline.py writes its generated automation plan (zap.yaml) into /zap/wrk, so mounting the
@@ -87,6 +101,7 @@ function close_workspace(workspace: ZapWorkspace): void {
 
 const DEFAULT_DEPENDENCIES: DastDependencies = {
 	docker: default_docker,
+	docker_scan: default_docker_scan,
 	pnpm: process_runner.run_pnpm,
 	start_preview: preview_server.start_preview,
 	open_workspace,
@@ -126,7 +141,7 @@ async function scan_running_server(
 	try {
 		const argv = zap.build_scan_argv(workspace.directory, port, workspace.config_file)
 
-		return process_runner.to_exit_status(deps.docker(argv, cwd))
+		return process_runner.to_exit_status(await deps.docker_scan(argv, cwd))
 	} finally {
 		deps.close_workspace(workspace)
 	}
