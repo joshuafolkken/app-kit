@@ -5,6 +5,7 @@ import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
+import { app_verify } from '#verify/verify.js'
 import { app_version } from '#version/version.js'
 
 // esbuild bundles this to dist/scripts/josh-app.js; SELF_DIR is the running bin's own directory
@@ -25,7 +26,8 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
-const USAGE_MESSAGE = 'Usage: josh-app <init|sync|check|check:ci|dast|version|v|version:upgrade|vu>'
+const USAGE_MESSAGE =
+	'Usage: josh-app <init|sync|check|check:ci|dast|verify|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
 // A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
@@ -34,6 +36,8 @@ const EXIT_ENVIRONMENT = 1
 
 // process.argv[0] is node, [1] is this script, [2] is the first user argument.
 const COMMAND_ARG_INDEX = 2
+// verify receives the pushed file list (lefthook `{push_files}`) as its remaining arguments.
+const FILE_ARGS_START_INDEX = 3
 
 // Orchestrate kit's framework-agnostic base (`josh init`) first, then apply the app-kit overlay —
 // one command delivers base + overlay without app-kit duplicating kit's managed file list.
@@ -77,10 +81,18 @@ function run_check_ci(): void {
 	exit_on_failure(app_check.run_check_ci(process.cwd()))
 }
 
+// A missing Docker daemon is reported as a plain actionable line; anything else keeps its stack
+// trace, so a real defect is never disguised as an environment problem. Shared by `dast` and
+// `verify`, both of which preflight Docker.
+function report_environment_error(error: unknown): never {
+	if (!(error instanceof app_dast.DastEnvironmentError)) throw error
+
+	console.error(error.message)
+	process.exit(EXIT_ENVIRONMENT)
+}
+
 // Dynamic baseline security scan against the running preview server — the one layer that probes
 // the real HTTP surface, which the static analyzers (CodeQL, Sonar, OSV) structurally cannot see.
-// A missing Docker daemon is reported as a plain actionable line; anything else keeps its stack
-// trace, so a real defect is never disguised as an environment problem.
 async function run_dast(): Promise<void> {
 	try {
 		const status = await app_dast.run_dast(process.cwd())
@@ -88,10 +100,20 @@ async function run_dast(): Promise<void> {
 		console.info(app_dast.describe_result(status))
 		exit_on_failure(status)
 	} catch (error) {
-		if (!(error instanceof app_dast.DastEnvironmentError)) throw error
+		report_environment_error(error)
+	}
+}
 
-		console.error(error.message)
-		process.exit(EXIT_ENVIRONMENT)
+// Unified pre-push runtime gate: build once, boot the preview once, run E2E and (only when a
+// header/cookie-affecting file changed) the ZAP scan against that single server, tear it down.
+// The pushed file list arrives as the trailing arguments (lefthook `{push_files}`).
+async function run_verify(): Promise<void> {
+	const files = process.argv.slice(FILE_ARGS_START_INDEX)
+
+	try {
+		exit_on_failure(await app_verify.run_verify(process.cwd(), files))
+	} catch (error) {
+		report_environment_error(error)
 	}
 }
 
@@ -107,6 +129,7 @@ const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['check', run_check],
 	['check:ci', run_check_ci],
 	['dast', run_dast],
+	['verify', run_verify],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],
 ])
