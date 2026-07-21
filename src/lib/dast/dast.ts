@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { process_runner, type CommandRunner } from '#process/runner.js'
@@ -56,13 +56,27 @@ function default_docker(argv: ReadonlyArray<string>, cwd: string): ReturnType<Co
 // tree and in every consumer's. A throwaway directory holding nothing but a copy of the baseline
 // config fixes that, and as a bonus stops handing the scanner container write access to the whole
 // source tree.
+//
+// `mkdtemp` creates the directory 0700 (owner-only). The ZAP container runs as its own `zap` user
+// — a DIFFERENT uid on Linux CI — and must traverse /zap/wrk, read the config, and write its
+// generated plan there. So the mount is widened to be accessible cross-uid: without this the scan
+// dies with `PermissionError: /zap/wrk/zap-baseline.conf`. macOS Docker Desktop ignores unix
+// perms, which is why 0700 only fails on Linux (green local scan, red CI).
+const WORKSPACE_DIR_MODE = 0o777
+const WORKSPACE_FILE_MODE = 0o644
+
 function open_workspace(cwd: string): ZapWorkspace {
 	const directory = mkdtempSync(path.join(tmpdir(), 'app-kit-zap-'))
-	const source = path.join(cwd, zap.ZAP_CONFIG_FILE)
 
+	chmodSync(directory, WORKSPACE_DIR_MODE)
+
+	const source = path.join(cwd, zap.ZAP_CONFIG_FILE)
 	if (!existsSync(source)) return { directory, config_file: undefined }
 
-	copyFileSync(source, path.join(directory, zap.ZAP_CONFIG_FILE))
+	const destination = path.join(directory, zap.ZAP_CONFIG_FILE)
+
+	copyFileSync(source, destination)
+	chmodSync(destination, WORKSPACE_FILE_MODE)
 
 	return { directory, config_file: zap.ZAP_CONFIG_FILE }
 }
