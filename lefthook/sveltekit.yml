@@ -51,3 +51,48 @@ pre-push:
         CI: '1'
         PLAYWRIGHT_HTML_OPEN: never
       run: pnpm josh test:e2e
+
+    # Dynamic baseline security scan (build + boot preview + OWASP ZAP). On `pre-push`, never
+    # `pre-commit`: it costs ~45s (34s scan + 9s build), and putting that on every commit would
+    # train contributors into habitual `--no-verify`, which disables every hook including the
+    # cheap ones. Same reasoning that already places test-e2e here.
+    #
+    # The glob is deliberately NARROW. A ZAP *baseline* scan is passive: what it can detect is
+    # response headers and cookie attributes, nothing else. Those come from the files below —
+    # a change to a component or a lib function cannot alter the verdict, so a wide
+    # `*.{svelte,ts}` trigger would spend 45s per push at zero detection value, which is how
+    # hooks get bypassed. CI (.github/workflows/dast.yml) still runs it unconditionally on every
+    # PR, so narrowing here costs no coverage.
+    #
+    # `+server.ts` / `+*.server.ts` are included on purpose: they are the only place a route can
+    # emit its own headers or `Set-Cookie`, so dropping them would let an HttpOnly/SameSite gap
+    # reach CI unnoticed.
+    #
+    # `package.json` and `pnpm-lock.yaml` are deliberately EXCLUDED, even though a dependency
+    # change (adapter-cloudflare, SvelteKit) can move generated headers. Measured over 40 commits
+    # in this repo: package.json changed in 40 of them — `josh bump` rewrites the version on every
+    # single change — and pnpm-lock.yaml in 26. Including either would fire the scan on ~every
+    # push, which is exactly the always-on cost this narrow glob exists to avoid; the listed files
+    # together fire on ~5%. Dependency-driven regressions are CI's job (dast.yml runs
+    # unconditionally on every PR, in a clean environment with a frozen lockfile), which is where
+    # you want a dependency bump validated anyway.
+    #
+    # Third non-obvious lefthook fact (probed against 1.10.10, see the two at the top of this
+    # file): a glob is matched against the file's FULL repo-relative path, not its basename.
+    # `'hooks.server.ts'` matches nothing — it must be `'src/hooks.server.ts'` — while `'**/'`
+    # prefixed patterns do match nested paths. Getting this wrong disables the gate SILENTLY:
+    # the hook reports "no matching files" and the push succeeds, which is indistinguishable
+    # from a clean scan. Any edit here must be re-probed, not assumed.
+    #
+    # Requires a running Docker daemon; a missing one fails the push loudly rather than skipping
+    # the check silently (kit#670). Triage findings in zap-baseline.conf.
+    dast:
+      glob:
+        - '_headers'
+        - 'zap-baseline.conf'
+        - 'wrangler.jsonc'
+        - 'svelte.config.js'
+        - 'src/hooks.server.ts'
+        - '**/+server.ts'
+        - '**/+*.server.ts'
+      run: pnpm josh-app dast

@@ -2,9 +2,12 @@ version: '0.2'
 import:
   - './cspell/sveltekit.yaml'
 words:
+  - baselining
   - dedup
+  - elifecycle
   - idempotently
   - jgame
+  - sameorigin
   - sonarlint
   - winget
 ignorePaths: []

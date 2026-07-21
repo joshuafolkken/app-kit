@@ -203,3 +203,50 @@ describe('SvelteKit reserved route boolean export surface (#65)', () => {
 		)
 	})
 })
+
+// #94: the DAST scan is expensive (~45s), so its placement and trigger are load-bearing. These
+// lock in both halves of the trade-off: it must stay off pre-commit, and its narrow glob must
+// still cover every file that can actually change a baseline verdict.
+describe('SvelteKit lefthook preset — DAST scan trigger (#94)', () => {
+	it('runs on pre-push, never pre-commit', () => {
+		const source = read_lefthook_preset()
+		const pre_push_index = source.indexOf('pre-push:')
+		const dast_index = source.indexOf('dast:')
+
+		// A ~45s Docker scan on every commit trains contributors into habitual --no-verify,
+		// which disables every hook including the cheap ones.
+		expect(dast_index).toBeGreaterThan(pre_push_index)
+	})
+
+	it('triggers on every file that can change a baseline verdict', () => {
+		const source = read_lefthook_preset()
+
+		// A passive baseline scan only sees response headers and cookie attributes. These are the
+		// files that produce them — dropping one lets a real regression reach CI unnoticed.
+		for (const trigger of [
+			'_headers',
+			'zap-baseline.conf',
+			'wrangler.jsonc',
+			'src/hooks.server.ts',
+		]) {
+			expect(source).toContain(`- '${trigger}'`)
+		}
+	})
+
+	it('excludes the files that change on every commit, or the narrowing buys nothing', () => {
+		// `josh bump` rewrites package.json's version on every change (40/40 commits measured), and
+		// pnpm-lock.yaml moved in 26/40. Either one would fire the ~45s scan on essentially every
+		// push — the exact always-on cost this glob exists to avoid. CI covers dependency drift.
+		const glob_block = read_lefthook_preset().split('dast:', 2)[1]?.split('run:', 2)[0] ?? ''
+
+		expect(glob_block).not.toContain(`- 'package.json'`)
+		expect(glob_block).not.toContain(`- 'pnpm-lock.yaml'`)
+	})
+
+	it('triggers on server routes, the only place a route sets its own headers or cookies', () => {
+		// Without these a new +server.ts could ship a Set-Cookie missing HttpOnly/SameSite and the
+		// local hook would stay silent.
+		expect(read_lefthook_preset()).toContain(`- '**/+server.ts'`)
+		expect(read_lefthook_preset()).toContain(`- '**/+*.server.ts'`)
+	})
+})
