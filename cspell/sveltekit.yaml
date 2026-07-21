@@ -8,6 +8,16 @@ import:
 words:
   - Stylesheet
   - sveltekit
+  # DAST triage vocabulary. These reach consumers via the seeded zap-baseline.conf, so they
+  # belong in the distributed preset — without them a consumer's first `cspell` run fails on a
+  # file app-kit itself wrote.
+  - baselined
+  - untriaged
+  - zaproxy
+  # Security-header vocabulary, distributed to consumers via the seeded _headers file.
+  - clickjacking
+  - Embedder
+  - geolocation
 ignorePaths:
   # Position-independent (**/) globs so the ignore propagates through `import:` to consumers —
   # cspell resolves an imported config's relative globs against the preset's own directory, so an

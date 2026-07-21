@@ -4,6 +4,7 @@ import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
+import { app_dast } from '#dast/dast.js'
 import { app_version } from '#version/version.js'
 
 // esbuild bundles this to dist/scripts/josh-app.js; SELF_DIR is the running bin's own directory
@@ -24,9 +25,12 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
-const USAGE_MESSAGE = 'Usage: josh-app <init|sync|check|check:ci|version|v|version:upgrade|vu>'
+const USAGE_MESSAGE = 'Usage: josh-app <init|sync|check|check:ci|dast|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
+// A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
+// error, though both are non-zero so CI and the pre-push hook block either way.
+const EXIT_ENVIRONMENT = 1
 
 // process.argv[0] is node, [1] is this script, [2] is the first user argument.
 const COMMAND_ARG_INDEX = 2
@@ -73,23 +77,43 @@ function run_check_ci(): void {
 	exit_on_failure(app_check.run_check_ci(process.cwd()))
 }
 
+// Dynamic baseline security scan against the running preview server — the one layer that probes
+// the real HTTP surface, which the static analyzers (CodeQL, Sonar, OSV) structurally cannot see.
+// A missing Docker daemon is reported as a plain actionable line; anything else keeps its stack
+// trace, so a real defect is never disguised as an environment problem.
+async function run_dast(): Promise<void> {
+	try {
+		const status = await app_dast.run_dast(process.cwd())
+
+		console.info(app_dast.describe_result(status))
+		exit_on_failure(status)
+	} catch (error) {
+		if (!(error instanceof app_dast.DastEnvironmentError)) throw error
+
+		console.error(error.message)
+		process.exit(EXIT_ENVIRONMENT)
+	}
+}
+
 const VERSION = 'version'
 const VERSION_UPGRADE = 'version:upgrade'
 
 // A Map (not an object literal) so a command name carrying a colon (`version:upgrade`) stays a
 // plain string key rather than an object property that the naming-convention rule would reject.
-const COMMAND_HANDLERS = new Map<string, () => void>([
+// `dast` is async (it awaits the preview server's readiness), so the handler type admits both.
+const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['init', run_init],
 	['sync', run_sync],
 	['check', run_check],
 	['check:ci', run_check_ci],
+	['dast', run_dast],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],
 ])
 
 const COMMAND_ALIASES: Record<string, string> = { v: VERSION, vu: VERSION_UPGRADE }
 
-function run(command: string | undefined): void {
+async function run(command: string | undefined): Promise<void> {
 	const resolved = command === undefined ? '' : (COMMAND_ALIASES[command] ?? command)
 	const handler = COMMAND_HANDLERS.get(resolved)
 
@@ -98,7 +122,7 @@ function run(command: string | undefined): void {
 		process.exit(EXIT_USAGE)
 	}
 
-	handler()
+	await handler()
 }
 
-run(process.argv[COMMAND_ARG_INDEX])
+await run(process.argv[COMMAND_ARG_INDEX])

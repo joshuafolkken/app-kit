@@ -1,6 +1,7 @@
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
+import type { CommandRunner } from '#process/runner.js'
 import { describe, expect, it } from 'vitest'
-import { app_check, type PnpmRunner } from './check.js'
+import { app_check } from './check.js'
 
 const CWD = '/consumer/project'
 const SUCCESS = 0
@@ -24,7 +25,7 @@ function signal_killed_spawn(): SpawnOutcome {
 
 function make_spawn(statuses: ReadonlyArray<number>): {
 	calls: Array<RecordedCall>
-	spawn: PnpmRunner
+	spawn: CommandRunner
 } {
 	const calls: Array<RecordedCall> = []
 
@@ -94,36 +95,5 @@ describe('josh-app check commands — failure handling', () => {
 		}
 
 		expect(() => app_check.run_check(CWD, spawn)).toThrow(failure)
-	})
-})
-
-describe('josh-app check commands — pnpm invocation resolution', () => {
-	it('runs a JS pnpm entry through node (corepack / pnpm home layout)', () => {
-		const entry = '/Users/dev/Library/pnpm/pnpm.cjs'
-
-		expect(app_check.resolve_pnpm_invocation(entry)).toEqual({
-			command: process.execPath,
-			prefix_args: [entry],
-		})
-	})
-
-	it('runs a standalone pnpm executable directly', () => {
-		const entry = '/usr/local/bin/pnpm'
-
-		expect(app_check.resolve_pnpm_invocation(entry)).toEqual({
-			command: entry,
-			prefix_args: [],
-		})
-	})
-
-	it('rejects a missing npm_execpath with an actionable message', () => {
-		expect(() => app_check.resolve_pnpm_invocation(undefined)).toThrow(/run through pnpm/u)
-		expect(() => app_check.resolve_pnpm_invocation('')).toThrow(/run through pnpm/u)
-	})
-
-	it('rejects npm / yarn / bun entries instead of feeding them pnpm-shaped exec args', () => {
-		for (const entry of ['/usr/lib/node_modules/npm/bin/npm-cli.js', '/opt/yarn/yarn.js']) {
-			expect(() => app_check.resolve_pnpm_invocation(entry)).toThrow(/requires pnpm/u)
-		}
 	})
 })
