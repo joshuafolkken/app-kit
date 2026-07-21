@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
 
@@ -66,6 +66,29 @@ function run_pnpm(argv: ReadonlyArray<string>, cwd: string): SpawnOutcome {
 	return run_command(invocation.command, to_pnpm_argv(invocation, argv), cwd)
 }
 
+// Async sibling of run_command: spawns the process without blocking the event loop and resolves
+// when it exits. The `verify` fan-out uses this for the long ZAP container run so it executes
+// concurrently with the (synchronous) E2E step against the one shared server. stdio is inherited
+// — the child writes straight to the terminal, so there is no Node-side pipe to fill and stall
+// while the event loop is blocked in the concurrent spawnSync (which would risk a deadlock).
+async function run_command_async(
+	bin: string,
+	argv: ReadonlyArray<string>,
+	cwd: string,
+): Promise<SpawnOutcome> {
+	return await new Promise<SpawnOutcome>((resolve) => {
+		const child = spawn(bin, [...argv], { cwd, stdio: 'inherit' })
+
+		child.on('error', (error) => {
+			// eslint-disable-next-line unicorn/no-null -- SpawnOutcome.status is number | null
+			resolve({ status: null, error })
+		})
+		child.on('close', (code) => {
+			resolve({ status: code, error: undefined })
+		})
+	})
+}
+
 // Like run_pnpm, but layers extra environment variables over the inherited env — the `verify`
 // orchestrator uses this to hand Playwright PLAYWRIGHT_REUSE_SERVER=1 (and the CI flags) so it
 // reuses the already-booted preview instead of building and starting its own.
@@ -98,6 +121,7 @@ const process_runner = {
 	current_pnpm_invocation,
 	to_pnpm_argv,
 	run_command,
+	run_command_async,
 	run_pnpm,
 	run_pnpm_with_environment,
 	to_exit_status,

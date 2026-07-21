@@ -83,9 +83,22 @@ const DEFAULT_DEPENDENCIES: VerifyDependencies = {
 	scan: app_dast.scan_running_server,
 }
 
-// Run E2E, then (only when a header/cookie-relevant file changed) the scan, against the one
-// running server. E2E failure short-circuits the scan — fix the tests first — but the server is
-// always torn down. `will_scan` is decided before booting so Docker can fail fast.
+// Aggregate the two checks' exit statuses: the command fails if EITHER failed. Neither failure is
+// masked — E2E (Playwright) and the scan (ZAP) each write their own output to the terminal, so the
+// user sees which failed; this only picks the returned exit code (E2E's when both fail — arbitrary
+// but stable, and non-zero either way).
+function aggregate_status(e2e_status: number, scan_status: number): number {
+	if (e2e_status !== process_runner.SUCCESS_STATUS) return e2e_status
+
+	return scan_status
+}
+
+// Run the checks against the one booted server, then tear it down (always). When the scan runs it
+// is FANNED OUT with E2E: `deps.scan` spawns the ZAP container asynchronously and returns before it
+// finishes, so the container runs at the OS level while the synchronous E2E step executes — the two
+// overlap against the single server (both are just HTTP clients; a ZAP baseline scan is passive).
+// This hides the scan under a slow E2E suite (#100). E2E no longer short-circuits the scan, so a
+// header regression is still reported even if a test also fails.
 async function run_against_server(
 	cwd: string,
 	will_scan: boolean,
@@ -94,10 +107,13 @@ async function run_against_server(
 	const server = await deps.start_preview(cwd, PREVIEW_PORT)
 
 	try {
-		const e2e_status = deps.run_e2e(cwd)
-		if (e2e_status !== process_runner.SUCCESS_STATUS) return e2e_status
+		if (!will_scan) return deps.run_e2e(cwd)
 
-		return will_scan ? await deps.scan(cwd, PREVIEW_PORT) : process_runner.SUCCESS_STATUS
+		// Start the scan first (non-blocking) so its container runs during the synchronous E2E.
+		const scan_promise = deps.scan(cwd, PREVIEW_PORT)
+		const e2e_status = deps.run_e2e(cwd)
+
+		return aggregate_status(e2e_status, await scan_promise)
 	} finally {
 		server.stop()
 	}
@@ -120,7 +136,15 @@ async function run_verify(
 	return await run_against_server(cwd, will_scan, deps)
 }
 
-const app_verify = { BUILD_ARGV, E2E_ARGV, E2E_ENV, is_dast_relevant, should_scan, run_verify }
+const app_verify = {
+	BUILD_ARGV,
+	E2E_ARGV,
+	E2E_ENV,
+	is_dast_relevant,
+	should_scan,
+	aggregate_status,
+	run_verify,
+}
 
 export { app_verify }
 export type { VerifyDependencies }

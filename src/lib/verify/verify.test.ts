@@ -109,13 +109,15 @@ describe('verify — DAST relevance predicate', () => {
 	})
 })
 
-describe('verify — pipeline order', () => {
-	it('builds once, boots once, then runs E2E and the scan against the one server', async () => {
+describe('verify — pipeline order & fan-out', () => {
+	it('builds once, boots once, then fans out the scan and E2E (scan started before E2E)', async () => {
 		const { state, deps } = make_harness()
 
 		await app_verify.run_verify(CWD, [HEADERS_FILE], deps)
 
-		expect(state.order).toEqual(['preflight', 'build', 'boot', 'e2e', 'scan', 'stop'])
+		// The scan container is spawned (non-blocking) BEFORE the synchronous E2E, so the two
+		// overlap against the one server — 'scan' is recorded before 'e2e'.
+		expect(state.order).toEqual(['preflight', 'build', 'boot', 'scan', 'e2e', 'stop'])
 		expect(state.boots).toBe(1)
 	})
 
@@ -130,7 +132,7 @@ describe('verify — pipeline order', () => {
 	})
 })
 
-describe('verify — short-circuiting', () => {
+describe('verify — short-circuiting & exit aggregation', () => {
 	it('does not build or boot when the scan is required but Docker is missing', async () => {
 		const { state, deps } = make_harness({ docker_missing: true })
 
@@ -149,20 +151,33 @@ describe('verify — short-circuiting', () => {
 		expect(state.boots).toBe(0)
 	})
 
-	it('short-circuits the scan when E2E fails, but still tears the server down', async () => {
+	it('still runs the scan when E2E fails — a header regression is not masked by a test failure', async () => {
+		// Fan-out means E2E no longer short-circuits the scan: both run, both are reported.
 		const { state, deps } = make_harness({ e2e_status: E2E_FAILURE })
 
 		const status = await app_verify.run_verify(CWD, [HEADERS_FILE], deps)
 
 		expect(status).toBe(E2E_FAILURE)
-		expect(state.scans).toBe(0)
+		expect(state.scans).toBe(1)
 		expect(state.stops).toBe(1)
 	})
 
-	it('fails the push when the scan reports a finding', async () => {
+	it('fails the push when the scan reports a finding, even though E2E passed', async () => {
 		const { deps } = make_harness({ scan_status: ZAP_WARN_EXIT })
 
 		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(ZAP_WARN_EXIT)
+	})
+
+	it('fails when both E2E and the scan fail', async () => {
+		const { deps } = make_harness({ e2e_status: E2E_FAILURE, scan_status: ZAP_WARN_EXIT })
+
+		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).not.toBe(SUCCESS)
+	})
+
+	it('passes only when both E2E and the scan pass', async () => {
+		const { deps } = make_harness()
+
+		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(SUCCESS)
 	})
 })
 
