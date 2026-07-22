@@ -128,6 +128,25 @@ describe('security headers seeding', () => {
 	})
 })
 
+describe('DAST workflow runs on a schedule, not per-PR (#103)', () => {
+	// The ~2.2GB ZAP image is re-pulled every ephemeral run, so the full scan runs nightly (broad
+	// safety net) rather than on every PR — per-PR header coverage lives in security-headers.e2e.ts.
+	it('triggers on a schedule and manual dispatch', () => {
+		const source = readFileSync(DAST_TEMPLATE, ENCODING)
+
+		expect(source).toMatch(/^on:\n\s+schedule:\n\s+- cron:/mu)
+		expect(source).toContain('workflow_dispatch:')
+	})
+
+	it('does not run on push or pull_request (that would re-pull 2GB per PR)', () => {
+		const source = readFileSync(DAST_TEMPLATE, ENCODING)
+		const trigger_block = source.split('\non:\n', 2)[1]?.split('\nconcurrency:', 2)[0] ?? ''
+
+		expect(trigger_block).not.toContain('push:')
+		expect(trigger_block).not.toContain('pull_request:')
+	})
+})
+
 describe('app-kit distributes what it runs', () => {
 	it('keeps its own DAST workflow identical to the distributed template', () => {
 		// Drift here means app-kit's CI would be testing a workflow no consumer receives.
