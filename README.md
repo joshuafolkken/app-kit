@@ -68,11 +68,20 @@ unset or weak CSP, and `Secure` / `HttpOnly` / `SameSite` gaps on cookies.
 
 It runs in three places, all sharing one implementation:
 
-| Where         | How                                                              |
-| ------------- | ---------------------------------------------------------------- |
-| Manually      | `pnpm josh-app dast`                                             |
-| Before a push | Inside `josh-app verify` — the unified pre-push gate (see below) |
-| CI            | `.github/workflows/dast.yml`, distributed by `josh-app sync`     |
+| Where          | How                                                                      |
+| -------------- | ------------------------------------------------------------------------ |
+| Manually       | `pnpm josh-app dast` (local) or the Actions **Run workflow** button (CI) |
+| Before a push  | Inside `josh-app verify` — the unified pre-push gate (see below)         |
+| CI (scheduled) | `.github/workflows/dast.yml` runs the full scan **nightly**, not per-PR  |
+
+**Why nightly, not per-PR.** The ZAP baseline needs the full ~2.2 GB `zaproxy` image, which
+ephemeral CI runners re-pull on every run. Paying that on every PR is wasteful — and since
+`dast.yml` is a distributed default, it would land on every consumer's CI. The per-PR value (the
+security-header findings the scan reports) is already covered by the Docker-free E2E assertions in
+`security-headers.e2e.ts`, so the full scan only needs to run **nightly** as the broad safety net.
+Trigger it on demand anytime via the Actions "Run workflow" button (`workflow_dispatch`) or locally
+with `pnpm josh-app dast`. A failed scheduled run is surfaced by GitHub (email + a red run in the
+Actions tab) and never blocks a PR.
 
 ### Unified pre-push gate (`josh-app verify`)
 
@@ -93,8 +102,8 @@ never skipped silently).
 
 `package.json` and `pnpm-lock.yaml` are excluded on purpose: a version bump rewrites
 `package.json` on essentially every commit, so including it would fire the scan every time and
-undo the narrowing. Dependency-driven header changes are caught by CI, which runs the scan
-unconditionally on every PR.
+undo the narrowing. Dependency-driven header changes are caught by the **nightly** scheduled scan
+(above), which rebuilds and scans the full app.
 
 **Docker is required.** The scan runs in a container, and a missing daemon fails the command
 loudly rather than skipping it — a security check that silently no-ops is worse than one that is
