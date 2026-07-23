@@ -6,6 +6,7 @@ words:
   - baselining
   - dedup
   - elifecycle
+  - hsts
   - idempotently
   - jgame
   - sameorigin

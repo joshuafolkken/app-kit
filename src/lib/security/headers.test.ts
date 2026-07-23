@@ -6,6 +6,12 @@ const ENCODING = 'utf8'
 const HEADERS_FILE = '_headers'
 const HEADERS_TEMPLATE = 'templates/_headers'
 
+const X_FRAME_OPTIONS = 'X-Frame-Options'
+const SAMEORIGIN = 'SAMEORIGIN'
+const HSTS_HEADER = 'Strict-Transport-Security'
+const CSP_HEADER = 'Content-Security-Policy'
+const CSP_LOCKED = "default-src 'none'"
+
 // A `Name: value` line inside the `/*` block, ignoring comments and the rule selector itself.
 // Literal spaces rather than `\s` classes: the file's indentation is exactly two spaces, and the
 // looser form backtracks super-linearly.
@@ -48,11 +54,69 @@ describe('security header application', () => {
 	})
 
 	it('overwrites a weaker value rather than appending a second header', () => {
-		const response = new Response('body', { headers: { 'X-Frame-Options': 'SAMEORIGIN' } })
+		const response = new Response('body', { headers: { [X_FRAME_OPTIONS]: SAMEORIGIN } })
 
 		security_headers.apply_security_headers(response)
 
-		expect(response.headers.get('X-Frame-Options')).toBe('DENY')
+		expect(response.headers.get(X_FRAME_OPTIONS)).toBe('DENY')
+	})
+})
+
+describe('composition — extending and overriding the baseline', () => {
+	it('extends the baseline with a header it omits', () => {
+		const HSTS = 'max-age=31536000; includeSubDomains'
+		const response = new Response('body')
+
+		security_headers.apply_security_headers(response, [[HSTS_HEADER, HSTS]])
+
+		expect(response.headers.get(HSTS_HEADER)).toBe(HSTS)
+		// The baseline is still applied alongside the extension.
+		expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+	})
+
+	it('overrides a baseline value when the consumer relaxes it', () => {
+		const response = new Response('body')
+
+		security_headers.apply_security_headers(response, [[X_FRAME_OPTIONS, SAMEORIGIN]])
+
+		// `extra` applies after the baseline, so the consumer value wins over the baseline DENY.
+		expect(response.headers.get(X_FRAME_OPTIONS)).toBe(SAMEORIGIN)
+	})
+
+	it('leaves baseline headers the consumer did not name untouched', () => {
+		const response = new Response('body')
+
+		security_headers.apply_security_headers(response, [[X_FRAME_OPTIONS, SAMEORIGIN]])
+
+		expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
+		expect(response.headers.get('Permissions-Policy')).toBe(
+			'camera=(), microphone=(), geolocation=()',
+		)
+	})
+})
+
+describe('composition — ordering and the default empty extra', () => {
+	it('applies extra entries in order — the last write wins for a repeated name', () => {
+		const response = new Response('body')
+
+		security_headers.apply_security_headers(response, [
+			[CSP_HEADER, "default-src 'self'"],
+			[CSP_HEADER, CSP_LOCKED],
+		])
+
+		expect(response.headers.get(CSP_HEADER)).toBe(CSP_LOCKED)
+	})
+
+	it('is identical to the baseline-only call when extra is omitted', () => {
+		const with_default = new Response('body')
+		const with_empty = new Response('body')
+
+		security_headers.apply_security_headers(with_default)
+		security_headers.apply_security_headers(with_empty, [])
+
+		for (const [name] of security_headers.SECURITY_HEADERS) {
+			expect(with_empty.headers.get(name)).toBe(with_default.headers.get(name))
+		}
 	})
 })
 
