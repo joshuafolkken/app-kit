@@ -3,13 +3,15 @@ import { config_merge } from '@joshuafolkken/kit/config-merge'
 import { app_verify } from '#verify/verify.js'
 import { describe, expect, it } from 'vitest'
 
+const SVELTE_CONFIG = 'svelte.config.js'
+
 // Each DAST-relevant lefthook glob entry paired with a file that should match it — used to guard
 // that the lefthook glob and verify.ts's is_dast_relevant predicate stay in lockstep.
 const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
 	["- '_headers'", '_headers'],
 	["- 'zap-baseline.conf'", 'zap-baseline.conf'],
 	["- 'wrangler.jsonc'", 'wrangler.jsonc'],
-	["- 'svelte.config.js'", 'svelte.config.js'],
+	["- 'svelte.config.js'", SVELTE_CONFIG],
 	["- 'src/hooks.server.ts'", 'src/hooks.server.ts'],
 	["- '**/+server.ts'", 'src/routes/api/+server.ts'],
 	["- '**/+*.server.ts'", 'src/routes/dashboard/+page.server.ts'],
@@ -257,5 +259,18 @@ describe('SvelteKit lefthook preset — unified verify command (#94, #97)', () =
 			expect(source).toContain(glob_entry)
 			expect(app_verify.is_dast_relevant(sample)).toBe(true)
 		}
+	})
+})
+
+// #96: zap-baseline.conf baselines ZAP 10055's "style-src unsafe-inline" sub-alert (required by
+// SvelteKit for transitions). A rule-level IGNORE would also hide 10055's DANGEROUS sub-alerts, so
+// this test is the real guard: it pins the SCRIPT surface — the actual XSS vector — locked.
+describe('CSP keeps the script surface locked (#96)', () => {
+	it("pins script-src to exactly ['self'] — no unsafe-inline or wildcard can slip in unnoticed", () => {
+		const source = read_file(SVELTE_CONFIG)
+
+		// `['self', 'unsafe-inline']` or `['*']` would not contain the exact `['self']` substring.
+		expect(source).toContain("'script-src': ['self']")
+		expect(source).toContain("'object-src': ['none']")
 	})
 })
