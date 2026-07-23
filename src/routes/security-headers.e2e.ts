@@ -22,4 +22,10 @@ test('serves the security headers _headers declares', async ({ page, baseURL: ba
 	expect(headers['x-frame-options']).toBe('DENY')
 	expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin')
 	expect(headers['permissions-policy']).toContain('camera=()')
+
+	// CSP is emitted by SvelteKit's kit.csp (svelte.config.js), not `_headers` — this asserts the
+	// header survives the Cloudflare adapter and closes ZAP 10038 (#96). `script-src 'self'` (plus
+	// SvelteKit's per-request nonce) locks the script surface; the hydration test in
+	// demo/playwright/page.svelte.e2e.ts proves the nonce lets the app's own scripts still run.
+	expect(headers['content-security-policy']).toContain("script-src 'self'")
 })
