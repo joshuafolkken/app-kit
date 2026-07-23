@@ -53,6 +53,8 @@ Run from the root of a SvelteKit project:
 | `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                           |
 | `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                   |
 | `josh-app dast`                   | Dynamic baseline security scan against the running preview server          |
+| `josh-app load`                   | Manual k6 load test against the running preview server (report-only)       |
+| `josh-app load:stress`            | Manual k6 stress test — drives load to find the throughput ceiling         |
 | `josh-app verify`                 | Unified pre-push gate: build once, boot once, run E2E + DAST scan together |
 | `josh-app version` / `v`          | Report installed-vs-latest version                                         |
 | `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                              |
@@ -168,6 +170,49 @@ triage decisions and header policy are yours.
 `.github/workflows/dast.yml`, by contrast, is fully managed and overwritten on every sync — it is
 a **separate, additive** workflow that never touches `.github/workflows/ci.yml`, which kit
 single-sources. Two packages mastering one path would make the result depend on sync order.
+
+## Load testing (k6)
+
+`josh-app load` measures how the app behaves under load. It builds the project, boots the preview
+server, runs a [k6](https://grafana.com/docs/k6/) scenario against it, and tears the server down —
+reusing the same build/boot/teardown path as `dast` and `verify` (one preview, not a second
+implementation). It reports latency and throughput; it is **not** a pass/fail gate.
+
+**Prerequisite: k6 on `PATH`.** Unlike the ZAP scan (Docker), the load test runs the k6 binary
+directly — install it first (`brew install k6`, or see the
+[k6 install docs](https://grafana.com/docs/k6/latest/set-up/install-k6/)). A missing k6 fails the
+command with an actionable message rather than skipping silently.
+
+```bash
+pnpm josh-app load          # build → boot preview → run the baseline k6/load-test.js → tear down
+pnpm josh-app load:stress   # same lifecycle, but run the "attacking" k6/stress-test.js instead
+```
+
+**Two scenarios ship; both are yours.** `josh-app sync` seeds a gentle **`k6/load-test.js`**
+(baseline: a few VUs with think-time, for a stable p95 and regression tracking) and an
+**`k6/stress-test.js`** (a ramping arrival-rate probe with no think-time, to find the throughput
+ceiling — where p95 spikes or errors appear is your limit). Each is seeded once and never rewritten
+— VUs, duration, rates, and the exercised endpoints are project-specific, so tune them for your app.
+
+**Pick a scenario per run.** `josh-app load` runs the baseline and `josh-app load:stress` runs the
+stress scenario; to run **your own**, pass its path: `josh-app load path/to/scenario.js`. Every
+scenario reads its target from `__ENV.BASE_URL`, which the command points at the preview on `:4173`
+— so the same file can also run standalone against a deployed URL:
+`k6 run -e BASE_URL=https://your-app.workers.dev k6/load-test.js`.
+
+**Report-only by default.** The seeded scenario defines **no thresholds**, so a run always exits 0
+and surfaces numbers without failing on an uncalibrated baseline. Add a `thresholds` block (e.g.
+`http_req_duration: ['p(95)<500']`) once a few runs have given you a real baseline — k6 then exits
+non-zero when a threshold is breached.
+
+**Runs manually, not per-PR and not on a schedule.** Unlike `dast.yml` (a deterministic pass/fail
+that runs nightly), a load test reports numbers that need a baseline to interpret, and noisy CI
+runners make an uncalibrated scheduled run decay into noise. So the distributed `load.yml` triggers
+on **`workflow_dispatch`** only (the Actions "Run workflow" button), with the `schedule:` block
+shipped **commented out** — uncomment it once your app has a real workload and a calibrated
+baseline. It is also deliberately **not** a `lefthook` hook: a minutes-long push step invites
+`--no-verify`. Like `dast.yml`, `load.yml` is a **separate, additive** workflow that never touches
+`ci.yml`.
 
 ## Library usage
 

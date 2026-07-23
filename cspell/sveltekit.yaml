@@ -19,6 +19,10 @@ words:
   - clickjacking
   - Embedder
   - geolocation
+  # k6 load-test vocabulary, distributed to consumers via the seeded load.yml (the k6 apt install
+  # step's GPG keyring/keyserver flags) so a consumer's first `cspell` run does not fail on it.
+  - keyrings
+  - keyserver
 ignorePaths:
   # Position-independent (**/) globs so the ignore propagates through `import:` to consumers —
   # cspell resolves an imported config's relative globs against the preset's own directory, so an

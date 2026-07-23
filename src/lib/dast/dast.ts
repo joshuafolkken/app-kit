@@ -2,6 +2,7 @@ import { chmodSync, copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:f
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
+import { EnvironmentError } from '#process/environment-error.js'
 import { process_runner, type CommandRunner } from '#process/runner.js'
 import { preview_server, type PreviewHandle } from './preview.js'
 import { zap } from './zap.js'
@@ -22,16 +23,6 @@ const DOCKER_UNAVAILABLE_MESSAGE = [
 	'josh-app dast requires a running Docker daemon (the ZAP baseline scan runs in a container).',
 	'Start Docker and re-run — the scan is never skipped silently.',
 ].join('\n')
-
-// A missing daemon is an environment condition the user can fix, not a defect in app-kit, so the
-// CLI reports it as a plain actionable message. Its own type keeps that presentation from also
-// swallowing the stack trace of a genuine bug.
-class DastEnvironmentError extends Error {
-	public constructor(message: string, options?: ErrorOptions) {
-		super(message, options)
-		this.name = 'DastEnvironmentError'
-	}
-}
 
 // The directory bind-mounted at /zap/wrk, plus the config basename to pass to `-c` (undefined
 // when the project has no baseline config yet).
@@ -114,7 +105,7 @@ function assert_docker_available(deps: DastDependencies, cwd: string): void {
 	const outcome = deps.docker(zap.PREFLIGHT_ARGV, cwd)
 
 	if (outcome.error !== undefined || outcome.status !== process_runner.SUCCESS_STATUS) {
-		throw new DastEnvironmentError(DOCKER_UNAVAILABLE_MESSAGE)
+		throw new EnvironmentError(DOCKER_UNAVAILABLE_MESSAGE)
 	}
 }
 
@@ -183,7 +174,6 @@ const app_dast = {
 	PREVIEW_PORT,
 	BUILD_ARGV,
 	DOCKER_UNAVAILABLE_MESSAGE,
-	DastEnvironmentError,
 	describe_result,
 	preflight_docker,
 	scan_running_server,

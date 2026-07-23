@@ -274,3 +274,12 @@ describe('CSP keeps the script surface locked (#96)', () => {
 		expect(source).toContain("'object-src': ['none']")
 	})
 })
+
+// #95: k6 load-test scenarios run in k6's own runtime — they MUST `export default function` and
+// import `k6/http`, both of which the kit rules reject. The preset globally ignores k6/** so a
+// consumer's seeded scenario lints clean, not just app-kit's own.
+describe('k6 load-test scenarios are exempt from lint (#95)', () => {
+	it('the SvelteKit ESLint preset globally ignores k6/**', () => {
+		expect(read_file(ESLINT_PRESET)).toContain("ignores: ['k6/**']")
+	})
+})
