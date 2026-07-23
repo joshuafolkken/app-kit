@@ -1,4 +1,5 @@
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
+import { EnvironmentError } from '#process/environment-error.js'
 import { describe, expect, it } from 'vitest'
 import { app_dast, type DastDependencies, type ZapWorkspace } from './dast.js'
 import type { PreviewHandle } from './preview.js'
@@ -133,7 +134,7 @@ describe('josh-app dast — Docker preflight', () => {
 		// a genuine defect.
 		const { deps } = make_harness({ docker_statuses: [BUILD_FAILURE] })
 
-		await expect(app_dast.run_dast(CWD, deps)).rejects.toBeInstanceOf(app_dast.DastEnvironmentError)
+		await expect(app_dast.run_dast(CWD, deps)).rejects.toBeInstanceOf(EnvironmentError)
 	})
 
 	it('never silently skips the scan — no build, no boot when Docker is unavailable', async () => {

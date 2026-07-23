@@ -1,5 +1,5 @@
-import { app_dast } from '#dast/dast.js'
 import type { PreviewHandle } from '#dast/preview.js'
+import { EnvironmentError } from '#process/environment-error.js'
 import { describe, expect, it } from 'vitest'
 import { app_verify, type VerifyDependencies } from './verify.js'
 
@@ -38,7 +38,7 @@ function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependenci
 	return {
 		preflight_docker(): void {
 			state.order.push('preflight')
-			if (options.docker_missing === true) throw new app_dast.DastEnvironmentError('no docker')
+			if (options.docker_missing === true) throw new EnvironmentError('no docker')
 		},
 		build(): number {
 			state.order.push('build')
@@ -137,7 +137,7 @@ describe('verify — short-circuiting & exit aggregation', () => {
 		const { state, deps } = make_harness({ docker_missing: true })
 
 		await expect(app_verify.run_verify(CWD, [HEADERS_FILE], deps)).rejects.toBeInstanceOf(
-			app_dast.DastEnvironmentError,
+			EnvironmentError,
 		)
 		expect(state.order).toEqual(['preflight'])
 	})

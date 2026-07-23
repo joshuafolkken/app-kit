@@ -11,6 +11,11 @@ const WRANGLER_JSONC = 'wrangler.jsonc'
 const ZAP_BASELINE_CONF = 'zap-baseline.conf'
 // Cloudflare's header directives. Project root, not static/ — adapter-cloudflare throws otherwise.
 const HEADERS_FILE = '_headers'
+// The k6 scenarios (`josh-app load`): the gentle baseline and the "attacking" stress variant.
+// Seeded once as starting points, then the consumer owns and tunes them — same source path in
+// templates/ and the project (app-kit#95).
+const K6_SCENARIO = 'k6/load-test.js'
+const K6_STRESS_SCENARIO = 'k6/stress-test.js'
 
 interface ConsumerPackage {
 	scripts?: Record<string, string>
@@ -54,6 +59,11 @@ interface OverlayChange {
 // _headers ships a security-header baseline (the rules that close ZAP 10020 / 10021 / 10063).
 // Seed-only for the same reason: CSP, CORS, and cache rules are highly project-specific, and
 // overwriting them on every sync would clobber a consumer's production header policy.
+//
+// k6/load-test.js (gentle baseline) and k6/stress-test.js (throughput-ceiling probe) are the
+// scenarios `josh-app load` runs. Each is seeded once as a working starting point, then owned by
+// the consumer — VUs, duration, and the exercised endpoints are all project-specific, so a re-sync
+// must never overwrite a tuned scenario (app-kit#95).
 const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: 'app.html', dest: 'src/app.html' },
 	{ template: 'app.d.ts', dest: 'src/app.d.ts' },
@@ -61,6 +71,8 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: 'settings.sveltekit.json', dest: '.vscode/settings.json' },
 	{ template: ZAP_BASELINE_CONF, dest: ZAP_BASELINE_CONF },
 	{ template: HEADERS_FILE, dest: HEADERS_FILE },
+	{ template: K6_SCENARIO, dest: K6_SCENARIO },
+	{ template: K6_STRESS_SCENARIO, dest: K6_STRESS_SCENARIO },
 ]
 
 // Fully-managed files app-kit owns end to end: byte-copied on every sync so mechanics fixes reach
@@ -73,6 +85,7 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 // side's content. Enforced by a test.
 const MANAGED_COPY_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: 'workflows/dast.yml', dest: '.github/workflows/dast.yml' },
+	{ template: 'workflows/load.yml', dest: '.github/workflows/load.yml' },
 ]
 
 function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
