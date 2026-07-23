@@ -137,9 +137,30 @@ export const handle: Handle = async ({ event, resolve }) =>
 	security_headers.apply_security_headers(await resolve(event))
 ```
 
-Content-Security-Policy is deliberately **not** in `_headers` or `security_headers`: a working
-SvelteKit CSP needs nonce/hash wiring, not a static header line. It is configured through
-`kit.csp` in `svelte.config.js` instead (see below).
+**Extending and overriding the baseline.** A real app usually wants _more_ than the baseline on its
+SSR responses (`Strict-Transport-Security`, a site-specific `Content-Security-Policy`) and sometimes
+a relaxed baseline value (`X-Frame-Options: SAMEORIGIN` when it embeds itself). Pass those as a
+second argument instead of re-implementing the baseline and drifting from it — each entry is applied
+_after_ the baseline, so a new name **extends** and a repeated name **overrides**:
+
+```ts
+const HSTS = 'max-age=31536000; includeSubDomains'
+
+export const handle: Handle = async ({ event, resolve }) =>
+	security_headers.apply_security_headers(await resolve(event), [
+		['Strict-Transport-Security', HSTS], // extend: baseline omits it
+		['X-Frame-Options', 'SAMEORIGIN'], // override: relax the baseline DENY (pair with CSP frame-ancestors 'self')
+	])
+```
+
+`Strict-Transport-Security` is deliberately **not** in the baseline: its `max-age`/`preload` is a
+site-specific HTTPS commitment (a browser that sees it refuses HTTP for the whole `max-age`), so
+each app opts in with its own value via the second argument rather than inheriting one through sync.
+
+Content-Security-Policy is deliberately **not** in `_headers` or the baseline: it is document-scoped
+(meaningless on static assets) and a working SvelteKit CSP needs nonce/hash wiring, not a static
+header line. It is configured through `kit.csp` in `svelte.config.js` instead (see below); a
+consumer that still wants a header-based CSP on SSR passes it through the same second argument.
 
 ### Content-Security-Policy
 
