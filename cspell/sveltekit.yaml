@@ -6,6 +6,7 @@ version: '0.2'
 import:
   - '@joshuafolkken/kit/cspell'
 words:
+  - prerendered
   - Stylesheet
   - sveltekit
   # DAST triage vocabulary. These reach consumers via the seeded zap-baseline.conf, so they

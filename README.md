@@ -114,7 +114,7 @@ non-zero when anything is reported, so an untriaged finding fails the build. Sil
 with a recorded reason:
 
 ```text
-10038	IGNORE	(CSP is set at the CDN edge, not by the worker — verified in production headers)
+10055	IGNORE	(Only the "style-src unsafe-inline" sub-alert fires; required by SvelteKit for transitions — see Content-Security-Policy below.)
 ```
 
 ### Security headers
@@ -135,8 +135,33 @@ export const handle: Handle = async ({ event, resolve }) =>
 	security_headers.apply_security_headers(await resolve(event))
 ```
 
-Content-Security-Policy is deliberately **not** included: a working SvelteKit CSP needs
-nonce/hash wiring via `kit.csp` in `svelte.config.js`, not a static header line.
+Content-Security-Policy is deliberately **not** in `_headers` or `security_headers`: a working
+SvelteKit CSP needs nonce/hash wiring, not a static header line. It is configured through
+`kit.csp` in `svelte.config.js` instead (see below).
+
+### Content-Security-Policy
+
+`svelte.config.js` sets `kit.csp` so SvelteKit emits a real `Content-Security-Policy` header on
+SSR pages (and a `<meta>` tag on prerendered ones), closing the ZAP finding **CSP Header Not Set
+[10038]**. `mode: 'auto'` augments `script-src` with a per-request **nonce** on dynamic pages and
+a **hash** on prerendered ones, so the app's own hydration script runs while inline injection is
+blocked — the E2E in `demo/playwright/page.svelte.e2e.ts` proves hydration still works under it.
+
+The directives are chosen so the **script surface stays locked** (`script-src 'self'` + nonce, no
+`unsafe-inline`) — that is the real XSS defense. Two deliberate relaxations:
+
+- `style-src` keeps `'unsafe-inline'`. SvelteKit's `app.html` ships an inline `style="display:
+contents"` body wrapper and Svelte transitions inject inline `<style>` at runtime; a stricter
+  `style-src` white-screens any consumer that uses a transition (the SvelteKit docs call this
+  out). Inline _style_ cannot execute JS, so this relaxes the style surface only. ZAP notes it as
+  the sole `10055` sub-alert; it is triaged in `zap-baseline.conf`, and a unit test in
+  `config-presets.test.ts` guards that `script-src` never gains `unsafe-inline` behind that IGNORE.
+- `frame-ancestors 'none'` and `form-action 'self'` are listed explicitly because they do **not**
+  fall back to `default-src` — omitting them re-opens `10055`'s "no fallback" sub-alert.
+
+**`svelte.config.js` is yours** — `josh-app sync` does not distribute it. Copy the `kit.csp` block
+from this repo's `svelte.config.js` as a starting point and adjust the directives for your app
+(e.g. add `connect-src` / `img-src` origins for third-party APIs or CDNs you call).
 
 `josh-app sync` seeds both `zap-baseline.conf` and `_headers` once and never rewrites them: the
 triage decisions and header policy are yours.
