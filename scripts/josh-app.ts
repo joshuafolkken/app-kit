@@ -5,6 +5,8 @@ import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
+import { app_load } from '#load/load.js'
+import { EnvironmentError } from '#process/environment-error.js'
 import { app_verify } from '#verify/verify.js'
 import { app_version } from '#version/version.js'
 
@@ -27,7 +29,7 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
 const USAGE_MESSAGE =
-	'Usage: josh-app <init|sync|check|check:ci|dast|verify|version|v|version:upgrade|vu>'
+	'Usage: josh-app <init|sync|check|check:ci|dast|load|load:stress|verify|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
 // A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
@@ -81,11 +83,11 @@ function run_check_ci(): void {
 	exit_on_failure(app_check.run_check_ci(process.cwd()))
 }
 
-// A missing Docker daemon is reported as a plain actionable line; anything else keeps its stack
-// trace, so a real defect is never disguised as an environment problem. Shared by `dast` and
-// `verify`, both of which preflight Docker.
+// A fixable prerequisite (a missing Docker daemon for `dast`/`verify`, a missing k6 binary or
+// unseeded scenario for `load`) is reported as a plain actionable line; anything else keeps its
+// stack trace, so a real defect is never disguised as an environment problem.
 function report_environment_error(error: unknown): never {
-	if (!(error instanceof app_dast.DastEnvironmentError)) throw error
+	if (!(error instanceof EnvironmentError)) throw error
 
 	console.error(error.message)
 	process.exit(EXIT_ENVIRONMENT)
@@ -102,6 +104,31 @@ async function run_dast(): Promise<void> {
 	} catch (error) {
 		report_environment_error(error)
 	}
+}
+
+// Manual load test: build, boot the preview, run the k6 scenario against it, tear it down. Not a
+// pre-push hook and not scheduled by default — a load test reports numbers that need a baseline to
+// interpret, so it is run intentionally rather than gating every push (app-kit#95).
+async function execute_load(scenario: string | undefined): Promise<void> {
+	try {
+		const status = await app_load.run_load(process.cwd(), scenario)
+
+		console.info(app_load.describe_result(status))
+		exit_on_failure(status)
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
+// `load` runs the seeded baseline; an optional trailing argument runs any scenario of yours
+// (`josh-app load path/to/scenario.js`).
+async function run_load(): Promise<void> {
+	await execute_load(process.argv[FILE_ARGS_START_INDEX])
+}
+
+// `load:stress` is a first-class shortcut for the seeded "attacking" throughput-ceiling scenario.
+async function run_load_stress(): Promise<void> {
+	await execute_load(app_load.STRESS_SCENARIO_FILE)
 }
 
 // Unified pre-push runtime gate: build once, boot the preview once, run E2E and (only when a
@@ -129,6 +156,8 @@ const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['check', run_check],
 	['check:ci', run_check_ci],
 	['dast', run_dast],
+	['load', run_load],
+	['load:stress', run_load_stress],
 	['verify', run_verify],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],
