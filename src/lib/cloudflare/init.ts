@@ -54,7 +54,7 @@ function init_overlay(target: string, source: string, project_name: string): Arr
 
 // Entry the `josh-app init` CLI calls: apply the init overlay to `target`, deriving the
 // Worker name from that project's own package.json#name. `source` is app-kit's package
-// root (holds the canonical package.json + templates/).
+// root (holds the canonical package.json plus every overlay source: templates/, k6/).
 function run_init(target: string, source: string): Array<OverlayChange> {
 	const manifest = JSON.parse(readFileSync(path.join(target, MANIFEST), 'utf8')) as {
 		name?: unknown

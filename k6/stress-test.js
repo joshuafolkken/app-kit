@@ -1,3 +1,8 @@
+// @ts-nocheck
+// k6 scenarios run in k6's own JS runtime, not Node or the browser: the `k6` / `k6/http` module
+// specifiers and the `__ENV` global cannot resolve under the app's tsconfig, which type-checks
+// `**/*.js` with `checkJs`. The directive above keeps `tsc --noEmit` off this file — the app-kit
+// ESLint preset ignores `k6/**` for the same reason. Remove it only if you add `@types/k6`.
 import { check } from 'k6'
 import http from 'k6/http'
 
