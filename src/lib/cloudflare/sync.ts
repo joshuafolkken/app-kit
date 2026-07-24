@@ -2,18 +2,24 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { app_check } from '#check/check.js'
 import { config_patch } from './config-patch.js'
+import { k6_scenarios } from './k6-scenarios.js'
 import { managed_scripts, type ManagedScripts } from './managed-scripts.js'
+import { patch_file, type ContentPatcher } from './patch-file.js'
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
+// Where the seed-only copies live inside the app-kit package. Not a base path the readers join
+// implicitly — every entry spells out its own package-relative path, so an entry sourced from
+// elsewhere (the k6 scenarios) needs no special case.
 const TEMPLATES_DIR = 'templates'
 const WRANGLER_JSONC = 'wrangler.jsonc'
 const ZAP_BASELINE_CONF = 'zap-baseline.conf'
 // Cloudflare's header directives. Project root, not static/ — adapter-cloudflare throws otherwise.
 const HEADERS_FILE = '_headers'
 // The k6 scenarios (`josh-app load`): the gentle baseline and the "attacking" stress variant.
-// Seeded once as starting points, then the consumer owns and tunes them — same source path in
-// templates/ and the project (app-kit#95).
+// Seeded once as starting points, then the consumer owns and tunes them (app-kit#95). Source and
+// destination are the same path because app-kit ships the very scenarios it runs on itself — see
+// the single-source note on SEED_ENTRIES.
 const K6_SCENARIO = 'k6/load-test.js'
 const K6_STRESS_SCENARIO = 'k6/stress-test.js'
 
@@ -26,6 +32,9 @@ interface ConsumerPackage {
 interface SeedEntry {
 	template: string
 	dest: string
+	// The one app-kit-owned edit still ensured on an existing consumer file. Absent for entries the
+	// consumer owns outright; present where app-kit must keep a single line correct forever.
+	patch?: ContentPatcher
 }
 
 type OverlayAction = 'created' | 'skipped' | 'updated'
@@ -63,16 +72,29 @@ interface OverlayChange {
 // k6/load-test.js (gentle baseline) and k6/stress-test.js (throughput-ceiling probe) are the
 // scenarios `josh-app load` runs. Each is seeded once as a working starting point, then owned by
 // the consumer — VUs, duration, and the exercised endpoints are all project-specific, so a re-sync
-// must never overwrite a tuned scenario (app-kit#95).
+// must never overwrite a tuned scenario (app-kit#95). The lone exception is the `@ts-nocheck`
+// header: the scenarios target k6's runtime, not the app's, so a consumer whose tsconfig
+// type-checks `**/*.js` cannot compile them. That is app-kit's line to keep correct, and a
+// template-only fix would never reach an already-seeded project, so it is ensured on every sync
+// (app-kit#109) — additive and idempotent, leaving the tuned body untouched.
+//
+// The k6 entries are the one pair whose source is NOT under templates/: app-kit runs `josh-app
+// load` on its own k6/ scenarios, and those same files are published (package.json `files`) and
+// seeded straight from there. A templates/k6 copy would be a second master kept in step only by a
+// mirror test — single-sourcing makes "app-kit distributes what it runs" structural instead. The
+// app-shell entries keep their templates/ copy because their master lives at src/app.html — a path
+// app-kit cannot publish without shipping its library source.
+//
+// `template` is a path INSIDE the app-kit package; `dest` is the path inside the consumer.
 const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
-	{ template: 'app.html', dest: 'src/app.html' },
-	{ template: 'app.d.ts', dest: 'src/app.d.ts' },
-	{ template: WRANGLER_JSONC, dest: WRANGLER_JSONC },
-	{ template: 'settings.sveltekit.json', dest: '.vscode/settings.json' },
-	{ template: ZAP_BASELINE_CONF, dest: ZAP_BASELINE_CONF },
-	{ template: HEADERS_FILE, dest: HEADERS_FILE },
-	{ template: K6_SCENARIO, dest: K6_SCENARIO },
-	{ template: K6_STRESS_SCENARIO, dest: K6_STRESS_SCENARIO },
+	{ template: `${TEMPLATES_DIR}/app.html`, dest: 'src/app.html' },
+	{ template: `${TEMPLATES_DIR}/app.d.ts`, dest: 'src/app.d.ts' },
+	{ template: `${TEMPLATES_DIR}/${WRANGLER_JSONC}`, dest: WRANGLER_JSONC },
+	{ template: `${TEMPLATES_DIR}/settings.sveltekit.json`, dest: '.vscode/settings.json' },
+	{ template: `${TEMPLATES_DIR}/${ZAP_BASELINE_CONF}`, dest: ZAP_BASELINE_CONF },
+	{ template: `${TEMPLATES_DIR}/${HEADERS_FILE}`, dest: HEADERS_FILE },
+	{ template: K6_SCENARIO, dest: K6_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
+	{ template: K6_STRESS_SCENARIO, dest: K6_STRESS_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
 ]
 
 // Fully-managed files app-kit owns end to end: byte-copied on every sync so mechanics fixes reach
@@ -84,8 +106,8 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 // packages mastering one path would make the winner depend on sync order, silently dropping one
 // side's content. Enforced by a test.
 const MANAGED_COPY_ENTRIES: ReadonlyArray<SeedEntry> = [
-	{ template: 'workflows/dast.yml', dest: '.github/workflows/dast.yml' },
-	{ template: 'workflows/load.yml', dest: '.github/workflows/load.yml' },
+	{ template: `${TEMPLATES_DIR}/workflows/dast.yml`, dest: '.github/workflows/dast.yml' },
+	{ template: `${TEMPLATES_DIR}/workflows/load.yml`, dest: '.github/workflows/load.yml' },
 ]
 
 function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
@@ -149,14 +171,21 @@ function sync_scripts(target: string, source: string): OverlayChange {
 	return { file: MANIFEST, action: 'updated' }
 }
 
-// Seed a file from its template only when absent; an existing file is the consumer's
-// and is left untouched, so customized content is never clobbered.
+// An existing file is the consumer's: left untouched unless the entry declares a `patch`, the one
+// app-kit-owned edit it still ensures — additive, idempotent, and preserving every other byte.
+function seed_existing(entry: SeedEntry, target: string): OverlayChange {
+	if (entry.patch === undefined) return { file: entry.dest, action: 'skipped' }
+
+	return patch_file(target, entry.dest, entry.patch)
+}
+
+// Seed a file from its template only when absent, so customized content is never clobbered.
 function seed_file(entry: SeedEntry, target: string, source: string): OverlayChange {
 	const destination = path.join(target, entry.dest)
 
-	if (existsSync(destination)) return { file: entry.dest, action: 'skipped' }
+	if (existsSync(destination)) return seed_existing(entry, target)
 
-	const content = readFileSync(path.join(source, TEMPLATES_DIR, entry.template), ENCODING)
+	const content = readFileSync(path.join(source, entry.template), ENCODING)
 
 	mkdirSync(path.dirname(destination), { recursive: true })
 	writeFileSync(destination, content)
@@ -168,7 +197,7 @@ function seed_file(entry: SeedEntry, target: string, source: string): OverlayCha
 // `skipped` rather than `updated` so a re-sync's summary stays honest about what actually moved.
 function copy_managed_file(entry: SeedEntry, target: string, source: string): OverlayChange {
 	const destination = path.join(target, entry.dest)
-	const content = readFileSync(path.join(source, TEMPLATES_DIR, entry.template), ENCODING)
+	const content = readFileSync(path.join(source, entry.template), ENCODING)
 	const did_exist = existsSync(destination)
 
 	if (did_exist && readFileSync(destination, ENCODING) === content) {

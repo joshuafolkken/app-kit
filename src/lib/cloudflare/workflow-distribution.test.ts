@@ -2,10 +2,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { k6_scenarios } from './k6-scenarios.js'
 import { cloudflare_sync } from './sync.js'
 
 const ENCODING = 'utf8'
-// app-kit's repo root: holds the canonical package.json + templates/.
+// app-kit's repo root: holds the canonical package.json plus every overlay source (templates/, k6/).
 const SOURCE_DIR = '.'
 const PACKAGE_JSON = 'package.json'
 const FIXTURE_NAME = 'fixture'
@@ -14,10 +15,11 @@ const DAST_WORKFLOW = '.github/workflows/dast.yml'
 const DAST_TEMPLATE = 'templates/workflows/dast.yml'
 const LOAD_WORKFLOW = '.github/workflows/load.yml'
 const LOAD_TEMPLATE = 'templates/workflows/load.yml'
+// Single-sourced: app-kit's own scenarios are what `josh-app sync` seeds, so there is no separate
+// template path to compare against.
+const K6_DIRECTORY = 'k6/'
 const K6_SCENARIO = 'k6/load-test.js'
-const K6_SCENARIO_TEMPLATE = 'templates/k6/load-test.js'
 const K6_STRESS = 'k6/stress-test.js'
-const K6_STRESS_TEMPLATE = 'templates/k6/stress-test.js'
 const CI_WORKFLOW = '.github/workflows/ci.yml'
 const ZAP_CONF = 'zap-baseline.conf'
 const ZAP_CONF_TEMPLATE = 'templates/zap-baseline.conf'
@@ -27,6 +29,8 @@ const HEADERS_TEMPLATE = 'templates/_headers'
 // Literals shared by the DAST and load-test cases (both are managed workflow copies), extracted so
 // the duplicate-string rule stays quiet and a wording change lands in one place.
 const EDITED_LOCALLY = 'name: Edited locally\n'
+// A scenario the consumer has calibrated — stands in for any post-seed customization.
+const TUNED_SCENARIO = 'export const options = { vus: 50, duration: "5m" }\n'
 const WORKFLOW_DISPATCH = 'workflow_dispatch:'
 const PUSH_TRIGGER = 'push:'
 const PULL_REQUEST_TRIGGER = 'pull_request:'
@@ -125,24 +129,51 @@ describe('Load-test workflow distribution', () => {
 describe('k6 load-test scenario seeding', () => {
 	it('seeds the baseline scenario when the project has none', () => {
 		expect(action_for(K6_SCENARIO)).toBe('created')
-		expect(read_fixture(K6_SCENARIO)).toBe(readFileSync(K6_SCENARIO_TEMPLATE, ENCODING))
+		expect(read_fixture(K6_SCENARIO)).toBe(readFileSync(K6_SCENARIO, ENCODING))
 	})
 
 	it('seeds the stress scenario when the project has none', () => {
 		expect(action_for(K6_STRESS)).toBe('created')
-		expect(read_fixture(K6_STRESS)).toBe(readFileSync(K6_STRESS_TEMPLATE, ENCODING))
+		expect(read_fixture(K6_STRESS)).toBe(readFileSync(K6_STRESS, ENCODING))
 	})
 
 	it('never overwrites a tuned scenario on a re-sync', () => {
 		// VUs, duration, and exercised endpoints are the consumer's to tune; clobbering them on
 		// sync would silently reset a calibrated load profile.
-		const tuned = 'export const options = { vus: 50, duration: "5m" }\n'
-
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
-		writeFileSync(fixture_path(K6_SCENARIO), tuned)
+		writeFileSync(fixture_path(K6_SCENARIO), TUNED_SCENARIO)
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 
+		// Exact match, not `toContain`: proves the header is all that was added — the tuned body is
+		// neither rewritten nor duplicated.
+		expect(read_fixture(K6_SCENARIO)).toBe(`${k6_scenarios.TS_NOCHECK_HEADER}${TUNED_SCENARIO}`)
+	})
+
+	it('reports a freshly seeded scenario as created, not patched', () => {
+		// The seeded source already carries the directive, so the seed needs no follow-up edit — and
+		// the per-file summary stays one honest line.
+		expect(action_for(K6_SCENARIO)).toBe('created')
 		expect(action_for(K6_SCENARIO)).toBe('skipped')
-		expect(read_fixture(K6_SCENARIO)).toBe(tuned)
+	})
+})
+
+describe('k6 scenario type-check directive reaches seeded projects (#109)', () => {
+	// The scenarios are seeded once, so a template-only fix would never land in a project that
+	// already synced — it would keep failing `tsc --noEmit` until hand-fixed.
+	it.each([K6_SCENARIO, K6_STRESS])('adds the directive to a pre-existing %s', (scenario) => {
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+		writeFileSync(fixture_path(scenario), TUNED_SCENARIO)
+
+		expect(action_for(scenario)).toBe('updated')
+		expect(read_fixture(scenario)).toContain(k6_scenarios.TS_NOCHECK_DIRECTIVE)
+	})
+
+	it('patches only the scenarios — every other seeded file stays the consumer own', () => {
+		// A seed entry without a `patch` is untouched forever; app.html / wrangler.jsonc / _headers
+		// carry project-specific content app-kit has no line to keep correct in.
+		const patched = cloudflare_sync.SEED_ENTRIES.filter((entry) => entry.patch !== undefined)
+
+		expect(patched.map((entry) => entry.dest)).toEqual([K6_SCENARIO, K6_STRESS])
 	})
 })
 
@@ -243,19 +274,26 @@ describe('app-kit distributes what it runs', () => {
 		expect(readFileSync(LOAD_WORKFLOW, ENCODING)).toBe(readFileSync(LOAD_TEMPLATE, ENCODING))
 	})
 
-	it('keeps its own k6 scenarios identical to the distributed templates', () => {
-		// app-kit runs `josh-app load` on its own seeded scenarios, so its copies must match the
-		// templates consumers receive — otherwise app-kit tests a scenario no one else has.
-		expect(readFileSync(K6_SCENARIO, ENCODING)).toBe(readFileSync(K6_SCENARIO_TEMPLATE, ENCODING))
-		expect(readFileSync(K6_STRESS, ENCODING)).toBe(readFileSync(K6_STRESS_TEMPLATE, ENCODING))
+	it('seeds the k6 scenarios from the very files it runs, with no second copy to drift', () => {
+		// app-kit runs `josh-app load` on k6/*.js and distributes those same paths, so source and
+		// destination coincide. A templates/k6 duplicate would need a mirror test to stay honest;
+		// single-sourcing makes the guarantee structural.
+		const k6_entries = cloudflare_sync.SEED_ENTRIES.filter((entry) =>
+			entry.dest.startsWith(K6_DIRECTORY),
+		)
+
+		expect(k6_entries.map((entry) => entry.template)).toEqual([K6_SCENARIO, K6_STRESS])
+		expect(k6_entries.every((entry) => entry.template === entry.dest)).toBe(true)
 	})
 
-	it('ships the templates the overlay copies', () => {
+	it('ships every file the overlay copies', () => {
+		// `template` is a package-root-relative path, so this also proves each one is inside a
+		// directory package.json `files` publishes — see the manifest contract test.
 		for (const entry of [
 			...cloudflare_sync.MANAGED_COPY_ENTRIES,
 			...cloudflare_sync.SEED_ENTRIES,
 		]) {
-			expect(existsSync(path.join('templates', entry.template))).toBe(true)
+			expect(existsSync(entry.template), entry.template).toBe(true)
 		}
 	})
 })

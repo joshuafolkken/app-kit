@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { cloudflare_sync } from './cloudflare/sync.js'
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
@@ -15,6 +16,7 @@ interface Manifest {
 	publishConfig?: { registry?: string; access?: string }
 	dependencies?: Record<string, string>
 	peerDependencies?: Record<string, string>
+	files?: ReadonlyArray<string>
 }
 
 function load_manifest(): Manifest {
@@ -34,6 +36,24 @@ describe('package publish contract', () => {
 
 		expect(publish_config?.registry).toBe(GH_PACKAGES_REGISTRY)
 		expect(publish_config?.access).toBe('public')
+	})
+})
+
+function top_level_directory_of(template: string): string {
+	return template.split('/', 1)[0] ?? ''
+}
+
+// `josh-app sync` reads every overlay source out of the INSTALLED package, so a directory missing
+// from `files` fails only in a consumer — never in this repo, where the file is right there on
+// disk. That is how the k6 scenarios could regress silently once they stopped living under the
+// already-published templates/, so the coupling gets an explicit guard.
+describe('published files cover the overlay sources', () => {
+	it('publishes every directory the sync overlay seeds from', () => {
+		const published = new Set(load_manifest().files)
+		const sources = [...cloudflare_sync.SEED_ENTRIES, ...cloudflare_sync.MANAGED_COPY_ENTRIES]
+		const directories = new Set(sources.map((entry) => top_level_directory_of(entry.template)))
+
+		expect([...directories.difference(published)]).toEqual([])
 	})
 })
 

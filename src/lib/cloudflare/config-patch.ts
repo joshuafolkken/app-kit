@@ -1,9 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
+import { patch_file } from './patch-file.js'
 import type { OverlayChange } from './sync.js'
 
-const ENCODING = 'utf8'
 const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
 const LEFTHOOK_FILE = 'lefthook.yml'
@@ -121,25 +119,6 @@ function patch_eslint_content(content: string): string {
 	return content
 		.replaceAll(KIT_ESLINT_MODULE, () => APP_KIT_ESLINT_MODULE)
 		.replaceAll(KIT_ESLINT_FACTORY, () => APP_KIT_ESLINT_FACTORY)
-}
-
-type ContentPatcher = (content: string) => string
-
-// Patch one already-existing config file in place, preserving every untouched entry. A file the
-// consumer has not created yet is skipped — the orchestrated `josh sync` / `josh init` seeds the
-// base first — and an already-correct file is a no-op, so re-runs report `skipped` and never
-// rewrite bytes.
-function patch_file(target: string, file: string, patch: ContentPatcher): OverlayChange {
-	const destination = path.join(target, file)
-	if (!existsSync(destination)) return { file, action: 'skipped' }
-
-	const original = readFileSync(destination, ENCODING)
-	const patched = patch(original)
-	if (patched === original) return { file, action: 'skipped' }
-
-	writeFileSync(destination, patched)
-
-	return { file, action: 'updated' }
 }
 
 // Reconcile the SvelteKit config app-kit owns: the eslint.config.js factory swap plus the
