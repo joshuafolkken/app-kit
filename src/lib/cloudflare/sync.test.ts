@@ -6,7 +6,7 @@ import { managed_scripts } from './managed-scripts.js'
 import { cloudflare_sync } from './sync.js'
 
 const ENCODING = 'utf8'
-// app-kit's repo root: holds the canonical package.json + templates/.
+// app-kit's repo root: holds the canonical package.json plus every overlay source (templates/, k6/).
 const SOURCE_DIR = '.'
 const PACKAGE_JSON = 'package.json'
 const WRANGLER_JSONC = 'wrangler.jsonc'

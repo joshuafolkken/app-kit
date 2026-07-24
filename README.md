@@ -215,6 +215,12 @@ pnpm josh-app load:stress   # same lifecycle, but run the "attacking" k6/stress-
 ceiling — where p95 spikes or errors appear is your limit). Each is seeded once and never rewritten
 — VUs, duration, rates, and the exercised endpoints are project-specific, so tune them for your app.
 
+The one line `josh-app sync` does keep is the `// @ts-nocheck` header. The scenarios target k6's own
+JS runtime, so a project whose `tsconfig.json` type-checks `**/*.js` cannot compile them (the `k6` /
+`k6/http` imports and `__ENV` do not resolve) — the directive keeps `tsc --noEmit` off them, exactly
+as the app-kit ESLint preset already ignores `k6/**`. Sync adds it to a scenario seeded by an
+earlier version and otherwise leaves your tuning untouched. Delete it only if you add `@types/k6`.
+
 **Pick a scenario per run.** `josh-app load` runs the baseline and `josh-app load:stress` runs the
 stress scenario; to run **your own**, pass its path: `josh-app load path/to/scenario.js`. Every
 scenario reads its target from `__ENV.BASE_URL`, which the command points at the preview on `:4173`
