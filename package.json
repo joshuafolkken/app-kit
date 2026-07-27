@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.47.0",
+	"version": "0.48.0",
 	"private": false,
 	"packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
 	"publishConfig": {
@@ -91,7 +91,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.23.0",
+		"@joshuafolkken/kit": "^1.24.0",
 		"@playwright/test": "1.61.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
 		"@size-limit/file": "^13.0.1",
