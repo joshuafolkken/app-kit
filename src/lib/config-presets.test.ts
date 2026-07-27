@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
 import { app_verify } from '#verify/verify.js'
 import { describe, expect, it } from 'vitest'
@@ -23,6 +23,20 @@ const KIT = '@joshuafolkken/kit'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
+// The preset MUST keep a `.json` extension (#113): Playwright (>= 1.62) appends `.json` to any
+// tsconfig `extends` entry not already ending in it and hard-throws when the result is missing, so
+// a `.jsonc` preset resolves to `*.jsonc.json` and takes the E2E suite down before the first test.
+const TSCONFIG_PRESET = './tsconfig/sveltekit.json'
+const ROOT_TSCONFIG = 'tsconfig.json'
+const VSCODE_SETTINGS = '.vscode/settings.json'
+// VSCode setting keys are dotted, so they are read through an index rather than a declared
+// interface — a `files.associations` property would trip the snake_case/camelCase naming rule.
+const ASSOCIATIONS_KEY = 'files.associations'
+const TSCONFIG_ASSOCIATION_GLOB = '**/tsconfig/*.json'
+
+interface RootTsconfig {
+	extends: Array<string>
+}
 
 interface Manifest {
 	files: Array<string>
@@ -46,7 +60,7 @@ describe('SvelteKit config preset exports', () => {
 		const { exports } = load_manifest()
 
 		expect(exports['./eslint/sveltekit']).toBe('./eslint/sveltekit.js')
-		expect(exports['./tsconfig/sveltekit']).toMatchObject({ default: './tsconfig/sveltekit.jsonc' })
+		expect(exports['./tsconfig/sveltekit']).toMatchObject({ default: TSCONFIG_PRESET })
 		expect(exports['./cspell/sveltekit']).toBe('./cspell/sveltekit.yaml')
 	})
 
@@ -131,7 +145,8 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 // eslint is now INTERNALIZED (#52, epic #9 Phase C): it composes kit's generic base +
 // eslint-plugin-svelte + app-kit's own SvelteKit delta in-house, instead of re-exporting
 // kit's `create_sveltekit_config`. cspell still imports kit base; tsconfig is self-contained
-// by necessity (TS cannot resolve a cross-package `extends` to a `.jsonc`).
+// by necessity (neither TS nor Playwright's loader resolves a cross-package `extends` from
+// inside the published preset — see the header comment on tsconfig/sveltekit.json).
 describe('presets layer on kit base where resolution allows', () => {
 	it('eslint preset is internalized: composes kit base + svelte delta, no kit/eslint/sveltekit re-export', () => {
 		const source = read_file(ESLINT_PRESET)
@@ -173,10 +188,41 @@ describe('presets layer on kit base where resolution allows', () => {
 	})
 
 	it('tsconfig preset carries the SvelteKit compiler delta', () => {
-		const source = read_file('tsconfig/sveltekit.jsonc')
+		const source = read_file(TSCONFIG_PRESET)
 
 		expect(source).toMatch(/"rewriteRelativeImportExtensions":\s*true/u)
 		expect(source).toMatch(/"checkJs":\s*true/u)
+	})
+})
+
+// #113: Playwright (>= 1.62) appends `.json` to every tsconfig `extends` entry that does not already
+// end in it, then hard-throws when the resulting path is missing — so the retired `.jsonc` preset
+// resolved to `*.jsonc.json` and killed the E2E suite at config load. These lock the extension for
+// the published preset, the export map, and app-kit's own root tsconfig alike; a tsconfig is parsed
+// as JSONC regardless of extension, so the preset keeps its comments.
+describe('tsconfig preset extension (#113)', () => {
+	it('ships no retired .jsonc preset beside the .json one', () => {
+		expect(existsSync(TSCONFIG_PRESET)).toBe(true)
+		expect(existsSync('tsconfig/sveltekit.jsonc')).toBe(false)
+	})
+
+	// A `.json` preset keeps its comments, but the editor's JSON language service flags every one of
+	// them until the file is associated with jsonc. kit ships this association, yet its settings merge
+	// is create-only per top-level key — app-kit already owns `files.associations` (for tailwindcss),
+	// so kit's entry can never reach here and the association has to be declared locally.
+	it('associates the tsconfig presets with jsonc so the editor accepts their comments', () => {
+		const settings = JSON.parse(read_file(VSCODE_SETTINGS)) as Record<
+			string,
+			Record<string, string>
+		>
+
+		expect(settings[ASSOCIATIONS_KEY]?.[TSCONFIG_ASSOCIATION_GLOB]).toBe('jsonc')
+	})
+
+	it("app-kit's own root tsconfig extends the .json preset", () => {
+		const { extends: extends_list } = JSON.parse(read_file(ROOT_TSCONFIG)) as RootTsconfig
+
+		expect(extends_list).toContain(TSCONFIG_PRESET)
 	})
 })
 

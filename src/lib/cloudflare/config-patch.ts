@@ -27,8 +27,17 @@ const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
 // `(?![\w/-])` tail anchors `cspell` to a complete path segment, so the `/cspell/sveltekit` line and
 // any `cspell-*` sibling are left for their own matchers.
 const KIT_CSPELL_BASE = /@joshuafolkken\/kit\/cspell(?![\w/-])/u
-const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
+const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.json'
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
+// The preset used to ship as `sveltekit.jsonc`. Playwright (>= 1.62) appends `.json` to any
+// `extends` entry that does not already end in it and hard-throws when the resulting path is
+// missing, so a consumer left on the old entry loses its entire E2E suite (#113,
+// joshuafolkken/kit#681). `ensure` alone cannot repair it — the legacy entry is a different string,
+// so the `.json` one would be prepended alongside it, leaving the fatal `.jsonc` line in place —
+// hence the explicit removal. Unconditional (unlike kit's existence-gated rewrite, which must span
+// packages) because the sync doing the removal ships from the very app-kit version that carries the
+// renamed preset, so the replacement is always on disk.
+const APP_KIT_TSCONFIG_LEGACY = /@joshuafolkken\/app-kit\/tsconfig\/sveltekit\.jsonc$/u
 // kit's `josh sync` / `josh init` unconditionally ensures the framework-agnostic base entry
 // (`kit/tsconfig/base.jsonc`), even when the app-kit SvelteKit preset is present. The preset is
 // self-contained (repeats every base option) and, being later in the `extends` array, always wins,
@@ -96,7 +105,7 @@ function patch_tsconfig_content(content: string): string {
 	return config_merge.patch_json_list_field(content, {
 		field: TSCONFIG_EXTENDS_FIELD,
 		ensure: [APP_KIT_TSCONFIG_EXTENDS],
-		remove: [KIT_TSCONFIG_SVELTEKIT, KIT_TSCONFIG_BASE],
+		remove: [KIT_TSCONFIG_SVELTEKIT, KIT_TSCONFIG_BASE, APP_KIT_TSCONFIG_LEGACY],
 	})
 }
 
