@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { baseline } from '#dast/baseline.js'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { managed_scripts } from './managed-scripts.js'
 import { cloudflare_sync } from './sync.js'
@@ -287,5 +288,48 @@ describe('cloudflare sync overlay — .vscode SvelteKit settings (#67)', () => {
 		// project-specific (sonarlint) and author-only (claudeCode.*) keys must not be distributed
 		expect(settings).not.toHaveProperty('sonarlint.connectedMode.project')
 		expect(Object.keys(settings).some((key) => key.startsWith('claudeCode.'))).toBe(false)
+	})
+})
+
+const ZAP_BASELINE = 'zap-baseline.conf'
+// The single master; the seed is its distributable slice (app-kit-only section stripped).
+const ZAP_MASTER = readFileSync(ZAP_BASELINE, ENCODING)
+const ZAP_SEED = baseline.distributable(ZAP_MASTER)
+
+function zap_change(changes: ReturnType<typeof cloudflare_sync.apply_overlay>): string | undefined {
+	return changes.find((change) => change.file === ZAP_BASELINE)?.action
+}
+
+describe('cloudflare sync overlay — zap-baseline.conf (#111)', () => {
+	it('seeds the distributable slice — never the app-kit-only section — when absent', () => {
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(zap_change(changes)).toBe('created')
+		expect(read_fixture(ZAP_BASELINE)).toBe(ZAP_SEED)
+		expect(read_fixture(ZAP_BASELINE)).not.toContain(baseline.APP_KIT_ONLY_MARKER)
+	})
+
+	it('merges the missing Tier-1 rules into an existing consumer file', () => {
+		const consumer = '# my triage\n2\tIGNORE\t(SVG path false positive)\n'
+
+		writeFileSync(fixture_path(ZAP_BASELINE), consumer)
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		const merged = read_fixture(ZAP_BASELINE)
+
+		expect(zap_change(changes)).toBe('updated')
+		expect(merged).toContain(consumer.trimEnd())
+
+		for (const line of baseline.active_rule_lines(ZAP_MASTER)) {
+			expect(merged).toContain(line)
+		}
+	})
+
+	it('leaves a consumer file that already carries the Tier-1 rules untouched', () => {
+		writeFileSync(fixture_path(ZAP_BASELINE), ZAP_SEED)
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(zap_change(changes)).toBe('skipped')
+		expect(read_fixture(ZAP_BASELINE)).toBe(ZAP_SEED)
 	})
 })

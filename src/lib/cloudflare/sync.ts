@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { app_check } from '#check/check.js'
+import { baseline } from '#dast/baseline.js'
 import { config_patch } from './config-patch.js'
 import { k6_scenarios } from './k6-scenarios.js'
 import { managed_scripts, type ManagedScripts } from './managed-scripts.js'
@@ -61,9 +62,11 @@ interface OverlayChange {
 // seed-if-absent never fires and the anchor-merge is fragile), and the size-limit script/config/
 // devDeps (an opt-in bundle-budget tool, too invasive to inject into every consumer). Consumers
 // own both.
-// zap-baseline.conf carries the consumer's DAST triage decisions (which ZAP rules are IGNOREd,
-// and why), so it is seeded once and never rewritten — a re-sync must not silently re-open a
-// finding the consumer deliberately baselined, nor discard the recorded reason.
+// zap-baseline.conf is handled by its own `sync_zap_baseline` step (not a SEED_ENTRY): its single
+// master is app-kit's repo-root zap-baseline.conf — the file app-kit runs `josh-app dast` on — so
+// it is sourced straight from there, the same "app-kit distributes what it runs" single-sourcing
+// the k6 entries use. Seeding strips the app-kit-only self-triage section, and existing consumers
+// get the universal Tier-1 rules merged insert-if-absent, both derived from that one file (#111).
 //
 // _headers ships a security-header baseline (the rules that close ZAP 10020 / 10021 / 10063).
 // Seed-only for the same reason: CSP, CORS, and cache rules are highly project-specific, and
@@ -91,7 +94,6 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: `${TEMPLATES_DIR}/app.d.ts`, dest: 'src/app.d.ts' },
 	{ template: `${TEMPLATES_DIR}/${WRANGLER_JSONC}`, dest: WRANGLER_JSONC },
 	{ template: `${TEMPLATES_DIR}/settings.sveltekit.json`, dest: '.vscode/settings.json' },
-	{ template: `${TEMPLATES_DIR}/${ZAP_BASELINE_CONF}`, dest: ZAP_BASELINE_CONF },
 	{ template: `${TEMPLATES_DIR}/${HEADERS_FILE}`, dest: HEADERS_FILE },
 	{ template: K6_SCENARIO, dest: K6_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
 	{ template: K6_STRESS_SCENARIO, dest: K6_STRESS_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
@@ -210,6 +212,29 @@ function copy_managed_file(entry: SeedEntry, target: string, source: string): Ov
 	return { file: entry.dest, action: did_exist ? 'updated' : 'created' }
 }
 
+// zap-baseline.conf: single-sourced from app-kit's own repo-root config (published so a consumer
+// can read it). A fresh consumer is seeded the distributable slice — the app-kit-only self-triage
+// section stripped off. An existing consumer keeps its file, with the universal Tier-1 rules
+// merged in insert-if-absent; both slices derive from that one master, so a rule is authored once
+// (app-kit#111). `source` is app-kit's package root; the master and the consumer dest share the
+// same path (root zap-baseline.conf), like the k6 entries.
+function sync_zap_baseline(target: string, source: string): OverlayChange {
+	const master = readFileSync(path.join(source, ZAP_BASELINE_CONF), ENCODING)
+	const destination = path.join(target, ZAP_BASELINE_CONF)
+
+	if (!existsSync(destination)) {
+		writeFileSync(destination, baseline.distributable(master))
+
+		return { file: ZAP_BASELINE_CONF, action: 'created' }
+	}
+
+	function merge(consumer: string): string {
+		return baseline.ensure_baseline_rules(consumer, master)
+	}
+
+	return patch_file(target, ZAP_BASELINE_CONF, merge)
+}
+
 // Format an overlay result as an indented, auditable per-file summary.
 function summarize(changes: ReadonlyArray<OverlayChange>): string {
 	return changes.map((change) => `  ${change.action}: ${change.file}`).join('\n')
@@ -227,6 +252,8 @@ function apply_overlay(target: string, source: string): Array<OverlayChange> {
 	for (const entry of SEED_ENTRIES) {
 		changes.push(seed_file(entry, target, source))
 	}
+
+	changes.push(sync_zap_baseline(target, source))
 
 	for (const entry of MANAGED_COPY_ENTRIES) {
 		changes.push(copy_managed_file(entry, target, source))

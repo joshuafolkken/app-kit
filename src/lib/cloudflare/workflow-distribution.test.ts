@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { baseline } from '#dast/baseline.js'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { k6_scenarios } from './k6-scenarios.js'
 import { cloudflare_sync } from './sync.js'
@@ -22,7 +23,6 @@ const K6_SCENARIO = 'k6/load-test.js'
 const K6_STRESS = 'k6/stress-test.js'
 const CI_WORKFLOW = '.github/workflows/ci.yml'
 const ZAP_CONF = 'zap-baseline.conf'
-const ZAP_CONF_TEMPLATE = 'templates/zap-baseline.conf'
 const HEADERS_FILE = '_headers'
 const HEADERS_TEMPLATE = 'templates/_headers'
 
@@ -170,7 +170,8 @@ describe('k6 scenario type-check directive reaches seeded projects (#109)', () =
 
 	it('patches only the scenarios — every other seeded file stays the consumer own', () => {
 		// A seed entry without a `patch` is untouched forever; app.html / wrangler.jsonc / _headers
-		// carry project-specific content app-kit has no line to keep correct in.
+		// carry project-specific content app-kit has no line to keep correct in. (zap-baseline.conf
+		// is single-sourced through its own sync_zap_baseline step, not a SEED_ENTRY.)
 		const patched = cloudflare_sync.SEED_ENTRIES.filter((entry) => entry.patch !== undefined)
 
 		expect(patched.map((entry) => entry.dest)).toEqual([K6_SCENARIO, K6_STRESS])
@@ -207,21 +208,24 @@ describe('Load-test workflow runs manually, not per-PR or on a schedule (#95)', 
 })
 
 describe('ZAP baseline config seeding', () => {
-	it('seeds the triage config when the project has none', () => {
+	it('seeds the distributable slice of the master when the project has none', () => {
+		const seed = baseline.distributable(readFileSync(ZAP_CONF, ENCODING))
+
 		expect(action_for(ZAP_CONF)).toBe('created')
-		expect(read_fixture(ZAP_CONF)).toBe(readFileSync(ZAP_CONF_TEMPLATE, ENCODING))
+		expect(read_fixture(ZAP_CONF)).toBe(seed)
 	})
 
 	it('never overwrites recorded triage decisions on a re-sync', () => {
 		// Re-opening a deliberately baselined finding — and discarding the recorded reason —
-		// would be a silent security regression.
+		// would be a silent security regression. The Tier-1 merge is insert-only, so a consumer's
+		// own decision survives verbatim even as the universal baseline is added around it (#111).
 		const triaged = '10038\tIGNORE\t(CSP is set at the CDN edge)\n'
 
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 		writeFileSync(fixture_path(ZAP_CONF), triaged)
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
 
-		expect(action_for(ZAP_CONF)).toBe('skipped')
-		expect(read_fixture(ZAP_CONF)).toBe(triaged)
+		expect(read_fixture(ZAP_CONF)).toContain(triaged.trimEnd())
 	})
 })
 
