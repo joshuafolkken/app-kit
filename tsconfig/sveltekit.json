@@ -1,0 +1,49 @@
+{
+	// app-kit's SvelteKit tsconfig preset. Self-contained by necessity: TypeScript
+	// cannot resolve a cross-package `extends` via package exports (TS6053), and a
+	// relative `node_modules` path differs between app-kit's own tree and a
+	// consumer's nested tree. Playwright (>= 1.62) rules the remaining option out
+	// too: its tsconfig loader resolves an `extends` entry against
+	// `<dir>/node_modules/...`, so a bare `@joshuafolkken/kit/tsconfig/base.json`
+	// read from inside this file would be looked up under `tsconfig/node_modules/`
+	// and hard-throw. kit's own tsconfig/base.json embeds its base for the same
+	// reason. This moves ownership of the SvelteKit tsconfig from kit to app-kit;
+	// consumers extend
+	// `./node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.json`.
+	//
+	// The `.json` extension is load-bearing: Playwright (>= 1.62) appends `.json`
+	// to any `extends` entry not already ending in it and then hard-throws when the
+	// resulting path is missing, so a `.jsonc` preset resolved to `*.jsonc.json` and
+	// took down the whole E2E suite before a single test ran. A tsconfig is parsed
+	// as JSONC regardless of extension, so these comments still work. See #113 and
+	// joshuafolkken/kit#681.
+	"compilerOptions": {
+		// SvelteKit / bundler delta over the generic base.
+		"rewriteRelativeImportExtensions": true,
+		"allowJs": true,
+		"checkJs": true,
+		// Generic base (kept in sync with @joshuafolkken/kit/tsconfig/base).
+		"strict": true,
+		"moduleResolution": "bundler",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnusedLabels": false,
+		"allowUnreachableCode": false,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"isolatedModules": true,
+		"noImplicitOverride": true,
+		"exactOptionalPropertyTypes": true,
+		"noUncheckedIndexedAccess": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"verbatimModuleSyntax": true,
+		"noEmitOnError": true,
+		"useDefineForClassFields": true,
+		"noUncheckedSideEffectImports": true
+	}
+}
