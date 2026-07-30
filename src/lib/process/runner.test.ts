@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { process_runner } from './runner.js'
 
 const SUCCESS = 0
 const FAILURE = 2
 const PNPM_JS_ENTRY = '/opt/pnpm.cjs'
+const PNPM_EXEC_PATH_VARIABLE = 'npm_execpath'
+const PNPM_PATH_FALLBACK = { command: 'pnpm', prefix_args: [] }
+
+afterEach(() => {
+	vi.unstubAllEnvs()
+})
 
 describe('pnpm invocation resolution', () => {
 	it('runs a JS pnpm entry through the current node executable', () => {
@@ -24,9 +30,11 @@ describe('pnpm invocation resolution', () => {
 		})
 	})
 
-	it('rejects an invocation that did not come through a package manager', () => {
-		expect(() => process_runner.resolve_pnpm_invocation(undefined)).toThrow(/run through pnpm/u)
-		expect(() => process_runner.resolve_pnpm_invocation('')).toThrow(/run through pnpm/u)
+	// `pnpm josh-app verify` resolves the bin through `pnpm exec` semantics, which leaves
+	// npm_execpath unset — so a missing value must fall back to PATH instead of aborting.
+	it('falls back to pnpm on PATH when no execpath was exported', () => {
+		expect(process_runner.resolve_pnpm_invocation(undefined)).toEqual(PNPM_PATH_FALLBACK)
+		expect(process_runner.resolve_pnpm_invocation('')).toEqual(PNPM_PATH_FALLBACK)
 	})
 
 	it('rejects package managers other than pnpm', () => {
@@ -43,6 +51,26 @@ describe('pnpm invocation resolution', () => {
 			'run',
 			'build',
 		])
+	})
+})
+
+describe('ambient pnpm invocation', () => {
+	// Regression for app-kit#122: the pre-push hook runs josh-app from a plain `git push`, whose
+	// environment carries no npm_execpath, and the whole gate aborted before it could build.
+	it('resolves an invocation even when the environment carries no execpath', () => {
+		vi.stubEnv(PNPM_EXEC_PATH_VARIABLE, undefined)
+
+		expect(process.env[PNPM_EXEC_PATH_VARIABLE]).toBeUndefined()
+		expect(process_runner.current_pnpm_invocation()).toEqual(PNPM_PATH_FALLBACK)
+	})
+
+	it('prefers the exported pnpm entry over the PATH fallback', () => {
+		vi.stubEnv(PNPM_EXEC_PATH_VARIABLE, PNPM_JS_ENTRY)
+
+		expect(process_runner.current_pnpm_invocation()).toEqual({
+			command: process.execPath,
+			prefix_args: [PNPM_JS_ENTRY],
+		})
 	})
 })
 
