@@ -80,10 +80,43 @@ It runs in three places, all sharing one implementation:
 ephemeral CI runners re-pull on every run. Paying that on every PR is wasteful — and since
 `dast.yml` is a distributed default, it would land on every consumer's CI. The per-PR value (the
 security-header findings the scan reports) is already covered by the Docker-free E2E assertions in
-`security-headers.e2e.ts`, so the full scan only needs to run **nightly** as the broad safety net.
+`src/routes/security-headers.e2e.ts`, which `josh-app sync` seeds into your project (see below), so
+the full scan only needs to run **nightly** as the broad safety net.
 Trigger it on demand anytime via the Actions "Run workflow" button (`workflow_dispatch`) or locally
 with `pnpm josh-app dast`. A failed scheduled run is surfaced by GitHub (email + a red run in the
 Actions tab) and never blocks a PR.
+
+### The per-PR net (`security-headers.e2e.ts`)
+
+`josh-app sync` seeds `src/routes/security-headers.e2e.ts` once, then it is yours. It runs in the
+normal E2E job — no Docker, a few seconds — and asserts the stack-universal half of the contract:
+
+- every header of the baseline is served on a rendered page (derived from `SECURITY_HEADERS`, so a
+  header added upstream starts being checked without you touching the file)
+- the `Content-Security-Policy` header is present, `script-src` carries a per-request nonce and no
+  `'unsafe-inline'`, and `style-src` keeps `'unsafe-inline'` for Svelte transition styles
+- the page renders with **zero** `securitypolicyviolation` events — the half that proves the policy
+  admits what the app legitimately needs, not just that it blocks things
+
+The checks themselves live in app-kit and are imported, not copied. Each **reports** the departures
+it finds rather than asserting internally, so the `expect` stays in your spec where the linter — and
+the next reader — can see it:
+
+```ts
+import { security_headers_e2e } from '@joshuafolkken/app-kit/security/e2e'
+
+const response = await page.goto('/')
+
+expect(security_headers_e2e.baseline_problems(response)).toStrictEqual([])
+expect(security_headers_e2e.csp_problems(response)).toStrictEqual([])
+```
+
+A failure prints every departure at once (`script-src is not nonce-based: 'self' 'unsafe-inline'`),
+not just the first one.
+
+Extend the seeded file with what only your project knows — the third-party origins your policy
+allowlists, a route carrying an embed, proof that a site-specific inline bootstrap executed. A
+re-sync never overwrites it.
 
 ### Unified pre-push gate (`josh-app verify`)
 
