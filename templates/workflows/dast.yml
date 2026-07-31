@@ -13,7 +13,8 @@ name: DAST
 # which ephemeral runners re-pull on every run — wasteful to pay on every PR, and since this file
 # is a distributed default that cost would land on every consumer's CI. The per-PR value (the
 # security-header findings this scan actually reports) is already asserted in the Docker-free E2E
-# job (`security-headers.e2e.ts`), so the full scan only needs to run periodically as the broad
+# job by `src/routes/security-headers.e2e.ts`, which `josh-app sync` seeds into this project
+# alongside this workflow (app-kit#120), so the full scan only needs to run periodically as the broad
 # safety net. Run it on demand via the Actions "Run workflow" button (workflow_dispatch) or locally
 # with `pnpm josh-app dast`. A failed scheduled run is surfaced by GitHub (email to repo admins +
 # red in the Actions tab); it never blocks a PR. See app-kit#103.

@@ -17,6 +17,12 @@ const WRANGLER_JSONC = 'wrangler.jsonc'
 const ZAP_BASELINE_CONF = 'zap-baseline.conf'
 // Cloudflare's header directives. Project root, not static/ — adapter-cloudflare throws otherwise.
 const HEADERS_FILE = '_headers'
+// The per-PR security-header net (app-kit#120). The template deliberately does NOT end in
+// `.e2e.ts`: Playwright's kit-distributed config collects `**/*.e2e.{ts,js}` from the repo root
+// with no testIgnore, so a `templates/*.e2e.ts` would be run as one of app-kit's own specs against
+// a `@joshuafolkken/app-kit/...` self-import. Only the seeded destination carries the suffix.
+const SECURITY_E2E_TEMPLATE = 'security-headers-e2e.ts'
+const SECURITY_E2E_FILE = 'src/routes/security-headers.e2e.ts'
 // The k6 scenarios (`josh-app load`): the gentle baseline and the "attacking" stress variant.
 // Seeded once as starting points, then the consumer owns and tunes them (app-kit#95). Source and
 // destination are the same path because app-kit ships the very scenarios it runs on itself — see
@@ -72,6 +78,13 @@ interface OverlayChange {
 // Seed-only for the same reason: CSP, CORS, and cache rules are highly project-specific, and
 // overwriting them on every sync would clobber a consumer's production header policy.
 //
+// src/routes/security-headers.e2e.ts is the per-PR net README and dast.yml both cite as the reason
+// the full ZAP scan only runs nightly — a claim that was false for consumers until #120, because
+// app-kit described the file without shipping it. Seed-only rather than managed: a consumer extends
+// it with instance-specific cases (their allowlisted origins, their embed routes), which a byte-copy
+// would erase every sync. The assertions it calls stay single-sourced in the published
+// `./security/e2e` subpath, so the seeded body holds no logic that can drift from the baseline.
+//
 // k6/load-test.js (gentle baseline) and k6/stress-test.js (throughput-ceiling probe) are the
 // scenarios `josh-app load` runs. Each is seeded once as a working starting point, then owned by
 // the consumer — VUs, duration, and the exercised endpoints are all project-specific, so a re-sync
@@ -95,6 +108,7 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: `${TEMPLATES_DIR}/${WRANGLER_JSONC}`, dest: WRANGLER_JSONC },
 	{ template: `${TEMPLATES_DIR}/settings.sveltekit.json`, dest: '.vscode/settings.json' },
 	{ template: `${TEMPLATES_DIR}/${HEADERS_FILE}`, dest: HEADERS_FILE },
+	{ template: `${TEMPLATES_DIR}/${SECURITY_E2E_TEMPLATE}`, dest: SECURITY_E2E_FILE },
 	{ template: K6_SCENARIO, dest: K6_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
 	{ template: K6_STRESS_SCENARIO, dest: K6_STRESS_SCENARIO, patch: k6_scenarios.ensure_ts_nocheck },
 ]

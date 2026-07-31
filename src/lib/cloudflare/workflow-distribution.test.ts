@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { baseline } from '#dast/baseline.js'
@@ -25,6 +25,15 @@ const CI_WORKFLOW = '.github/workflows/ci.yml'
 const ZAP_CONF = 'zap-baseline.conf'
 const HEADERS_FILE = '_headers'
 const HEADERS_TEMPLATE = 'templates/_headers'
+const TEMPLATES_DIR = 'templates'
+const SECURITY_E2E_FILE = 'src/routes/security-headers.e2e.ts'
+const SECURITY_E2E_TEMPLATE = `${TEMPLATES_DIR}/security-headers-e2e.ts`
+// The two import specifiers for one module: consumers resolve the published subpath, app-kit
+// resolves its own source through $lib. Normalizing one to the other is what lets the template and
+// the copy app-kit actually runs be compared byte for byte.
+const CONSUMER_IMPORT = '@joshuafolkken/app-kit/security/e2e'
+const APP_KIT_IMPORT = '$lib/security/e2e.js'
+const SECURITY_E2E_SUBPATH = './security/e2e'
 
 // Literals shared by the DAST and load-test cases (both are managed workflow copies), extracted so
 // the duplicate-string rule stays quiet and a wording change lands in one place.
@@ -43,6 +52,14 @@ function fixture_path(relative_path: string): string {
 
 function read_fixture(relative_path: string): string {
 	return readFileSync(fixture_path(relative_path), ENCODING)
+}
+
+/** A source file with its import block dropped — everything the two copies of a spec must share. */
+function body_of(file: string): string {
+	return readFileSync(file, ENCODING)
+		.split('\n')
+		.filter((line) => !line.startsWith('import '))
+		.join('\n')
 }
 
 function action_for(file: string): string | undefined {
@@ -247,6 +264,65 @@ describe('security headers seeding', () => {
 
 		expect(action_for(HEADERS_FILE)).toBe('skipped')
 		expect(read_fixture(HEADERS_FILE)).toBe(owned)
+	})
+})
+
+// app-kit#120: README and dast.yml both justified the nightly-only ZAP scan by pointing at "the
+// Docker-free E2E assertions in security-headers.e2e.ts" — a file app-kit shipped nowhere. Until
+// this entry existed the documented per-PR net simply did not reach a consumer, and each one wrote
+// its own copy (joshuafolkken-com#790 wrote the third).
+describe('security-headers E2E distribution (#120)', () => {
+	it('seeds the spec under src/routes, where the E2E suite collects it', () => {
+		expect(action_for(SECURITY_E2E_FILE)).toBe('created')
+		expect(read_fixture(SECURITY_E2E_FILE)).toBe(readFileSync(SECURITY_E2E_TEMPLATE, ENCODING))
+	})
+
+	it('never overwrites the instance-specific cases a consumer added', () => {
+		// The seeded spec is a starting point the consumer extends with their own allowlisted
+		// origins and embed routes; a byte-copy on every sync would erase that work.
+		const extended = "import { test } from '@playwright/test'\n// our own CSP cases\n"
+
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+		writeFileSync(fixture_path(SECURITY_E2E_FILE), extended)
+
+		expect(action_for(SECURITY_E2E_FILE)).toBe('skipped')
+		expect(read_fixture(SECURITY_E2E_FILE)).toBe(extended)
+	})
+
+	it('seeds a spec that imports the assertions from the published subpath', () => {
+		// A relative or $lib import would resolve to nothing in a consumer, so the seeded file has to
+		// name the subpath — and that subpath has to be one package.json actually exports.
+		const manifest = JSON.parse(readFileSync(PACKAGE_JSON, ENCODING)) as {
+			exports: Record<string, unknown>
+		}
+
+		expect(readFileSync(SECURITY_E2E_TEMPLATE, ENCODING)).toContain(CONSUMER_IMPORT)
+		expect(Object.keys(manifest.exports)).toContain(SECURITY_E2E_SUBPATH)
+	})
+
+	// "app-kit distributes what it runs": the spec app-kit's own CI executes against its own preview
+	// is the spec consumers receive. Only the import block may differ — app-kit resolves the module
+	// through $lib, a consumer through the published subpath, and the sort plugin orders the two
+	// specifiers differently — so the comparison drops imports and holds the body byte for byte. A
+	// guard rather than a convention, because a fix applied to one copy is invisible until it matters.
+	it('runs the very spec it seeds, import block aside', () => {
+		expect(body_of(SECURITY_E2E_FILE)).toBe(body_of(SECURITY_E2E_TEMPLATE))
+	})
+
+	it('resolves the same assertions from both sides of the distribution boundary', () => {
+		expect(readFileSync(SECURITY_E2E_FILE, ENCODING)).toContain(APP_KIT_IMPORT)
+		expect(readFileSync(SECURITY_E2E_TEMPLATE, ENCODING)).toContain(CONSUMER_IMPORT)
+	})
+
+	// The template must NOT be named `*.e2e.ts`: playwright.config.ts is kit-distributed and collects
+	// `**/*.e2e.{ts,js}` from the repo root with no testIgnore, so a template with that suffix would
+	// join app-kit's own suite and fail on its unresolvable `@joshuafolkken/app-kit/...` self-import.
+	it('keeps every template out of the Playwright test glob', () => {
+		const collected = readdirSync(TEMPLATES_DIR, { recursive: true, encoding: ENCODING }).filter(
+			(entry) => entry.endsWith('.e2e.ts') || entry.endsWith('.e2e.js'),
+		)
+
+		expect(collected).toEqual([])
 	})
 })
 

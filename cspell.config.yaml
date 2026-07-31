@@ -10,6 +10,9 @@ words:
   - idempotently
   - jgame
   - sameorigin
+  # The DOM event name, spelled out in README prose. cspell's TypeScript dictionary already covers
+  # it inside code, so only app-kit's own markdown needs the entry — nothing to distribute.
+  - securitypolicyviolation
   - sonarlint
   - unstub
   - winget
