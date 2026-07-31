@@ -171,6 +171,14 @@ attributes), so a component or utility change cannot alter its result, and spend
 on one is how hooks end up bypassed. An empty file list is fail-safe → scan (a security check is
 never skipped silently).
 
+**The port must be free.** Before booting, `verify` checks whether anything already answers on 4173
+and stops if so, naming the port and the command that identifies the owner. It never adopts a server
+it did not start: a stranger's preview (or an orphaned `wrangler dev` from an interrupted run) would
+otherwise satisfy every readiness probe, and both Playwright and the scan would check that
+application instead of yours — the header findings would then say nothing about this build. A boot
+that dies before answering also fails immediately with the server's own output, rather than being
+polled until the two-minute deadline.
+
 `package.json` and `pnpm-lock.yaml` are excluded on purpose: a version bump rewrites
 `package.json` on essentially every commit, so including it would fire the scan every time and
 undo the narrowing. Dependency-driven header changes are caught by the **nightly** scheduled scan

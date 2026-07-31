@@ -1,5 +1,10 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess, type ChildProcessByStdio } from 'node:child_process'
+import type { Readable } from 'node:stream'
 import { process_runner } from '#process/runner.js'
+
+// What `spawn` returns for this command's stdio shape (`['ignore', 'pipe', 'pipe']`): no stdin, both
+// output streams readable. Named because the capture helpers below need exactly that guarantee.
+type PipedChild = ChildProcessByStdio<null, Readable, Readable>
 
 // Boot / readiness / teardown for the preview server the DAST scan probes.
 //
@@ -24,6 +29,9 @@ interface PreviewHandle {
 	stop: () => void
 	// Everything the server has written so far — shown only when it fails to become ready.
 	output: () => string
+	// Whether the spawned process is already gone. A wrangler that could not bind exits within
+	// milliseconds; without this the readiness loop would poll a dead server for the full timeout.
+	has_exited: () => boolean
 }
 
 interface PreviewDependencies {
@@ -32,6 +40,22 @@ interface PreviewDependencies {
 	sleep: (ms: number) => Promise<void>
 	now: () => number
 }
+
+// Why readiness is not just "something answered on the port" (app-kit#136): during #122's pre-push
+// run another project's wrangler preview was already listening on 4173, so the first probe succeeded
+// instantly, Playwright (with PLAYWRIGHT_REUSE_SERVER=1) and the ZAP scan both talked to that FOREIGN
+// app, and app-kit's own wrangler — which had failed to bind — was never heard from. The gate only
+// failed because the stranger happened to 404 on the probed route.
+//
+// The guard is the readiness condition run BEFORE the spawn: if the probe URL already answers, then
+// it answering later proves nothing, so the run stops instead of adopting a server it did not start.
+// Deliberately an HTTP probe and not a bind check — `wrangler dev` binds loopback by default, and a
+// loopback-only listener does NOT collide with the 0.0.0.0 bind PREVIEW_ARGV asks for (measured on
+// macOS: both bind happily, and 127.0.0.1 traffic then reaches the squatter). A bind check would
+// therefore have missed the exact incident this fixes. A holder that answers no HTTP at all is out of
+// the pre-check's reach, but it cannot fool readiness either: our wrangler then dies or never answers,
+// both of which now fail loudly below.
+type ReadinessOutcome = 'ready' | 'exited' | 'timeout'
 
 function build_probe_url(port: number): string {
 	return `http://${PROBE_HOST}:${String(port)}/`
@@ -100,13 +124,7 @@ function register_teardown(
 // which lands AFTER the ZAP summary and reads as a failed run even on a clean pass; and wrangler's
 // request log otherwise interleaves with the scan output. The buffer is surfaced only when the
 // server fails to boot, which is the one time it is diagnostic.
-function default_start(cwd: string): PreviewHandle {
-	const invocation = process_runner.current_pnpm_invocation()
-	const child = spawn(invocation.command, process_runner.to_pnpm_argv(invocation, PREVIEW_ARGV), {
-		cwd,
-		stdio: ['ignore', 'pipe', 'pipe'],
-		detached: true,
-	})
+function collect_output(child: PipedChild): () => string {
 	const chunks: Array<string> = []
 
 	function collect(chunk: unknown): void {
@@ -116,17 +134,43 @@ function default_start(cwd: string): PreviewHandle {
 	child.stdout.on('data', collect)
 	child.stderr.on('data', collect)
 
+	return function output(): string {
+		return chunks.join('')
+	}
+}
+
+// A wrangler that cannot bind is gone in milliseconds, long before any readiness deadline — so the
+// exit has to be observable, not inferred from a timeout that a squatter's answers would prevent.
+function track_exit(child: PipedChild): () => boolean {
+	const state = { did_exit: false }
+
+	child.once('close', () => {
+		state.did_exit = true
+	})
+
+	return function has_exited(): boolean {
+		return state.did_exit
+	}
+}
+
+function default_start(cwd: string): PreviewHandle {
+	const invocation = process_runner.current_pnpm_invocation()
+	const child = spawn(invocation.command, process_runner.to_pnpm_argv(invocation, PREVIEW_ARGV), {
+		cwd,
+		stdio: ['ignore', 'pipe', 'pipe'],
+		detached: true,
+	})
+
+	const output = collect_output(child)
+	const has_exited = track_exit(child)
+
 	function stop(): void {
 		stop_child(child)
 	}
 
-	function output(): string {
-		return chunks.join('')
-	}
-
 	register_teardown(stop)
 
-	return { stop, output }
+	return { stop, output, has_exited }
 }
 
 // Any HTTP response — including a 404 or a 500 — proves the listener is up, which is all the scan
@@ -158,48 +202,91 @@ const DEFAULT_DEPENDENCIES: PreviewDependencies = {
 	now: default_now,
 }
 
-// Returns whether the server answered before the deadline. Reporting rather than throwing lets
-// the caller attach the captured server output, which is what actually explains a failed boot.
-async function wait_until_ready(url: string, deps: PreviewDependencies): Promise<boolean> {
+// `undefined` means "still booting, keep waiting" — the only state that costs another poll.
+function poll_outcome(is_ready: boolean, handle: PreviewHandle): ReadinessOutcome | undefined {
+	if (is_ready) return 'ready'
+	if (handle.has_exited()) return 'exited'
+
+	return undefined
+}
+
+// Reports the outcome rather than throwing, so the caller can attach the captured server output —
+// which is what actually explains a boot that failed instead of merely being slow.
+async function wait_until_ready(
+	url: string,
+	handle: PreviewHandle,
+	deps: PreviewDependencies,
+): Promise<ReadinessOutcome> {
 	const deadline = deps.now() + READY_TIMEOUT_MS
 
 	while (deps.now() < deadline) {
-		if (await deps.probe(url)) return true
+		const outcome = poll_outcome(await deps.probe(url), handle)
+		if (outcome !== undefined) return outcome
 
 		await deps.sleep(POLL_INTERVAL_MS)
 	}
 
-	return false
+	return 'timeout'
 }
 
-function build_timeout_message(url: string, output: string): string {
-	const header = `Preview server did not become ready at ${url} within ${String(READY_TIMEOUT_MS)}ms`
+function with_output(header: string, output: string): string {
 	if (output === '') return header
 
 	return `${header}\n--- preview server output ---\n${output}`
 }
 
-// Start the preview server and resolve only once it answers. A server that never comes up is torn
-// down here rather than leaked to the caller, which never receives a handle it would have to clean
-// up on a path it did not open.
+function build_failure_message(outcome: ReadinessOutcome, url: string, output: string): string {
+	const header =
+		outcome === 'exited'
+			? `Preview server exited before answering at ${url}`
+			: `Preview server did not become ready at ${url} within ${String(READY_TIMEOUT_MS)}ms`
+
+	return with_output(header, output)
+}
+
+// Names the port and how to find its owner: the whole failure is "something else is on 4173", and a
+// message that does not say which process to look for just moves the guessing to the reader. The
+// likely owners are another project's preview or an orphaned wrangler from an interrupted run, so
+// both the lookup and the cleanup are spelled out.
+function build_occupied_message(url: string, port: number): string {
+	const number = String(port)
+
+	return [
+		`Preview port ${number} already answers at ${url}, so it is held by a server josh-app did not start.`,
+		`Reusing it would check that application instead of this one, so the run stops here.`,
+		`Find the owner with: lsof -nP -iTCP:${number} -sTCP:LISTEN`,
+		`An orphan from an interrupted run clears with: pkill -f 'wrangler dev'`,
+	].join('\n')
+}
+
+// Start the preview server and resolve only once IT answers. Two things stand between the caller and
+// a false pass: nothing may already be answering on the probe URL (otherwise a stranger's server
+// would satisfy every readiness probe), and a spawn that dies is reported with its captured output
+// rather than polled until the deadline. A server that never comes up is torn down here, so the
+// caller never holds a handle it must clean up on a path it did not open.
 async function start_preview(
 	cwd: string,
 	port: number,
 	deps: PreviewDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<PreviewHandle> {
-	const handle = deps.start(cwd)
 	const url = build_probe_url(port)
 
-	if (await wait_until_ready(url, deps)) return handle
+	if (await deps.probe(url)) throw new Error(build_occupied_message(url, port))
+
+	const handle = deps.start(cwd)
+	const outcome = await wait_until_ready(url, handle, deps)
+
+	if (outcome === 'ready') return handle
 
 	handle.stop()
 
-	throw new Error(build_timeout_message(url, handle.output()))
+	throw new Error(build_failure_message(outcome, url, handle.output()))
 }
 
 const preview_server = {
 	PREVIEW_ARGV,
 	TEARDOWN_SIGNALS,
+	build_occupied_message,
 	build_probe_url,
 	register_teardown,
 	start_preview,
