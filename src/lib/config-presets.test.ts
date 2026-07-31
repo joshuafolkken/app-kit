@@ -28,6 +28,7 @@ const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
 // a `.jsonc` preset resolves to `*.jsonc.json` and takes the E2E suite down before the first test.
 const TSCONFIG_PRESET = './tsconfig/sveltekit.json'
 const ROOT_TSCONFIG = 'tsconfig.json'
+const SECURITY_E2E_SUBPATH = './security/e2e'
 const VSCODE_SETTINGS = '.vscode/settings.json'
 // VSCode setting keys are dotted, so they are read through an index rather than a declared
 // interface — a `files.associations` property would trip the snake_case/camelCase naming rule.
@@ -62,6 +63,16 @@ describe('SvelteKit config preset exports', () => {
 		expect(exports['./eslint/sveltekit']).toBe('./eslint/sveltekit.js')
 		expect(exports['./tsconfig/sveltekit']).toMatchObject({ default: TSCONFIG_PRESET })
 		expect(exports['./cspell/sveltekit']).toBe('./cspell/sveltekit.yaml')
+	})
+
+	// #120: the seeded security-headers spec imports this subpath by name. Dropping or renaming the
+	// export breaks the E2E of every consumer that has already synced, not just new ones — and it
+	// breaks at their `pnpm update`, far from the change that caused it.
+	it('exposes the security-headers E2E assertions the seeded spec imports', () => {
+		expect(load_manifest().exports[SECURITY_E2E_SUBPATH]).toMatchObject({
+			types: './dist/security/e2e.d.ts',
+			svelte: './dist/security/e2e.js',
+		})
 	})
 
 	it('publishes the preset directories and declares kit as a peer', () => {

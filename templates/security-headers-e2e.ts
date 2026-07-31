@@ -1,5 +1,5 @@
+import { security_headers_e2e } from '@joshuafolkken/app-kit/security/e2e'
 import { expect, test } from '@playwright/test'
-import { security_headers_e2e } from '$lib/security/e2e.js'
 
 // Seeded once by `josh-app sync`, then yours to extend. This is the Docker-free per-PR safety net
 // that lets the full ZAP baseline scan (`.github/workflows/dast.yml`) run nightly instead of on
