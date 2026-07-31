@@ -29,6 +29,8 @@ const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
 const TSCONFIG_PRESET = './tsconfig/sveltekit.json'
 const ROOT_TSCONFIG = 'tsconfig.json'
 const SECURITY_E2E_SUBPATH = './security/e2e'
+// One built file behind two conditions — see the #132 note on the test below.
+const SECURITY_E2E_MODULE = './dist/security/e2e.js'
 const VSCODE_SETTINGS = '.vscode/settings.json'
 // VSCode setting keys are dotted, so they are read through an index rather than a declared
 // interface — a `files.associations` property would trip the snake_case/camelCase naming rule.
@@ -68,10 +70,16 @@ describe('SvelteKit config preset exports', () => {
 	// #120: the seeded security-headers spec imports this subpath by name. Dropping or renaming the
 	// export breaks the E2E of every consumer that has already synced, not just new ones — and it
 	// breaks at their `pnpm update`, far from the change that caused it.
+	//
+	// #132: `default` is load-bearing, not decoration. Playwright runs the seeded spec in Node, which
+	// resolves with ["node", "import"] and matches neither `types` nor `svelte` — without a catch-all
+	// the subpath is "not exported" and the whole suite fails to collect. The real guard lives in
+	// package-manifest.test.ts (it resolves the specifier through Node); this pins the map shape.
 	it('exposes the security-headers E2E assertions the seeded spec imports', () => {
 		expect(load_manifest().exports[SECURITY_E2E_SUBPATH]).toMatchObject({
 			types: './dist/security/e2e.d.ts',
-			svelte: './dist/security/e2e.js',
+			svelte: SECURITY_E2E_MODULE,
+			default: SECURITY_E2E_MODULE,
 		})
 	})
 
