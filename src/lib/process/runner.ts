@@ -11,7 +11,16 @@ import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
 // avoids any PATH lookup — the same policy as orchestrate.ts — and guarantees the very pnpm
 // that invoked josh-app runs the spawned steps. npm/yarn/bun also set the variable but parse
 // `exec`/`run` arguments differently, so anything that is not pnpm is rejected up front.
+//
+// The variable is a fast path, NOT a precondition: only `pnpm run <script>` sets it. `pnpm
+// josh-app verify` in a consumer repo has no matching script, so pnpm falls through to `pnpm
+// exec` semantics and launches the `josh-app` bin WITHOUT `npm_execpath` — which made the
+// pre-push hook abort on any plain `git push` (app-kit#122; it only appeared to work when the
+// ambient shell was already inside a pnpm lifecycle script and leaked the variable into the
+// hook). So a missing value falls back to resolving `pnpm` on PATH, the same way run_command
+// resolves `docker`. Corepack/`packageManager` still decide which pnpm version that is.
 const PNPM_EXEC_PATH_VARIABLE = 'npm_execpath'
+const PNPM_PATH_COMMAND = 'pnpm'
 const JS_ENTRY_PATTERN = /\.[cm]?js$/u
 
 const SUCCESS_STATUS = 0
@@ -28,7 +37,7 @@ type CommandRunner = (argv: ReadonlyArray<string>, cwd: string) => SpawnOutcome
 
 function resolve_pnpm_invocation(exec_path: string | undefined): PnpmInvocation {
 	if (exec_path === undefined || exec_path === '') {
-		throw new Error('josh-app must be run through pnpm (e.g. `pnpm josh-app check:ci`)')
+		return { command: PNPM_PATH_COMMAND, prefix_args: [] }
 	}
 
 	const entry_name = path.basename(exec_path)
