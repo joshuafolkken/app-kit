@@ -5,6 +5,8 @@ import { security_headers } from './headers.js'
 const ENCODING = 'utf8'
 const HEADERS_FILE = '_headers'
 const HEADERS_TEMPLATE = 'templates/_headers'
+// The seed's full source, comments included — the prose is what the assertions below are about.
+const TEMPLATE_SOURCE = readFileSync(HEADERS_TEMPLATE, ENCODING)
 
 const X_FRAME_OPTIONS = 'X-Frame-Options'
 const SAMEORIGIN = 'SAMEORIGIN'
@@ -131,5 +133,39 @@ describe('_headers stays in sync with the runtime baseline', () => {
 
 	it('ships a template identical to the baseline consumers are told they get', () => {
 		expect(parse_headers(HEADERS_TEMPLATE)).toEqual(to_expected())
+	})
+
+	// Two physical copies of one artifact: the seed consumers receive and the file app-kit itself
+	// runs `josh-app dast` against. They have never diverged, and a divergence would mean app-kit
+	// ships guidance it does not follow — including the comment prose, which is the whole payload of
+	// a file whose rule block is four lines long.
+	it('keeps the repo-root copy byte-identical to the seeded template', () => {
+		expect(readFileSync(HEADERS_FILE, ENCODING)).toBe(TEMPLATE_SOURCE)
+	})
+})
+
+// app-kit#121: the seeded comment used to call the CSP "tracked separately" — reading as work still
+// outstanding — while zap-baseline.conf already omits rule 10038 on the stated grounds that kit.csp
+// emits the header. A consumer who believes the seed hand-rolls a static policy instead, which is
+// exactly what joshuafolkken-com did until joshuafolkken-com#790 moved it to kit.csp.
+describe('the seeded _headers presents CSP as already configured in kit.csp (#121)', () => {
+	it('no longer frames the CSP as an unresolved item', () => {
+		expect(TEMPLATE_SOURCE).not.toContain('tracked separately')
+	})
+
+	it('names kit.csp and the per-request nonce SvelteKit already emits', () => {
+		expect(TEMPLATE_SOURCE).toContain('kit.csp')
+		expect(TEMPLATE_SOURCE).toContain('per-request nonce')
+	})
+
+	it('states that a CSP line here is harmful, not merely absent', () => {
+		expect(TEMPLATE_SOURCE).toContain('never add a CSP line here')
+	})
+
+	// headers.ts and the README both grant this escape hatch. Omitting it here would leave the seed
+	// contradicting them — a smaller version of the very drift #121 is closing.
+	it('still names the `extra` escape hatch for a project that needs a header CSP on SSR', () => {
+		expect(TEMPLATE_SOURCE).toContain('apply_security_headers')
+		expect(TEMPLATE_SOURCE).toContain('`extra`')
 	})
 })
