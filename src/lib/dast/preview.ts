@@ -202,10 +202,13 @@ const DEFAULT_DEPENDENCIES: PreviewDependencies = {
 	now: default_now,
 }
 
-// `undefined` means "still booting, keep waiting" — the only state that costs another poll.
+// Exit is checked FIRST, and the order is the whole point: our process being gone disqualifies any
+// answer, because in the pre-check's residual race the answer is coming from whoever took the port.
+// Accepting the probe first would hand back a dead handle and let the run check that foreign server —
+// the very failure app-kit#136 exists to remove. `undefined` means "still booting, keep waiting".
 function poll_outcome(is_ready: boolean, handle: PreviewHandle): ReadinessOutcome | undefined {
-	if (is_ready) return 'ready'
 	if (handle.has_exited()) return 'exited'
+	if (is_ready) return 'ready'
 
 	return undefined
 }
@@ -246,8 +249,9 @@ function build_failure_message(outcome: ReadinessOutcome, url: string, output: s
 
 // Names the port and how to find its owner: the whole failure is "something else is on 4173", and a
 // message that does not say which process to look for just moves the guessing to the reader. The
-// likely owners are another project's preview or an orphaned wrangler from an interrupted run, so
-// both the lookup and the cleanup are spelled out.
+// cleanup names the PID that lookup returns rather than a process-name kill: the likely owner is
+// ANOTHER project's preview (that is the incident behind #136), so `pkill -f 'wrangler dev'` would
+// take out the very server someone else is working against.
 function build_occupied_message(url: string, port: number): string {
 	const number = String(port)
 
@@ -255,7 +259,7 @@ function build_occupied_message(url: string, port: number): string {
 		`Preview port ${number} already answers at ${url}, so it is held by a server josh-app did not start.`,
 		`Reusing it would check that application instead of this one, so the run stops here.`,
 		`Find the owner with: lsof -nP -iTCP:${number} -sTCP:LISTEN`,
-		`An orphan from an interrupted run clears with: pkill -f 'wrangler dev'`,
+		`Then stop that PID (kill <pid>) — it may be another project's preview, or an orphan from an interrupted run.`,
 	].join('\n')
 }
 

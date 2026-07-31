@@ -138,8 +138,11 @@ describe('preview server refuses a server it did not start', () => {
 		expect(occupied_message()).toContain('lsof -nP -iTCP:4173 -sTCP:LISTEN')
 	})
 
-	it('points at the orphaned-wrangler case, the other way this port gets held', () => {
-		expect(occupied_message()).toContain('pkill -f')
+	// Cleanup has to name the PID from that lookup, not a process-name kill: the likely owner is
+	// another project's preview, and `pkill -f 'wrangler dev'` would take out someone else's server.
+	it('tells the user to stop that PID rather than every wrangler on the machine', () => {
+		expect(occupied_message()).toContain('kill <pid>')
+		expect(occupied_message()).not.toContain('pkill')
 	})
 })
 
@@ -171,6 +174,32 @@ describe('preview server reports a spawn that died', () => {
 	it('tears down the dead spawn rather than leaking its handle', async () => {
 		const harness = make_harness({
 			ready_after_probes: NEVER_READY,
+			exits_after_probes: READY_ON_BOOT,
+		})
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow()
+		expect(harness.stop_count()).toBe(1)
+	})
+})
+
+// The race in its nastiest shape: our wrangler dies AND the process that took the port answers on the
+// same poll. Accepting the answer would return a dead handle and point the whole gate at that foreign
+// server — so a departed process disqualifies any answer, however healthy it looks.
+describe('preview server distrusts an answer once its own process is gone', () => {
+	it('reports the exit rather than the answer when both land on one poll', async () => {
+		const harness = make_harness({
+			ready_after_probes: READY_ON_BOOT,
+			exits_after_probes: READY_ON_BOOT,
+		})
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow(
+			/exited before answering/u,
+		)
+	})
+
+	it('does not hand back a handle to a process that already exited', async () => {
+		const harness = make_harness({
+			ready_after_probes: READY_ON_BOOT,
 			exits_after_probes: READY_ON_BOOT,
 		})
 
