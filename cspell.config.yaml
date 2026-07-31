@@ -11,5 +11,6 @@ words:
   - jgame
   - sameorigin
   - sonarlint
+  - unstub
   - winget
 ignorePaths: []
