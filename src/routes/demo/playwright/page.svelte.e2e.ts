@@ -1,8 +1,14 @@
 import { expect, test } from '@playwright/test'
 
-test('has expected h1', async ({ page }) => {
+// The heading text, not merely "an h1 is visible" (app-kit#137). When the pre-push gate was pointed
+// at a different application by accident, this test still passed — that app's `404 Not Found` page had
+// an h1 too, which virtually every HTML document does. Pinning the text is what makes a pass evidence
+// that THIS page rendered.
+const DEMO_HEADING = 'Playwright e2e test demo'
+
+test('renders the demo page heading', async ({ page }) => {
 	await page.goto('/demo/playwright')
-	await expect(page.locator('h1')).toBeVisible()
+	await expect(page.locator('h1')).toHaveText(DEMO_HEADING)
 })
 
 test('hydrates and stays interactive under the Content-Security-Policy', async ({ page }) => {
