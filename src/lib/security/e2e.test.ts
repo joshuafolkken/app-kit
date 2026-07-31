@@ -146,6 +146,114 @@ describe('csp_problems — the style surface stays deliberately open', () => {
 	})
 })
 
+const BASE_URL = 'http://localhost:4173'
+const VITE_CLIENT_URL = `${BASE_URL}/@vite/client`
+const CONTENT_TYPE = 'content-type'
+const JAVASCRIPT = 'text/javascript'
+const HTML = 'text/html'
+
+type ProbeRequest = Parameters<typeof security_headers_e2e.is_development_server>[0]
+
+interface FakeAnswer {
+	ok: boolean
+	type: string
+}
+
+/** Stands in for a Playwright `APIResponse`; a plain object satisfies the port, as above. */
+interface FakeProbeResponse {
+	ok: () => boolean
+	headers: () => Record<string, string>
+}
+
+// Stands in for `page.request`: records the probed URL and answers with the given response.
+function fake_request(answer: FakeAnswer): { request: ProbeRequest; probed: Array<string> } {
+	const probed: Array<string> = []
+
+	const get = async (url: string): Promise<FakeProbeResponse> => {
+		probed.push(url)
+
+		return { ok: () => answer.ok, headers: () => ({ [CONTENT_TYPE]: answer.type }) }
+	}
+
+	return { probed, request: { get } }
+}
+
+async function is_development_server_for(answer: FakeAnswer): Promise<boolean> {
+	return await security_headers_e2e.is_development_server(fake_request(answer).request, BASE_URL)
+}
+
+// A 200 carrying no content-type at all — neither the client script nor a recognizable page.
+async function get_untyped_response(): Promise<FakeProbeResponse> {
+	return { ok: () => true, headers: () => ({}) }
+}
+
+async function get_refused(): Promise<FakeProbeResponse> {
+	throw new Error('connect ECONNREFUSED')
+}
+
+// app-kit#127: the seeded spec used to decide this by comparing baseURL against a hardcoded '4173'.
+// A consumer who moved their preview port got two silently skipped tests and a green run carrying no
+// header coverage at all — hence both halves below, and especially the inconclusive one.
+describe('is_development_server — asks the running server instead of trusting a port', () => {
+	it('reports the vite dev server, which answers the HMR client path with JavaScript', async () => {
+		expect(await is_development_server_for({ ok: true, type: JAVASCRIPT })).toBe(true)
+	})
+
+	it('probes the HMR client path on the base URL under test', async () => {
+		const { request, probed } = fake_request({ ok: true, type: JAVASCRIPT })
+
+		await security_headers_e2e.is_development_server(request, BASE_URL)
+
+		expect(probed).toStrictEqual([VITE_CLIENT_URL])
+	})
+
+	// The Worker preview has no such route: SvelteKit answers 404 with its error page. This is the
+	// case that MUST run the assertions — whatever port the preview happens to listen on.
+	it('does not report a built app, which has no HMR client route', async () => {
+		expect(await is_development_server_for({ ok: false, type: HTML })).toBe(false)
+	})
+
+	it('does not report a 200 that is not the client script, such as a catch-all page', async () => {
+		expect(await is_development_server_for({ ok: true, type: HTML })).toBe(false)
+	})
+})
+
+// Every answer short of a positively identified dev server has to run the assertions. Reporting
+// "dev server" on a failed probe is exactly the silent hole this replaced.
+describe('is_development_server — an inconclusive probe keeps the coverage', () => {
+	it('reports no dev server when a response declares no content type at all', async () => {
+		expect(
+			await security_headers_e2e.is_development_server({ get: get_untyped_response }, BASE_URL),
+		).toBe(false)
+	})
+
+	it('reports no dev server when there is no base URL to probe, and probes nothing', async () => {
+		const { request, probed } = fake_request({ ok: true, type: JAVASCRIPT })
+
+		expect(await security_headers_e2e.is_development_server(request, undefined)).toBe(false)
+		expect(probed).toStrictEqual([])
+	})
+
+	it('reports no dev server when the base URL is empty', async () => {
+		const { request } = fake_request({ ok: true, type: JAVASCRIPT })
+
+		expect(await security_headers_e2e.is_development_server(request, '')).toBe(false)
+	})
+
+	// An unreachable origin is exactly when a port has drifted — the moment coverage must NOT vanish.
+	it('reports no dev server when the probe cannot reach the server', async () => {
+		expect(await security_headers_e2e.is_development_server({ get: get_refused }, BASE_URL)).toBe(
+			false,
+		)
+	})
+
+	it('reports no dev server when the base URL is not a URL', async () => {
+		const { request } = fake_request({ ok: true, type: JAVASCRIPT })
+
+		expect(await security_headers_e2e.is_development_server(request, 'not-a-url')).toBe(false)
+	})
+})
+
 interface ViolationEvent {
 	violatedDirective: string
 	blockedURI: string
