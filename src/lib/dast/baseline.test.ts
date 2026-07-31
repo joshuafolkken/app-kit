@@ -12,8 +12,14 @@ const TIER_2_IDS: ReadonlyArray<string> = ['90003', '10017']
 const MASTER = readFileSync(ROOT_CONF, ENCODING)
 const SEED = baseline.distributable(MASTER)
 
+// The single active line for a rule id, so a test can assert on the reason it carries. Empty when
+// the id is absent — which the assertions then fail on, rather than passing vacuously.
+function rule_line(content: string, id: string): string {
+	return content.split('\n').find((line) => line.startsWith(`${id}\t`)) ?? ''
+}
+
 function has_active_rule(content: string, id: string): boolean {
-	return content.split('\n').some((line) => line.startsWith(`${id}\t`))
+	return rule_line(content, id) !== ''
 }
 
 describe('distributable — the consumer-facing slice of the master', () => {
@@ -114,5 +120,24 @@ describe('ensure_baseline_rules — insert-if-absent merge from the master', () 
 describe('the master keeps its app-kit-only section', () => {
 	it('the repo-root file carries the app-kit-only delimiter', () => {
 		expect(MASTER).toContain(baseline.APP_KIT_ONLY_MARKER)
+	})
+})
+
+// app-kit#123: the shipped reason for 10109 used to blame a missing /robots.txt or /sitemap.xml —
+// a cause ZAP's ModernAppDetectionScanRule never inspects (it reports links carrying
+// target="_self"). A wrong justification is worse than a vague one: it sends the reader off to add
+// files that are already there and stops them looking further, which is exactly what the file's own
+// preamble warns an unjustified IGNORE does.
+describe('the 10109 reason states the cause ZAP actually reports (#123)', () => {
+	const reason = rule_line(SEED, '10109')
+
+	it('does not blame a 404 on robots.txt or sitemap.xml', () => {
+		expect(reason).not.toMatch(/return 404/u)
+		expect(reason).not.toMatch(/Add them per project/u)
+	})
+
+	it('names the detection ZAP performs and that the finding is resource-independent', () => {
+		expect(reason).toContain('target="_self"')
+		expect(reason).toMatch(/regardless of whether \/robots\.txt and \/sitemap\.xml exist/u)
 	})
 })
