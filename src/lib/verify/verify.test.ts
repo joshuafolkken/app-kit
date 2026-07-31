@@ -49,7 +49,7 @@ function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependenci
 			state.order.push('boot')
 			state.boots += 1
 
-			return { stop, output: () => '' }
+			return { stop, output: () => '', has_exited: () => false }
 		},
 		run_e2e(): number {
 			state.order.push('e2e')

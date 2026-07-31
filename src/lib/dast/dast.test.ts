@@ -86,7 +86,7 @@ function make_dependencies(state: HarnessState, options: HarnessOptions): DastDe
 	async function start_preview(): Promise<PreviewHandle> {
 		state.boots += 1
 
-		return { stop, output: no_output }
+		return { stop, output: no_output, has_exited: () => false }
 	}
 
 	function open_workspace(): ZapWorkspace {
