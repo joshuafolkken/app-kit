@@ -59,6 +59,21 @@ Run from the root of a SvelteKit project:
 | `josh-app version` / `v`          | Report installed-vs-latest version                                         |
 | `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                              |
 
+`josh-app v` also reports the **effective kit** — the `@joshuafolkken/kit` copy the running CLI
+actually executes. kit is an auto-installed peer of the global app-kit, and pnpm resolves that peer
+once and pins it in the global install's own lockfile, so a plain `pnpm add -g @joshuafolkken/app-kit`
+cannot move it. When the effective kit is stale, `vu` therefore reinstalls the global CLI to force a
+fresh resolution:
+
+```bash
+pnpm remove -g @joshuafolkken/app-kit; pnpm add -g @joshuafolkken/app-kit@<version>
+```
+
+The two commands are separated by `;` rather than `&&` on purpose: if the reinstall fails, running
+the same line again still repairs the install. The release-age gate above applies here too — a fresh
+resolution picks the newest version older than the delay window, so `v` can still show `⚠` right
+after a successful `vu`; the outcome line printed by `vu` reports how far the effective kit advanced.
+
 ## Security scanning (DAST)
 
 The static layers inherited from kit (CodeQL, SonarCloud, OSV-Scanner, secretlint) never start
