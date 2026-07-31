@@ -60,12 +60,17 @@ describe('published files cover the overlay sources', () => {
 })
 
 const PRESET_MODULE_EXTENSIONS = ['.js', '.mjs', '.cjs']
+// A declaration file's imports are erased before anything runs, so they are resolved through the
+// `types` condition and never through a runtime one. Counting them would mean asking a type-only
+// import to satisfy a runtime contract it is not subject to.
+const DECLARATION_SUFFIX = '.d.ts'
 
 function list_files_by_extension(
 	directory: string,
 	extensions: ReadonlyArray<string>,
 ): Array<string> {
 	return readdirSync(directory, { recursive: true, encoding: ENCODING })
+		.filter((entry) => !entry.endsWith(DECLARATION_SUFFIX))
 		.filter((entry) => extensions.some((extension) => entry.endsWith(extension)))
 		.map((entry) => path.join(directory, entry))
 }
@@ -139,7 +144,10 @@ describe('shipped eslint preset dependencies', () => {
 })
 
 const TEMPLATES_DIR = 'templates'
-const TEMPLATE_MODULE_EXTENSIONS = ['.ts']
+// Every extension a seeded spec could be authored in, not just the `.ts` used today — a template
+// added as plain `.js` tomorrow would otherwise slip past the coverage check below, which is the
+// one dimension this whole guard exists to cover.
+const TEMPLATE_MODULE_EXTENSIONS = ['.ts', ...PRESET_MODULE_EXTENSIONS]
 
 // #132: each subpath a consumer may import from a plain Node runner, paired with the file it must
 // resolve to. `.`, `./theme` and `./i18n` are deliberately absent — their built modules re-export
