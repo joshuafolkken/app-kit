@@ -12,19 +12,24 @@ import { expect, test } from '@playwright/test'
 // Add your INSTANCE-specific cases alongside them: the third-party origins your policy allowlists,
 // a route carrying an embed, or proof that a site-specific inline bootstrap actually executed.
 
-// `_headers` is a Cloudflare directive file applied by the Worker runtime — `pnpm run preview`
-// and production. The vite dev server does not process it, and Playwright runs against dev
-// locally (see playwright.config.ts), so this spec only carries meaning against the preview
-// server, which is what CI runs and what `josh-app dast` scans. Skipping is honest here:
-// asserting Worker behavior against a dev server would only produce a false failure.
-const PREVIEW_PORT = '4173'
+// `_headers` is a Cloudflare directive file applied by the Worker runtime — `pnpm run preview` and
+// production. The vite dev server does not process it, and Playwright runs against dev locally (see
+// playwright.config.ts), so this spec only carries meaning against the preview server, which is what
+// CI runs and what `josh-app dast` scans. Skipping there is honest: asserting Worker behavior against
+// a dev server would only produce a false failure.
+//
+// The decision lives in app-kit and asks the running server what it is, so there is no port to keep
+// in step here (app-kit#127) — move your preview port and these tests keep running. Anything short of
+// a positively identified dev server runs the assertions, so this can never go quietly uncovered.
+test.beforeEach(async ({ page, baseURL: base_url }) => {
+	// Not disabled tests: on the preview server this skip does not fire and both must pass.
+	test.skip(
+		await security_headers_e2e.is_development_server(page.request, base_url),
+		security_headers_e2e.DEV_SERVER_REASON,
+	)
+})
 
-const DEV_SERVER_REASON = 'security headers come from the Worker runtime, not the vite dev server'
-
-test('serves the baseline headers and a nonce-based CSP', async ({ page, baseURL: base_url }) => {
-	// Not a disabled test: CI runs the preview server, where this executes and must pass.
-	test.skip(!base_url?.includes(PREVIEW_PORT), DEV_SERVER_REASON)
-
+test('serves the baseline headers and a nonce-based CSP', async ({ page }) => {
 	const response = await page.goto('/')
 
 	// Each baseline header pins a ZAP finding closed by `_headers` (10020 / 10021 / 10063); the CSP
@@ -34,10 +39,7 @@ test('serves the baseline headers and a nonce-based CSP', async ({ page, baseURL
 	expect(security_headers_e2e.csp_problems(response)).toStrictEqual([])
 })
 
-test('renders with no Content-Security-Policy violation', async ({ page, baseURL: base_url }) => {
-	// Same conditional skip as above: only the Worker runtime applies these, never the dev server.
-	test.skip(!base_url?.includes(PREVIEW_PORT), DEV_SERVER_REASON)
-
+test('renders with no Content-Security-Policy violation', async ({ page }) => {
 	// Installed before navigating so the listener is in place for the very first script.
 	const violations = await security_headers_e2e.watch_violations(page)
 

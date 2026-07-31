@@ -133,6 +133,27 @@ Extend the seeded file with what only your project knows — the third-party ori
 allowlists, a route carrying an embed, proof that a site-specific inline bootstrap executed. A
 re-sync never overwrites it.
 
+**When it runs.** `_headers` is applied by the Worker runtime (`pnpm run preview` and production),
+never by the vite dev server, so the spec skips on a dev-server run rather than reporting a false
+failure. It decides which one it is by asking the running server — the vite HMR client path answers
+with JavaScript on dev and 404s on a built app — so there is **no port for you to keep in step**, and
+moving your preview port cannot quietly disable the net. Anything inconclusive (no base URL, an
+unreachable origin, an answer that is not the client script) runs the assertions: a security check
+must never be skipped silently.
+
+Already seeded before app-kit 0.57.0? Your copy still compares `baseURL` against a hardcoded
+`'4173'` and goes uncovered if that port ever changes. Replace the two `test.skip(...)` lines with one
+hook to pick up the port-free decision:
+
+```ts
+test.beforeEach(async ({ page, baseURL: base_url }) => {
+	test.skip(
+		await security_headers_e2e.is_development_server(page.request, base_url),
+		security_headers_e2e.DEV_SERVER_REASON,
+	)
+})
+```
+
 ### Unified pre-push gate (`josh-app verify`)
 
 The E2E suite and the DAST scan both need the built app running on port 4173. Rather than each

@@ -39,6 +39,17 @@ interface SettlePage {
 	waitForLoadState: (state: 'networkidle', options: { timeout: number }) => Promise<unknown>
 }
 
+/** Satisfied by a Playwright `APIResponse`, and by a plain object in a test. */
+interface ProbeResponse {
+	ok: () => boolean
+	headers: () => Record<string, string>
+}
+
+/** The slice of a Playwright `APIRequestContext` the runtime probe drives (`page.request`). */
+interface ProbeRequest {
+	get: (url: string) => Promise<ProbeResponse>
+}
+
 declare global {
 	/**
 	 * Bridge `watch_violations` installs into the page. Prefixed because this declaration reaches
@@ -53,6 +64,13 @@ const STYLE_SRC = 'style-src'
 const UNSAFE_INLINE = "'unsafe-inline'"
 const NONCE_PREFIX = "'nonce-"
 const ABSENT = '(absent)'
+// vite dev serves its HMR client from this path as JavaScript; a built app has no such route, so the
+// Worker preview (and production) answers 404 with the SvelteKit error page. Verified against both.
+const VITE_CLIENT_PATH = '/@vite/client'
+const CONTENT_TYPE_HEADER = 'content-type'
+const JAVASCRIPT_TYPE = 'javascript'
+/** The reason a seeded spec skips: shipped here so no consumer copy has to restate it. */
+const DEV_SERVER_REASON = 'security headers come from the Worker runtime, not the vite dev server'
 const NO_RESPONSE = 'the navigation produced no response to assert on'
 const VIOLATION_BRIDGE = 'app_kit_report_csp_violation'
 // Bounded rather than an unqualified `networkidle` wait: a page carrying ads or any other polling
@@ -147,6 +165,41 @@ async function watch_violations(page: ViolationPage): Promise<Array<string>> {
 	return violations
 }
 
+function is_vite_client_response(response: ProbeResponse): boolean {
+	if (!response.ok()) return false
+
+	return (response.headers()[CONTENT_TYPE_HEADER] ?? '').includes(JAVASCRIPT_TYPE)
+}
+
+/**
+ * Whether the run targets the vite dev server, which never processes `_headers` — the one case where
+ * skipping the header assertions is honest rather than a hole.
+ *
+ * Asks the running server instead of comparing ports (app-kit#127). The seeded spec used to skip on
+ * `!baseURL.includes('4173')`, a port restated in a file app-kit never rewrites: a consumer who moved
+ * their preview port got two silently skipped tests and a green run with no header coverage at all.
+ * Playwright's own config is no help — it derives `baseURL` FROM `webServer.port`, so the two always
+ * agree — and the command string cannot be read either, since `preview` here is `wrangler dev`.
+ *
+ * Fail-safe in the coverage direction: no base URL, an unreachable origin, or any answer that is not
+ * positively the vite client all report `false`, so the assertions RUN. The same reasoning as
+ * `should_scan` in verify.ts — a security check must never be skipped silently. If vite ever moves
+ * its client path, that bias makes dev runs fail loudly here instead of going quietly uncovered.
+ */
+async function is_development_server(
+	request: ProbeRequest,
+	base_url: string | undefined,
+): Promise<boolean> {
+	if (base_url === undefined || base_url === '') return false
+
+	try {
+		return is_vite_client_response(await request.get(new URL(VITE_CLIENT_PATH, base_url).href))
+	} catch {
+		// Refused, unresolvable, or a base URL that is not a URL — inconclusive, so keep the coverage.
+		return false
+	}
+}
+
 /** Give the page a bounded window to finish loading; a polling widget may never reach idle. */
 async function settle(page: SettlePage, timeout_ms: number = SETTLE_TIMEOUT_MS): Promise<void> {
 	try {
@@ -157,9 +210,11 @@ async function settle(page: SettlePage, timeout_ms: number = SETTLE_TIMEOUT_MS):
 }
 
 const security_headers_e2e = {
+	DEV_SERVER_REASON,
 	SETTLE_TIMEOUT_MS,
 	baseline_problems,
 	csp_problems,
+	is_development_server,
 	watch_violations,
 	settle,
 }
