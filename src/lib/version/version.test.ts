@@ -91,9 +91,10 @@ describe('app version — fresh global root for the kit peer (app-kit#134)', () 
 		// only a fresh global root re-resolves the auto-installed kit peer.
 		const command = read_global_upgrade_command()
 
-		expect(command.indexOf(`pnpm remove -g ${PACKAGE_NAME}`)).toBeLessThan(
-			command.indexOf(`pnpm add -g ${PACKAGE_NAME}@`),
-		)
+		// `startsWith` rather than an index comparison: a missing removal yields index -1, which
+		// would still compare as "before" the add and let the regression through.
+		expect(command.startsWith(`pnpm remove -g ${PACKAGE_NAME}`)).toBe(true)
+		expect(command).toContain(`; pnpm add -g ${PACKAGE_NAME}@`)
 	})
 
 	it('keeps the command re-runnable after a failed re-install', () => {
