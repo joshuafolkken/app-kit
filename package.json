@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.60.0",
+	"version": "0.61.0",
 	"private": false,
 	"packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
 	"publishConfig": {
@@ -97,10 +97,10 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.36.0",
-		"@playwright/test": "^1.62.0",
+		"@joshuafolkken/kit": "^1.45.0",
+		"@playwright/test": "^1.62.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
-		"@size-limit/file": "^13.0.2",
+		"@size-limit/file": "^13.0.3",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
 		"@sveltejs/kit": "^2.70.2",
 		"@sveltejs/package": "^2.5.8",
@@ -115,24 +115,24 @@
 		"eslint": "^10.8.0",
 		"eslint-config-prettier": "^10.1.8",
 		"globals": "^17.8.0",
-		"playwright": "^1.62.0",
+		"playwright": "^1.62.1",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
 		"prettier-plugin-tailwindcss": "^0.8.1",
 		"publint": "^0.3.22",
 		"rollup-plugin-visualizer": "^7.0.1",
 		"secretlint": "^13.0.4",
-		"size-limit": "^13.0.2",
+		"size-limit": "^13.0.3",
 		"svelte": "^5.56.8",
 		"svelte-check": "^4.7.4",
 		"svelte-fast-check": "^0.4.5",
 		"tailwindcss": "^4.3.3",
 		"tsx": "^4.23.1",
 		"typescript": "^6.0.3",
-		"vite": "^8.1.5",
+		"vite": "^8.2.0",
 		"vitest": "^4.1.10",
 		"vitest-browser-svelte": "^3.0.0",
-		"wrangler": "^4.115.0"
+		"wrangler": "^4.118.0"
 	},
 	"peerDependencies": {
 		"@joshuafolkken/kit": ">=1.12.0",
@@ -142,7 +142,7 @@
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.18.0",
+			"version": "11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
 			"onFail": "error"
 		}
 	},
