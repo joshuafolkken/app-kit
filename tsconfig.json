@@ -5,5 +5,13 @@
 		"moduleResolution": "NodeNext",
 		"noEmitOnError": false
 	},
-	"exclude": ["src/lib/vitest-examples/**", "src/routes/demo/**"]
+	"exclude": [
+		"src/lib/vitest-examples/**",
+		"src/routes/demo/**",
+		"node_modules",
+		"build",
+		"dist",
+		"playwright-report",
+		"test-results"
+	]
 }
