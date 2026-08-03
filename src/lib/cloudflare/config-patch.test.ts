@@ -12,7 +12,10 @@ const LEFTHOOK_FILE = 'lefthook.yml'
 
 const KIT_TSCONFIG = '@joshuafolkken/kit/tsconfig/sveltekit.jsonc'
 const KIT_TSCONFIG_BASE = '@joshuafolkken/kit/tsconfig/base.jsonc'
-const APP_KIT_TSCONFIG = '@joshuafolkken/app-kit/tsconfig/sveltekit.json'
+// The package-export subpath sync now writes, and the two file-path spellings it migrates away
+// from: the raw `node_modules` path an earlier sync wrote, and the pre-#113 `.jsonc` name.
+const APP_KIT_TSCONFIG = '@joshuafolkken/app-kit/tsconfig/sveltekit'
+const APP_KIT_TSCONFIG_RAW = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.json'
 const APP_KIT_TSCONFIG_LEGACY = '@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
 const KIT_LEFTHOOK = 'node_modules/@joshuafolkken/kit/lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_VANILLA = 'node_modules/@joshuafolkken/kit/lefthook/vanilla.yml'
@@ -43,7 +46,24 @@ const TSCONFIG_WITH_KIT = `{
 // still carries kit's redundant base entry in front of it — the state the layered `josh sync`
 // (kit base, then app-kit patch) leaves behind.
 const TSCONFIG_WITH_BASE = `{
-	"extends": ["./node_modules/${KIT_TSCONFIG_BASE}", "./node_modules/${APP_KIT_TSCONFIG}", "${SVELTE_KIT_TSCONFIG}"],
+	"extends": ["./node_modules/${KIT_TSCONFIG_BASE}", "${APP_KIT_TSCONFIG}", "${SVELTE_KIT_TSCONFIG}"],
+	"exclude": ["${CONSUMER_EXCLUDE}"]
+}
+`
+
+// A consumer tsconfig.json an earlier sync left on the raw `node_modules` path — the state every
+// consumer synced before #141 is in. The entry resolves, so nothing fails loudly; it simply pins
+// them to the preset's current file name, which is what the `.jsonc` rename broke last time.
+const TSCONFIG_WITH_RAW_PATH = `{
+	"extends": ["${APP_KIT_TSCONFIG_RAW}", "${SVELTE_KIT_TSCONFIG}"],
+	"exclude": ["${CONSUMER_EXCLUDE}"]
+}
+`
+
+// A consumer who already hardened their config to the export subpath by hand
+// (joshuafolkken/game-kit#415). Sync must leave it exactly as it is.
+const TSCONFIG_WITH_EXPORT_SUBPATH = `{
+	"extends": ["${APP_KIT_TSCONFIG}", "${SVELTE_KIT_TSCONFIG}"],
 	"exclude": ["${CONSUMER_EXCLUDE}"]
 }
 `
@@ -143,14 +163,34 @@ describe('config patch — tsconfig base extends dedup', () => {
 	})
 })
 
+describe('config patch — raw node_modules path migrated to the export subpath (#141)', () => {
+	it('replaces the raw path rather than stacking the export subpath beside it', () => {
+		const patched = config_patch.patch_tsconfig_content(TSCONFIG_WITH_RAW_PATH)
+
+		// the whole point: exactly two entries, the raw one gone. A `toContain` assertion would
+		// pass even if both were present, which is the bug this Issue is about.
+		expect(read_tsconfig_extends(patched)).toEqual([APP_KIT_TSCONFIG, SVELTE_KIT_TSCONFIG])
+		expect(patched).toContain(CONSUMER_EXCLUDE)
+	})
+
+	it('is idempotent — a second pass over the migrated raw path returns identical content', () => {
+		const once = config_patch.patch_tsconfig_content(TSCONFIG_WITH_RAW_PATH)
+
+		expect(config_patch.patch_tsconfig_content(once)).toBe(once)
+	})
+
+	it('leaves a consumer already on the export subpath untouched', () => {
+		const patched = config_patch.patch_tsconfig_content(TSCONFIG_WITH_EXPORT_SUBPATH)
+
+		expect(read_tsconfig_extends(patched)).toEqual([APP_KIT_TSCONFIG, SVELTE_KIT_TSCONFIG])
+	})
+})
+
 describe('config patch — retired .jsonc tsconfig preset (#113)', () => {
-	it('rewrites the legacy .jsonc preset entry to .json without duplicating it', () => {
+	it('rewrites the legacy .jsonc preset entry to the export subpath without duplicating it', () => {
 		const patched = config_patch.patch_tsconfig_content(TSCONFIG_WITH_LEGACY_PRESET)
 
-		expect(read_tsconfig_extends(patched)).toEqual([
-			`./node_modules/${APP_KIT_TSCONFIG}`,
-			SVELTE_KIT_TSCONFIG,
-		])
+		expect(read_tsconfig_extends(patched)).toEqual([APP_KIT_TSCONFIG, SVELTE_KIT_TSCONFIG])
 		expect(patched).toContain(CONSUMER_EXCLUDE)
 	})
 

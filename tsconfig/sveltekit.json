@@ -1,15 +1,21 @@
 {
-	// app-kit's SvelteKit tsconfig preset. Self-contained by necessity: TypeScript
-	// cannot resolve a cross-package `extends` via package exports (TS6053), and a
-	// relative `node_modules` path differs between app-kit's own tree and a
-	// consumer's nested tree. Playwright (>= 1.62) rules the remaining option out
-	// too: its tsconfig loader resolves an `extends` entry against
-	// `<dir>/node_modules/...`, so a bare `@joshuafolkken/kit/tsconfig/base.json`
-	// read from inside this file would be looked up under `tsconfig/node_modules/`
-	// and hard-throw. kit's own tsconfig/base.json embeds its base for the same
-	// reason. This moves ownership of the SvelteKit tsconfig from kit to app-kit;
-	// consumers extend
-	// `./node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.json`.
+	// app-kit's SvelteKit tsconfig preset. Self-contained by necessity — but the
+	// necessity is about *this file*, not about consumers. An `extends` written
+	// inside a preset that ships in `node_modules` cannot reach across packages:
+	// TypeScript reports TS6053 for a package-export specifier, a relative
+	// `node_modules` path differs between app-kit's own tree and a consumer's
+	// nested tree, and Playwright (>= 1.62) resolves an `extends` entry against
+	// `<dir>/node_modules/...`, so a bare `@joshuafolkken/kit/tsconfig/base` read
+	// from here would be looked up under `tsconfig/node_modules/` and hard-throw.
+	// kit's own tsconfig/base.json embeds its base for the same reason.
+	//
+	// None of that applies to a consumer's own root tsconfig, where the export
+	// subpath resolves cleanly — verified with TypeScript 6.0.3
+	// (`tsc --showConfig` applies the preset in full, no TS6053) and Playwright
+	// 1.62 (`playwright test --list` enumerates the suite). Consumers therefore
+	// extend `@joshuafolkken/app-kit/tsconfig/sveltekit`, which survives a rename
+	// of this file; `josh-app sync` migrates the older raw path to it (#141).
+	// This also moves ownership of the SvelteKit tsconfig from kit to app-kit.
 	//
 	// The `.json` extension is load-bearing: Playwright (>= 1.62) appends `.json`
 	// to any `extends` entry not already ending in it and then hard-throws when the
