@@ -9,11 +9,18 @@ words:
   - hsts
   - idempotently
   - jgame
+  # Cloudflare's local Workers runtime and SvelteKit's prerender flag, both appearing inside
+  # patches/@sveltejs__adapter-cloudflare@7.2.9.patch — a vendored diff of upstream code, so the
+  # spelling is not ours to change. Both entries can go when that patch is removed (#149).
+  - miniflare
+  - prerender
   - sameorigin
   # The DOM event name, spelled out in README prose. cspell's TypeScript dictionary already covers
   # it inside code, so only app-kit's own markdown needs the entry — nothing to distribute.
   - securitypolicyviolation
   - sonarlint
+  # The npm scope in the patchedDependencies key (pnpm-workspace.yaml). Same lifetime as the patch.
+  - sveltejs
   - transpiles
   - unstub
   - winget
