@@ -224,8 +224,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.9.6)(supports-color@10.2.2)
       '@joshuafolkken/kit':
-        specifier: ^1.45.0
-        version: 1.45.0(@playwright/test@1.62.1)(@typescript-eslint/utils@8.65.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@6.0.3)
+        specifier: ^1.49.0
+        version: 1.49.0(@playwright/test@1.62.1)(@typescript-eslint/utils@8.65.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@6.0.3)
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -1093,8 +1093,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@1.45.0':
-    resolution: {integrity: sha512-slYM8KchoGpZBTK+2vUzCP+rQKRwHgz+wfK4idRd/nvu1F7dlcV0kCfYxopTE9eJc3nu/ANUWXgoATB0waAOig==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.45.0/d9f7fa1165e00f6802d9f0c1c2bb9434cf320ee4}
+  '@joshuafolkken/kit@1.49.0':
+    resolution: {integrity: sha512-JDwhrWofhs+t4AoCit9Y5P33P1dGztfMZ7LToOTAYfT/5MA6S/HAkRC+PTAyrOfZLdyHK5I0TD4ppjf8z5vVtQ==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.49.0/27b5f9e8f8019e43f56c5306d6757c91694676df}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -3328,6 +3328,11 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
+  tsx@4.23.5:
+    resolution: {integrity: sha512-rw55FUaqOoI7RvlQwLbhO4nSDApnQ4/CykPuiQ/EPvtrX3WA9Ig55jIt9VvbBJbzJuj12ueRu4PMZ2SxPVbihg==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -4218,7 +4223,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.2':
     optional: true
 
-  '@joshuafolkken/kit@1.45.0(@playwright/test@1.62.1)(@typescript-eslint/utils@8.65.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@6.0.3)':
+  '@joshuafolkken/kit@1.49.0(@playwright/test@1.62.1)(@typescript-eslint/utils@8.65.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@6.0.3)':
     dependencies:
       '@eslint/compat': 2.1.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))
       '@eslint/js': 10.0.1(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))
@@ -4238,7 +4243,7 @@ snapshots:
       semver: 7.8.5
       strip-json-comments: 5.0.3
       svelte: 5.56.8(@typescript-eslint/types@8.65.0)
-      tsx: 4.23.1
+      tsx: 4.23.5
       typescript-eslint: 8.65.0(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
       zod: 4.4.3
     transitivePeerDependencies:
@@ -6355,6 +6360,12 @@ snapshots:
     optional: true
 
   tsx@4.23.1:
+    dependencies:
+      esbuild: 0.28.1
+    optionalDependencies:
+      fsevents: 2.3.3
+
+  tsx@4.23.5:
     dependencies:
       esbuild: 0.28.1
     optionalDependencies:
