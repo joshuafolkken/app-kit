@@ -24,6 +24,13 @@ test('hydrates and stays interactive under the Content-Security-Policy', async (
 	const counter = page.getByTestId('counter')
 	await expect(counter).toHaveText('count is 0')
 
+	// Wait for hydration before clicking. `count is 0` is already true in the server-rendered HTML,
+	// so it is no barrier at all, and a click that lands on the not-yet-hydrated button is dropped
+	// and never replayed — `toHaveText` only retries the read. Under `vite dev` the client modules
+	// are transformed on demand, so that window is wide enough to lose the click on every run
+	// (app-kit#143). `data-hydrated` is set from `onMount`, which runs only after hydration.
+	await expect(counter).toHaveAttribute('data-hydrated', 'true')
+
 	await counter.click()
 	await expect(counter).toHaveText('count is 1')
 
