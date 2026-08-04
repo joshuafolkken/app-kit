@@ -1,0 +1,25 @@
+diff --git a/index.js b/index.js
+index 24e2dd503f078033c601eb65a5eab373f68f1028..4714b4231305ddb68e6f9158021efb3ebebb5a03 100644
+--- a/index.js
++++ b/index.js
+@@ -207,8 +207,18 @@ export default function (options = {}) {
+ 
+ 			return {
+ 				platform: async ({ prerender }) => {
+-					emulated ??= await get_emulated();
+-					return prerender ? emulated.prerender_platform : emulated.platform;
++					// PATCHED BY app-kit — remove this patch once the fix lands upstream.
++					// `emulated ??= await get_emulated()` assigns only after the await resolves, so
++					// requests arriving while the first is still in flight all see `undefined` and each
++					// call getPlatformProxy(). The resulting Miniflare instances open the same SQLite and
++					// all but one fail to start workerd, so those requests get an error page instead of
++					// the route. Storing the promise synchronously makes concurrent callers join the
++					// in-flight initialization, which is what the comment above already states is intended.
++					// Measured on a minimal scaffold: 15 of 20 concurrent first requests failed before,
++					// 0 of 20 after. See joshuafolkken/app-kit#149 and #144.
++					emulated ??= get_emulated();
++					const resolved = await emulated;
++					return prerender ? resolved.prerender_platform : resolved.platform;
+ 				}
+ 			};
+ 		},

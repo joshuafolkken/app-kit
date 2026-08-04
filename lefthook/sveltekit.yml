@@ -45,9 +45,49 @@ pre-commit:
 
 pre-push:
   commands:
-    test-e2e:
-      glob: '{*.{svelte,ts,js,mjs,cjs},package.json}'
-      env:
-        CI: '1'
-        PLAYWRIGHT_HTML_OPEN: never
-      run: pnpm josh test:e2e
+    # Unified runtime gate (app-kit#97): ONE command that builds once, boots the preview once, and
+    # runs BOTH the Playwright E2E suite and the OWASP ZAP baseline scan against that single server.
+    # It replaced the former separate `test-e2e` + `dast` commands, which each built and booted
+    # their own preview — duplicate work serially, a port/build collision in parallel. The command
+    # owns the server; the two checks are just HTTP clients against it (`josh-app verify`).
+    #
+    # On `pre-push`, never `pre-commit`: build + boot + E2E + scan is a minutes-long operation, and
+    # putting it on every commit would train contributors into habitual `--no-verify`, which
+    # disables every hook including the cheap ones.
+    #
+    # `{push_files}` is passed so `verify` can keep #94's NARROW scan trigger: a ZAP baseline scan
+    # is passive (it only sees response headers and cookie attributes), so `verify` runs the ~34s
+    # scan ONLY when a header/cookie-affecting file changed (see is_dast_relevant in verify.ts) and
+    # skips it otherwise — while E2E always runs. An empty file list is fail-safe → scan (a security
+    # check is never skipped silently). CI (.github/workflows/dast.yml) still scans unconditionally
+    # on every PR, so this narrowing costs no coverage.
+    #
+    # The glob is the UNION of the old two: the broad E2E trigger PLUS the narrow DAST files, each
+    # pattern verbatim so per-file behavior is unchanged. Header/cookie files (`_headers`,
+    # `+server.ts`, `+*.server.ts`, `hooks.server.ts`, `wrangler.jsonc`, `svelte.config.js`,
+    # `zap-baseline.conf`) are what can move a verdict; `+server.ts` variants are the only place a
+    # route emits its own `Set-Cookie`, so dropping them would let an HttpOnly/SameSite gap through.
+    #
+    # `package.json` / `pnpm-lock.yaml` stay out of the DAST-relevant set inside verify.ts even
+    # though they are in the E2E glob: `josh bump` rewrites package.json on ~every commit, so
+    # scanning on it would be the always-on cost #94 removed. Dependency-driven header changes are
+    # CI's job (clean env, frozen lockfile).
+    #
+    # Two non-obvious lefthook facts this relies on (probed against 1.10.10, see the file header):
+    # a literal glob matches the file's FULL repo-relative path (so `src/hooks.server.ts`, not
+    # `hooks.server.ts`), and `*`/`**` cross `/`. Getting a glob wrong disables the gate SILENTLY
+    # ("no matching files" → push succeeds). Any edit here must be re-probed, not assumed.
+    #
+    # Requires a running Docker daemon WHEN the scan runs (a header/cookie file changed); a missing
+    # one fails the push loudly rather than skipping the check (kit#670). Triage in zap-baseline.conf.
+    verify:
+      glob:
+        - '{*.{svelte,ts,js,mjs,cjs},package.json}'
+        - '_headers'
+        - 'zap-baseline.conf'
+        - 'wrangler.jsonc'
+        - 'svelte.config.js'
+        - 'src/hooks.server.ts'
+        - '**/+server.ts'
+        - '**/+*.server.ts'
+      run: pnpm josh-app verify {push_files}

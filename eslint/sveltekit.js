@@ -69,6 +69,12 @@ const SVELTEKIT_RESERVED_BOOLEAN_OPTIONS = ['^ssr$', '^csr$', '^prerender$']
 // `export {}` module marker, which never follow the kit's naming/export rules (kit #474).
 const ignore_ambient_types = { ignores: ['src/app.d.ts'] }
 
+// k6 load-test scenarios (`josh-app load`, app-kit#95) run in k6's own JS runtime, not Node: they
+// MUST `export default function` (banned here) and import `k6/http` (unresolvable to the import
+// resolver). They can never satisfy the kit's rules, so the whole directory is a global ignore —
+// distributed to consumers via the preset so their seeded k6/load-test.js lints clean too.
+const ignore_k6_scenarios = { ignores: ['k6/**'] }
+
 const svelte_named_overrides = {
 	files: SVELTE_FILE_PATTERNS.svelte_named,
 	rules: {
@@ -156,6 +162,7 @@ function create_sveltekit_config(options) {
 	return defineConfig(
 		...create_base_config({ gitignore_path, tsconfig_root_dir }),
 		ignore_ambient_types,
+		ignore_k6_scenarios,
 		...svelte.configs.recommended,
 		...svelte.configs.prettier,
 		svelte_parser_overrides(svelte_config),

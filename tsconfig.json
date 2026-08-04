@@ -1,9 +1,17 @@
 {
-	"extends": ["./tsconfig/sveltekit.jsonc", "./.svelte-kit/tsconfig.json"],
+	"extends": ["./tsconfig/sveltekit.json", "./.svelte-kit/tsconfig.json"],
 	"compilerOptions": {
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"noEmitOnError": false
 	},
-	"exclude": ["src/lib/vitest-examples/**", "src/routes/demo/**"]
+	"exclude": [
+		"src/lib/vitest-examples/**",
+		"src/routes/demo/**",
+		"node_modules",
+		"build",
+		"dist",
+		"playwright-report",
+		"test-results"
+	]
 }
