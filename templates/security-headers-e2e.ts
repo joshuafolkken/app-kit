@@ -11,6 +11,12 @@ import { expect, test } from '@playwright/test'
 // header added upstream starts being checked here on the next update — nothing to copy forward.
 // Add your INSTANCE-specific cases alongside them: the third-party origins your policy allowlists,
 // a route carrying an embed, or proof that a site-specific inline bootstrap actually executed.
+//
+// Does your server hook pass a second argument to `apply_security_headers`? Hoist that array into a
+// module both files import and pass it here as well — `baseline_problems(response, SECURITY_EXTRA)`.
+// One list then drives the header and the expectation, so a deliberately stronger `Permissions-Policy`
+// (or a relaxed `X-Frame-Options`) passes instead of reading as a departure, and the headers you ADD
+// are asserted too. Leave it off and the expectation stays the bare app-kit baseline.
 
 // `_headers` is a Cloudflare directive file applied by the Worker runtime — `pnpm run preview` and
 // production. The vite dev server does not process it, and Playwright runs against dev locally (see

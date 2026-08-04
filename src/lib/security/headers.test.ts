@@ -13,6 +13,8 @@ const SAMEORIGIN = 'SAMEORIGIN'
 const HSTS_HEADER = 'Strict-Transport-Security'
 const CSP_HEADER = 'Content-Security-Policy'
 const CSP_LOCKED = "default-src 'none'"
+const CSP_SELF = "default-src 'self'"
+const HSTS = 'max-age=31536000; includeSubDomains'
 
 // A `Name: value` line inside the `/*` block, ignoring comments and the rule selector itself.
 // Literal spaces rather than `\s` classes: the file's indentation is exactly two spaces, and the
@@ -66,7 +68,6 @@ describe('security header application', () => {
 
 describe('composition — extending and overriding the baseline', () => {
 	it('extends the baseline with a header it omits', () => {
-		const HSTS = 'max-age=31536000; includeSubDomains'
 		const response = new Response('body')
 
 		security_headers.apply_security_headers(response, [[HSTS_HEADER, HSTS]])
@@ -102,7 +103,7 @@ describe('composition — ordering and the default empty extra', () => {
 		const response = new Response('body')
 
 		security_headers.apply_security_headers(response, [
-			[CSP_HEADER, "default-src 'self'"],
+			[CSP_HEADER, CSP_SELF],
 			[CSP_HEADER, CSP_LOCKED],
 		])
 
@@ -119,6 +120,51 @@ describe('composition — ordering and the default empty extra', () => {
 		for (const [name] of security_headers.SECURITY_HEADERS) {
 			expect(with_empty.headers.get(name)).toBe(with_default.headers.get(name))
 		}
+	})
+})
+
+// app-kit#154: the E2E assertions have to expect what the hook APPLIES, so both sides derive from
+// this one call. Every case below is therefore a property `apply_security_headers` already had —
+// asserted here because `baseline_problems` now depends on it holding.
+describe('composed_headers — the single source both the hook and the E2E expect', () => {
+	it('is the baseline itself when nothing is composed onto it', () => {
+		expect(security_headers.composed_headers()).toStrictEqual(to_expected())
+	})
+
+	it('appends a header the baseline omits, after the baseline entries', () => {
+		expect(security_headers.composed_headers([[HSTS_HEADER, HSTS]])).toStrictEqual([
+			...to_expected(),
+			[HSTS_HEADER, HSTS],
+		])
+	})
+
+	// The heart of #154: an override must REPLACE the baseline entry, not sit beside it. Two entries
+	// for one name would make the E2E expect both values and report the losing one as a departure.
+	it('replaces a baseline entry in place when the same header is overridden', () => {
+		const composed = security_headers.composed_headers([[X_FRAME_OPTIONS, SAMEORIGIN]])
+
+		expect(composed).toHaveLength(security_headers.SECURITY_HEADERS.length)
+		expect(composed).toContainEqual([X_FRAME_OPTIONS, SAMEORIGIN])
+	})
+
+	// `Headers` folds names case-insensitively, so a lowercase override wins on the response. The
+	// expectation has to fold the same way or the E2E reports a departure the browser never sees.
+	it('folds a differently-cased name onto the baseline entry it overrides', () => {
+		const lowercased = X_FRAME_OPTIONS.toLowerCase()
+		const composed = security_headers.composed_headers([[lowercased, SAMEORIGIN]])
+
+		expect(composed).toHaveLength(security_headers.SECURITY_HEADERS.length)
+		expect(composed).toContainEqual([lowercased, SAMEORIGIN])
+	})
+
+	it('keeps only the last write when one name is composed twice', () => {
+		const composed = security_headers.composed_headers([
+			[CSP_HEADER, CSP_SELF],
+			[CSP_HEADER, CSP_LOCKED],
+		])
+		const csp = composed.filter(([name]) => name === CSP_HEADER)
+
+		expect(csp).toStrictEqual([[CSP_HEADER, CSP_LOCKED]])
 	})
 })
 

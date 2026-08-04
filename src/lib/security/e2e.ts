@@ -4,9 +4,10 @@
 // rather than per-PR by pointing at "the Docker-free E2E assertions" — a net app-kit described but
 // never handed over, so every consumer wrote its own (app-kit#120). These are that net.
 //
-// Placed beside `headers.ts` on purpose: the baseline expectations derive from SECURITY_HEADERS
-// rather than restating it, so adding a header upstream widens every consumer's E2E on the next
-// update instead of leaving a seeded copy half-covering the surface.
+// Placed beside `headers.ts` on purpose: the baseline expectations derive from what
+// `apply_security_headers` composes rather than restating it, so adding a header upstream widens
+// every consumer's E2E on the next update instead of leaving a seeded copy half-covering the
+// surface — and a consumer's own `extra` list drives the assertion as well as the header.
 //
 // Every check REPORTS problems rather than asserting them, so the seeded spec reads
 // `expect(baseline_problems(response)).toStrictEqual([])` and keeps its `expect` where the linter
@@ -88,14 +89,17 @@ function directive_of(csp: string, name: string): string | undefined {
 	return found?.slice(name.length).trim()
 }
 
-function baseline_header_problems(headers: Record<string, string>): Array<string> {
-	return security_headers.SECURITY_HEADERS.filter(
-		([name, value]) => headers[name.toLowerCase()] !== value,
-	).map(([name, value]) => {
-		const served = headers[name.toLowerCase()] ?? ABSENT
+function header_problems(
+	headers: Record<string, string>,
+	expected: ReadonlyArray<readonly [string, string]>,
+): Array<string> {
+	return expected
+		.filter(([name, value]) => headers[name.toLowerCase()] !== value)
+		.map(([name, value]) => {
+			const served = headers[name.toLowerCase()] ?? ABSENT
 
-		return `${name}: expected "${value}", served "${served}"`
-	})
+			return `${name}: expected "${value}", served "${served}"`
+		})
 }
 
 // The script surface is the one that executes code, so both halves are reported: the nonce must be
@@ -124,11 +128,23 @@ function style_source_problems(csp: string): Array<string> {
 	return [`${STYLE_SRC} must keep ${UNSAFE_INLINE} for Svelte transition styles: ${sources}`]
 }
 
-/** Every way the response departs from the app-kit header baseline. Empty means it matches. */
-function baseline_problems(response: HeaderSource | null): Array<string> {
+/**
+ * Every way the response departs from the header set the hook applies. Empty means it matches.
+ *
+ * Pass the SAME `extra` array given to `apply_security_headers`, hoisted into a module both the hook
+ * and the spec import. Without it the expectation is the bare baseline, so a documented OVERRIDE —
+ * a `Permissions-Policy` denying more than the baseline does, an `X-Frame-Options` deliberately
+ * relaxed to SAMEORIGIN — is reported as a departure even though the hook applied exactly that
+ * (app-kit#154). Passing it also puts the EXTENDING entries (Strict-Transport-Security, a
+ * site-specific Content-Security-Policy) under the same assertion, which the baseline never covered.
+ */
+function baseline_problems(
+	response: HeaderSource | null,
+	extra: ReadonlyArray<readonly [string, string]> = [],
+): Array<string> {
 	if (response === null) return [NO_RESPONSE]
 
-	return baseline_header_problems(response.headers())
+	return header_problems(response.headers(), security_headers.composed_headers(extra))
 }
 
 /** Every way the served policy departs from the nonce-based one `kit.csp` emits. */
