@@ -6,6 +6,7 @@ const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
 const LEFTHOOK_FILE = 'lefthook.yml'
 const ESLINT_FILE = 'eslint.config.js'
+const NPMRC_FILE = '.npmrc'
 
 const CSPELL_IMPORT_FIELD = 'import'
 const CSPELL_IGNORE_FIELD = 'ignorePaths'
@@ -85,6 +86,32 @@ const APP_KIT_ESLINT_MODULE = '@joshuafolkken/app-kit/eslint/sveltekit'
 const KIT_ESLINT_FACTORY = 'create_vanilla_config'
 const APP_KIT_ESLINT_FACTORY = 'create_sveltekit_config'
 
+// The GitHub Packages credential line, and the key it sets. kit owns `.npmrc`'s framework-agnostic
+// lines and deliberately does not distribute this one (joshuafolkken/kit#759): a consumer with no
+// `npmrcAuthFile` opt-in gains nothing from it. app-kit's consumers deploy to Cloudflare Workers
+// Builds, which is exactly the arrangement where the line is live, so the app-kit layer owns it —
+// the same kit-base / app-kit-overlay split the cspell and tsconfig lines above follow.
+//
+// The line alone authenticates nothing. Measured on pnpm 11.20.0 with the user config isolated:
+// pnpm ignores a project-level credential unless the trusted-auth-file opt-in is declared from
+// OUTSIDE the repository (`PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) — declaring `npmrcAuthFile` in the
+// project `.npmrc` itself or in `pnpm-workspace.yaml` does not count, since a committed file that
+// could vouch for itself would void the protection. So app-kit can ship the credential but never
+// the switch; without the switch the line is inert and pnpm prints an `Ignored project-level auth
+// setting` warning. README documents both variables.
+//
+// Appending is durable: kit's `merge_npmrc` has been insert-only since kit#759, and `josh-app sync`
+// runs kit's base before this overlay, so the line survives every subsequent sync.
+//
+// The key is the unit the scan matches on, so the emitted line is composed from it rather than
+// spelled out twice: a consumer who set this token some other way (a literal value, a different
+// variable) already owns the setting, and appending ours beside it would leave two lines writing
+// the same key. Presence of the key in any form is the signal to stand down.
+const NPMRC_AUTH_KEY = '//npm.pkg.github.com/:_authToken='
+// Single-quoted: `${NODE_AUTH_TOKEN}` is the literal placeholder pnpm expands, not a TS template.
+const NPMRC_AUTH_VALUE = '${NODE_AUTH_TOKEN}'
+const NPMRC_AUTH_LINE = `${NPMRC_AUTH_KEY}${NPMRC_AUTH_VALUE}`
+
 // SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
 // now single-sources these (via position-independent `**/<dir>/**` globs that propagate through the
 // import), so sync no longer clones them into the consumer's local ignorePaths and instead strips
@@ -141,14 +168,40 @@ function patch_eslint_content(content: string): string {
 		.replaceAll(KIT_ESLINT_FACTORY, () => APP_KIT_ESLINT_FACTORY)
 }
 
-// Reconcile the SvelteKit config app-kit owns: the eslint.config.js factory swap plus the
-// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs.
+// A line-oriented ini file, so config_merge's YAML / JSON list patchers do not apply — the scan is
+// per-line rather than a substring search of the whole file. Leading whitespace and ini comment
+// markers are stripped before matching, which makes a commented-out entry the opt-out: a consumer
+// who authenticates some other way (the `npm_config_//npm.pkg.github.com/:_authToken` build
+// variable) comments the line out to silence pnpm's warning, and no later sync re-adds it.
+const NPMRC_LEADING_NOISE = /^[\s#;]*/u
+
+function has_auth_setting(content: string): boolean {
+	return content
+		.split('\n')
+		.some((line) => line.replace(NPMRC_LEADING_NOISE, '').startsWith(NPMRC_AUTH_KEY))
+}
+
+// Append the credential line when the consumer has no setting for that key. Every existing byte is
+// preserved; a file that does not end in a newline gets one first, so the appended line is never
+// glued onto the last entry.
+function patch_npmrc_content(content: string): string {
+	if (has_auth_setting(content)) return content
+
+	const prefix = content.length > 0 && !content.endsWith('\n') ? `${content}\n` : content
+
+	return `${prefix}${NPMRC_AUTH_LINE}\n`
+}
+
+// Reconcile the SvelteKit + Cloudflare config app-kit owns: the eslint.config.js factory swap, the
+// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs, and the GitHub
+// Packages credential line in .npmrc.
 function patch_configs(target: string): Array<OverlayChange> {
 	return [
 		patch_file(target, ESLINT_FILE, patch_eslint_content),
 		patch_file(target, CSPELL_FILE, patch_cspell_content),
 		patch_file(target, TSCONFIG_FILE, patch_tsconfig_content),
 		patch_file(target, LEFTHOOK_FILE, patch_lefthook_content),
+		patch_file(target, NPMRC_FILE, patch_npmrc_content),
 	]
 }
 
@@ -157,6 +210,7 @@ const config_patch = {
 	patch_tsconfig_content,
 	patch_lefthook_content,
 	patch_eslint_content,
+	patch_npmrc_content,
 	patch_configs,
 }
 

@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { baseline } from '#dast/baseline.js'
@@ -331,5 +339,45 @@ describe('cloudflare sync overlay — zap-baseline.conf (#111)', () => {
 
 		expect(zap_change(changes)).toBe('skipped')
 		expect(read_fixture(ZAP_BASELINE)).toBe(ZAP_SEED)
+	})
+})
+
+const NPMRC = '.npmrc'
+const NPMRC_AUTH_LINE = '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}'
+// kit's base writes .npmrc first in the orchestrated `josh-app init` / `josh-app sync`, so by the
+// time the overlay runs the file exists with kit's framework-agnostic lines.
+const NPMRC_KIT_BASE = '@joshuafolkken:registry=https://npm.pkg.github.com\nengine-strict=true\n'
+
+function npmrc_change(
+	changes: ReturnType<typeof cloudflare_sync.apply_overlay>,
+): string | undefined {
+	return changes.find((change) => change.file === NPMRC)?.action
+}
+
+describe('cloudflare sync overlay — .npmrc credential line (#160)', () => {
+	it('appends the credential line to the kit-written .npmrc, keeping kit lines', () => {
+		writeFileSync(fixture_path(NPMRC), NPMRC_KIT_BASE)
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(npmrc_change(changes)).toBe('updated')
+		expect(read_fixture(NPMRC)).toBe(`${NPMRC_KIT_BASE}${NPMRC_AUTH_LINE}\n`)
+	})
+
+	it('is idempotent — a second overlay leaves .npmrc byte-identical', () => {
+		writeFileSync(fixture_path(NPMRC), NPMRC_KIT_BASE)
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+		const after_first = read_fixture(NPMRC)
+
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(npmrc_change(changes)).toBe('skipped')
+		expect(read_fixture(NPMRC)).toBe(after_first)
+	})
+
+	it('does not create .npmrc when the consumer has none — kit owns the file', () => {
+		const changes = cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		expect(npmrc_change(changes)).toBe('skipped')
+		expect(existsSync(fixture_path(NPMRC))).toBe(false)
 	})
 })
