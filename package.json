@@ -1,8 +1,8 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.37.0",
+	"version": "0.66.0",
 	"private": false,
-	"packageManager": "pnpm@11.12.0+sha512.820a6fbd0d9f04c226638002aead1e45340a9139dd5dc077c1d83ef44aa2481c8eb6637b4c9aa696a3c7e35ba818e49cf27213e5f2b91138d09b7a3e26e898ba",
+	"packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
 	"publishConfig": {
 		"registry": "https://npm.pkg.github.com",
 		"access": "public"
@@ -17,10 +17,15 @@
 		"cspell",
 		"lefthook",
 		"templates",
+		"k6",
+		"zap-baseline.conf",
 		"!dist/**/*.test.*",
 		"!dist/check/**",
 		"!dist/cloudflare/**",
-		"!dist/lint-guards/**"
+		"!dist/dast/**",
+		"!dist/lint-guards/**",
+		"!dist/process/**",
+		"!dist/verify/**"
 	],
 	"exports": {
 		".": {
@@ -35,10 +40,20 @@
 			"types": "./dist/i18n/index.d.ts",
 			"svelte": "./dist/i18n/index.js"
 		},
+		"./security": {
+			"types": "./dist/security/index.d.ts",
+			"svelte": "./dist/security/index.js",
+			"default": "./dist/security/index.js"
+		},
+		"./security/e2e": {
+			"types": "./dist/security/e2e.d.ts",
+			"svelte": "./dist/security/e2e.js",
+			"default": "./dist/security/e2e.js"
+		},
 		"./eslint/sveltekit": "./eslint/sveltekit.js",
 		"./tsconfig/sveltekit": {
-			"types": "./tsconfig/sveltekit.jsonc",
-			"default": "./tsconfig/sveltekit.jsonc"
+			"types": "./tsconfig/sveltekit.json",
+			"default": "./tsconfig/sveltekit.json"
 		},
 		"./cspell/sveltekit": "./cspell/sveltekit.yaml"
 	},
@@ -50,6 +65,10 @@
 	"imports": {
 		"#check/*": "./src/lib/check/*",
 		"#cloudflare/*": "./src/lib/cloudflare/*",
+		"#dast/*": "./src/lib/dast/*",
+		"#load/*": "./src/lib/load/*",
+		"#process/*": "./src/lib/process/*",
+		"#verify/*": "./src/lib/verify/*",
 		"#version/*": "./src/lib/version/*"
 	},
 	"scripts": {
@@ -72,46 +91,48 @@
 		"size-limit": "size-limit"
 	},
 	"dependencies": {
-		"eslint-plugin-svelte": "^3.20.0",
-		"typescript-eslint": "^8.63.0"
+		"eslint-plugin-svelte": "^3.22.0",
+		"typescript-eslint": "^8.65.0"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.16.0",
-		"@playwright/test": "^1.61.1",
-		"@size-limit/file": "^12.1.0",
+		"@joshuafolkken/kit": "^1.52.0",
+		"@playwright/test": "^1.62.1",
+		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
+		"@size-limit/file": "^13.0.3",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
-		"@sveltejs/kit": "^2.69.2",
+		"@sveltejs/kit": "^2.70.2",
 		"@sveltejs/package": "^2.5.8",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
 		"@tailwindcss/forms": "^0.5.11",
 		"@tailwindcss/typography": "^0.5.20",
-		"@tailwindcss/vite": "^4.3.2",
-		"@types/node": "^26.1.1",
+		"@tailwindcss/vite": "^4.3.3",
+		"@types/node": "^26.1.2",
 		"@vitest/browser-playwright": "^4.1.10",
 		"cspell": "^10.0.1",
 		"esbuild": "^0.28.1",
-		"eslint": "^10.7.0",
+		"eslint": "^10.8.0",
 		"eslint-config-prettier": "^10.1.8",
-		"globals": "^17.7.0",
-		"playwright": "^1.61.1",
-		"prettier": "^3.9.5",
+		"globals": "^17.9.0",
+		"playwright": "^1.62.1",
+		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
-		"prettier-plugin-tailwindcss": "^0.8.0",
-		"publint": "^0.3.21",
+		"prettier-plugin-tailwindcss": "^0.8.1",
+		"publint": "^0.3.22",
 		"rollup-plugin-visualizer": "^7.0.1",
-		"size-limit": "^12.1.0",
-		"svelte": "^5.56.4",
-		"svelte-check": "^4.7.2",
+		"secretlint": "^13.0.4",
+		"size-limit": "^13.0.3",
+		"svelte": "^5.56.8",
+		"svelte-check": "^4.7.4",
 		"svelte-fast-check": "^0.4.5",
-		"tailwindcss": "^4.3.2",
-		"tsx": "^4.23.0",
+		"tailwindcss": "^4.3.3",
+		"tsx": "^4.23.5",
 		"typescript": "^6.0.3",
-		"vite": "^8.1.4",
+		"vite": "^8.2.0",
 		"vitest": "^4.1.10",
 		"vitest-browser-svelte": "^3.0.0",
-		"wrangler": "^4.110.0"
+		"wrangler": "^4.118.0"
 	},
 	"peerDependencies": {
 		"@joshuafolkken/kit": ">=1.12.0",
@@ -121,7 +142,7 @@
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.12.0",
+			"version": "11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
 			"onFail": "error"
 		}
 	},

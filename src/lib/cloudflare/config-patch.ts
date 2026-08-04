@@ -1,9 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
+import { patch_file } from './patch-file.js'
 import type { OverlayChange } from './sync.js'
 
-const ENCODING = 'utf8'
 const CSPELL_FILE = 'cspell.config.yaml'
 const TSCONFIG_FILE = 'tsconfig.json'
 const LEFTHOOK_FILE = 'lefthook.yml'
@@ -29,7 +27,27 @@ const KIT_CSPELL_SVELTEKIT = /@joshuafolkken\/kit\/cspell\/sveltekit(?![\w-])/u
 // `(?![\w/-])` tail anchors `cspell` to a complete path segment, so the `/cspell/sveltekit` line and
 // any `cspell-*` sibling are left for their own matchers.
 const KIT_CSPELL_BASE = /@joshuafolkken\/kit\/cspell(?![\w/-])/u
-const APP_KIT_TSCONFIG_EXTENDS = './node_modules/@joshuafolkken/app-kit/tsconfig/sveltekit.jsonc'
+// The package-export subpath, not a raw `node_modules` path. A raw path pins every consumer to the
+// preset's current file name, which is exactly what broke them at the `.jsonc` → `.json` rename
+// (#113): the entry they carried no longer existed. The export subpath is immune to the next rename
+// because the mapping lives in app-kit's own `exports` field. Verified to resolve for a consumer's
+// root tsconfig — `tsc --showConfig` applies the preset in full (no TS6053), and Playwright 1.62
+// lists its suite, so neither the type-check nor the E2E path regresses (#141).
+const APP_KIT_TSCONFIG_EXTENDS = '@joshuafolkken/app-kit/tsconfig/sveltekit'
+// Every file-path spelling of the same preset, retired in favour of the export subpath above: the
+// raw `node_modules` path (with or without a `./` prefix) and the pre-#113 `.jsonc` name, which
+// Playwright (>= 1.62) hard-throws on because it appends `.json` and finds nothing there.
+//
+// These have to be *removed*, not merely out-competed by `ensure`. Each is a different string from
+// the export subpath, so `ensure` alone would append the subpath beside them — stacking a duplicate
+// on a consumer who had hardened their config, and leaving the fatal `.jsonc` line in place for one
+// who had not (#141, #113, joshuafolkken/game-kit#415). Removal is what makes the pass a migration.
+//
+// The trailing `\.jsonc?$` is what keeps this from matching the subpath it replaces: the subpath
+// carries no extension, so it can never be removed by the same pass that ensures it. Removal is
+// unconditional (unlike kit's existence-gated rewrite, which must span packages) because the sync
+// doing it ships from the very app-kit version that carries the replacement preset.
+const APP_KIT_TSCONFIG_FILE_PATH = /@joshuafolkken\/app-kit\/tsconfig\/sveltekit\.jsonc?$/u
 const KIT_TSCONFIG_SVELTEKIT = /@joshuafolkken\/kit\/tsconfig\/sveltekit(?![\w-])/u
 // kit's `josh sync` / `josh init` unconditionally ensures the framework-agnostic base entry
 // (`kit/tsconfig/base.jsonc`), even when the app-kit SvelteKit preset is present. The preset is
@@ -98,7 +116,7 @@ function patch_tsconfig_content(content: string): string {
 	return config_merge.patch_json_list_field(content, {
 		field: TSCONFIG_EXTENDS_FIELD,
 		ensure: [APP_KIT_TSCONFIG_EXTENDS],
-		remove: [KIT_TSCONFIG_SVELTEKIT, KIT_TSCONFIG_BASE],
+		remove: [KIT_TSCONFIG_SVELTEKIT, KIT_TSCONFIG_BASE, APP_KIT_TSCONFIG_FILE_PATH],
 	})
 }
 
@@ -121,25 +139,6 @@ function patch_eslint_content(content: string): string {
 	return content
 		.replaceAll(KIT_ESLINT_MODULE, () => APP_KIT_ESLINT_MODULE)
 		.replaceAll(KIT_ESLINT_FACTORY, () => APP_KIT_ESLINT_FACTORY)
-}
-
-type ContentPatcher = (content: string) => string
-
-// Patch one already-existing config file in place, preserving every untouched entry. A file the
-// consumer has not created yet is skipped — the orchestrated `josh sync` / `josh init` seeds the
-// base first — and an already-correct file is a no-op, so re-runs report `skipped` and never
-// rewrite bytes.
-function patch_file(target: string, file: string, patch: ContentPatcher): OverlayChange {
-	const destination = path.join(target, file)
-	if (!existsSync(destination)) return { file, action: 'skipped' }
-
-	const original = readFileSync(destination, ENCODING)
-	const patched = patch(original)
-	if (patched === original) return { file, action: 'skipped' }
-
-	writeFileSync(destination, patched)
-
-	return { file, action: 'updated' }
 }
 
 // Reconcile the SvelteKit config app-kit owns: the eslint.config.js factory swap plus the

@@ -1,6 +1,21 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
+import { app_verify } from '#verify/verify.js'
 import { describe, expect, it } from 'vitest'
+
+const SVELTE_CONFIG = 'svelte.config.js'
+
+// Each DAST-relevant lefthook glob entry paired with a file that should match it — used to guard
+// that the lefthook glob and verify.ts's is_dast_relevant predicate stay in lockstep.
+const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
+	["- '_headers'", '_headers'],
+	["- 'zap-baseline.conf'", 'zap-baseline.conf'],
+	["- 'wrangler.jsonc'", 'wrangler.jsonc'],
+	["- 'svelte.config.js'", SVELTE_CONFIG],
+	["- 'src/hooks.server.ts'", 'src/hooks.server.ts'],
+	["- '**/+server.ts'", 'src/routes/api/+server.ts'],
+	["- '**/+*.server.ts'", 'src/routes/dashboard/+page.server.ts'],
+]
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
@@ -8,6 +23,23 @@ const KIT = '@joshuafolkken/kit'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
+// The preset MUST keep a `.json` extension (#113): Playwright (>= 1.62) appends `.json` to any
+// tsconfig `extends` entry not already ending in it and hard-throws when the result is missing, so
+// a `.jsonc` preset resolves to `*.jsonc.json` and takes the E2E suite down before the first test.
+const TSCONFIG_PRESET = './tsconfig/sveltekit.json'
+const ROOT_TSCONFIG = 'tsconfig.json'
+const SECURITY_E2E_SUBPATH = './security/e2e'
+// One built file behind two conditions — see the #132 note on the test below.
+const SECURITY_E2E_MODULE = './dist/security/e2e.js'
+const VSCODE_SETTINGS = '.vscode/settings.json'
+// VSCode setting keys are dotted, so they are read through an index rather than a declared
+// interface — a `files.associations` property would trip the snake_case/camelCase naming rule.
+const ASSOCIATIONS_KEY = 'files.associations'
+const TSCONFIG_ASSOCIATION_GLOB = '**/tsconfig/*.json'
+
+interface RootTsconfig {
+	extends: Array<string>
+}
 
 interface Manifest {
 	files: Array<string>
@@ -31,8 +63,24 @@ describe('SvelteKit config preset exports', () => {
 		const { exports } = load_manifest()
 
 		expect(exports['./eslint/sveltekit']).toBe('./eslint/sveltekit.js')
-		expect(exports['./tsconfig/sveltekit']).toMatchObject({ default: './tsconfig/sveltekit.jsonc' })
+		expect(exports['./tsconfig/sveltekit']).toMatchObject({ default: TSCONFIG_PRESET })
 		expect(exports['./cspell/sveltekit']).toBe('./cspell/sveltekit.yaml')
+	})
+
+	// #120: the seeded security-headers spec imports this subpath by name. Dropping or renaming the
+	// export breaks the E2E of every consumer that has already synced, not just new ones — and it
+	// breaks at their `pnpm update`, far from the change that caused it.
+	//
+	// #132: `default` is load-bearing, not decoration. Playwright runs the seeded spec in Node, which
+	// resolves with ["node", "import"] and matches neither `types` nor `svelte` — without a catch-all
+	// the subpath is "not exported" and the whole suite fails to collect. The real guard lives in
+	// package-manifest.test.ts (it resolves the specifier through Node); this pins the map shape.
+	it('exposes the security-headers E2E assertions the seeded spec imports', () => {
+		expect(load_manifest().exports[SECURITY_E2E_SUBPATH]).toMatchObject({
+			types: './dist/security/e2e.d.ts',
+			svelte: SECURITY_E2E_MODULE,
+			default: SECURITY_E2E_MODULE,
+		})
 	})
 
 	it('publishes the preset directories and declares kit as a peer', () => {
@@ -100,19 +148,24 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 		expect(source).toMatch(/type-check-svelte:\n\s+glob:[^\n]*\n\s+run: pnpm josh-app check:ci/u)
 	})
 
-	it('gates pre-push on test:e2e nested under pre-push with the CI env', () => {
+	it('gates pre-push on the unified verify command (#97)', () => {
+		// E2E moved from a standalone `test-e2e` command into the merged `verify` orchestrator; the
+		// CI env for Playwright now lives in verify.ts (E2E_ENV), not the lefthook.
 		const source = read_lefthook_preset()
+		const commands_index = source.indexOf('pre-push:\n  commands:')
+		const verify_index = source.indexOf('\n    verify:\n')
 
-		expect(source).toMatch(
-			/pre-push:\n\s+commands:\n\s+test-e2e:\n\s+glob:[\s\S]*CI:\s*'1'[\s\S]*pnpm josh test:e2e/u,
-		)
+		expect(commands_index).toBeGreaterThanOrEqual(0)
+		expect(verify_index).toBeGreaterThan(commands_index)
+		expect(source).toContain('run: pnpm josh-app verify {push_files}')
 	})
 })
 
 // eslint is now INTERNALIZED (#52, epic #9 Phase C): it composes kit's generic base +
 // eslint-plugin-svelte + app-kit's own SvelteKit delta in-house, instead of re-exporting
 // kit's `create_sveltekit_config`. cspell still imports kit base; tsconfig is self-contained
-// by necessity (TS cannot resolve a cross-package `extends` to a `.jsonc`).
+// by necessity (neither TS nor Playwright's loader resolves a cross-package `extends` from
+// inside the published preset — see the header comment on tsconfig/sveltekit.json).
 describe('presets layer on kit base where resolution allows', () => {
 	it('eslint preset is internalized: composes kit base + svelte delta, no kit/eslint/sveltekit re-export', () => {
 		const source = read_file(ESLINT_PRESET)
@@ -154,10 +207,41 @@ describe('presets layer on kit base where resolution allows', () => {
 	})
 
 	it('tsconfig preset carries the SvelteKit compiler delta', () => {
-		const source = read_file('tsconfig/sveltekit.jsonc')
+		const source = read_file(TSCONFIG_PRESET)
 
 		expect(source).toMatch(/"rewriteRelativeImportExtensions":\s*true/u)
 		expect(source).toMatch(/"checkJs":\s*true/u)
+	})
+})
+
+// #113: Playwright (>= 1.62) appends `.json` to every tsconfig `extends` entry that does not already
+// end in it, then hard-throws when the resulting path is missing — so the retired `.jsonc` preset
+// resolved to `*.jsonc.json` and killed the E2E suite at config load. These lock the extension for
+// the published preset, the export map, and app-kit's own root tsconfig alike; a tsconfig is parsed
+// as JSONC regardless of extension, so the preset keeps its comments.
+describe('tsconfig preset extension (#113)', () => {
+	it('ships no retired .jsonc preset beside the .json one', () => {
+		expect(existsSync(TSCONFIG_PRESET)).toBe(true)
+		expect(existsSync('tsconfig/sveltekit.jsonc')).toBe(false)
+	})
+
+	// A `.json` preset keeps its comments, but the editor's JSON language service flags every one of
+	// them until the file is associated with jsonc. kit ships this association, yet its settings merge
+	// is create-only per top-level key — app-kit already owns `files.associations` (for tailwindcss),
+	// so kit's entry can never reach here and the association has to be declared locally.
+	it('associates the tsconfig presets with jsonc so the editor accepts their comments', () => {
+		const settings = JSON.parse(read_file(VSCODE_SETTINGS)) as Record<
+			string,
+			Record<string, string>
+		>
+
+		expect(settings[ASSOCIATIONS_KEY]?.[TSCONFIG_ASSOCIATION_GLOB]).toBe('jsonc')
+	})
+
+	it("app-kit's own root tsconfig extends the .json preset", () => {
+		const { extends: extends_list } = JSON.parse(read_file(ROOT_TSCONFIG)) as RootTsconfig
+
+		expect(extends_list).toContain(TSCONFIG_PRESET)
 	})
 })
 
@@ -201,5 +285,66 @@ describe('SvelteKit reserved route boolean export surface (#65)', () => {
 		expect(source).toMatch(
 			/const\s+SVELTEKIT_RESERVED_BOOLEAN_OPTIONS\s*=\s*\['\^ssr\$',\s*'\^csr\$',\s*'\^prerender\$'\]/u,
 		)
+	})
+})
+
+// #94 / #97: the unified `verify` command (build once → boot once → E2E + ZAP scan) is expensive,
+// so its placement and glob are load-bearing. It must stay off pre-commit, its UNION glob must
+// fire for both E2E and every DAST-relevant file, and it must forward the pushed files so verify
+// can gate the ~34s scan narrowly (the scan-gating itself is tested in verify.test.ts).
+describe('SvelteKit lefthook preset — unified verify command (#94, #97)', () => {
+	it('runs the unified verify command on pre-push, never pre-commit', () => {
+		const source = read_lefthook_preset()
+		const pre_push_index = source.indexOf('pre-push:')
+		const verify_index = source.indexOf('verify:')
+
+		// A minutes-long build + boot + E2E + scan on every commit trains contributors into habitual
+		// --no-verify, which disables every hook including the cheap ones.
+		expect(verify_index).toBeGreaterThan(pre_push_index)
+	})
+
+	it('includes the broad E2E trigger verbatim so its per-file behavior is unchanged', () => {
+		expect(read_lefthook_preset()).toContain(`- '{*.{svelte,ts,js,mjs,cjs},package.json}'`)
+	})
+
+	it('forwards the pushed file list so verify can gate the scan narrowly', () => {
+		// The scan is gated in verify.ts (is_dast_relevant); lefthook just hands verify the files.
+		expect(read_lefthook_preset()).toContain('pnpm josh-app verify {push_files}')
+	})
+
+	it('keeps the lefthook DAST glob and verify.ts is_dast_relevant in lockstep', () => {
+		// The union glob fires verify; is_dast_relevant then decides whether to scan. If a
+		// header/cookie file is added to one representation but not the other, the scan silently
+		// never runs (or verify never fires) — the exact "gate disabled without noticing" failure
+		// this pairing guards against. Adding a DAST file requires updating both, and this list.
+		// Also covers +server.ts / +*.server.ts, the only place a route sets its own Set-Cookie.
+		const source = read_lefthook_preset()
+
+		for (const [glob_entry, sample] of DAST_GLOB_SAMPLES) {
+			expect(source).toContain(glob_entry)
+			expect(app_verify.is_dast_relevant(sample)).toBe(true)
+		}
+	})
+})
+
+// #96: zap-baseline.conf baselines ZAP 10055's "style-src unsafe-inline" sub-alert (required by
+// SvelteKit for transitions). A rule-level IGNORE would also hide 10055's DANGEROUS sub-alerts, so
+// this test is the real guard: it pins the SCRIPT surface — the actual XSS vector — locked.
+describe('CSP keeps the script surface locked (#96)', () => {
+	it("pins script-src to exactly ['self'] — no unsafe-inline or wildcard can slip in unnoticed", () => {
+		const source = read_file(SVELTE_CONFIG)
+
+		// `['self', 'unsafe-inline']` or `['*']` would not contain the exact `['self']` substring.
+		expect(source).toContain("'script-src': ['self']")
+		expect(source).toContain("'object-src': ['none']")
+	})
+})
+
+// #95: k6 load-test scenarios run in k6's own runtime — they MUST `export default function` and
+// import `k6/http`, both of which the kit rules reject. The preset globally ignores k6/** so a
+// consumer's seeded scenario lints clean, not just app-kit's own.
+describe('k6 load-test scenarios are exempt from lint (#95)', () => {
+	it('the SvelteKit ESLint preset globally ignores k6/**', () => {
+		expect(read_file(ESLINT_PRESET)).toContain("ignores: ['k6/**']")
 	})
 })

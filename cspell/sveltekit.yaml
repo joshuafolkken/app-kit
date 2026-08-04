@@ -6,8 +6,32 @@ version: '0.2'
 import:
   - '@joshuafolkken/kit/cspell'
 words:
+  - prerendered
   - Stylesheet
   - sveltekit
+  # DAST triage vocabulary. These reach consumers via the seeded zap-baseline.conf, so they
+  # belong in the distributed preset — without them a consumer's first `cspell` run fails on a
+  # file app-kit itself wrote.
+  - baselined
+  - untriaged
+  - zaproxy
+  # Security-header vocabulary, distributed to consumers via the seeded _headers file and the
+  # DAST triage reasons in zap-baseline.conf. The acronyms are app-kit's own security surface, so
+  # the shared dictionary carries them and consumers drop their local copies (app-kit#111).
+  - clickjacking
+  - Embedder
+  - geolocation
+  - COEP
+  - COOP
+  - CORP
+  - CORS
+  - HSTS
+  - CSP
+  - SRI
+  # k6 load-test vocabulary, distributed to consumers via the seeded load.yml (the k6 apt install
+  # step's GPG keyring/keyserver flags) so a consumer's first `cspell` run does not fail on it.
+  - keyrings
+  - keyserver
 ignorePaths:
   # Position-independent (**/) globs so the ignore propagates through `import:` to consumers —
   # cspell resolves an imported config's relative globs against the preset's own directory, so an

@@ -4,6 +4,10 @@ import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
+import { app_dast } from '#dast/dast.js'
+import { app_load } from '#load/load.js'
+import { EnvironmentError } from '#process/environment-error.js'
+import { app_verify } from '#verify/verify.js'
 import { app_version } from '#version/version.js'
 
 // esbuild bundles this to dist/scripts/josh-app.js; SELF_DIR is the running bin's own directory
@@ -24,12 +28,18 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
-const USAGE_MESSAGE = 'Usage: josh-app <init|sync|check|check:ci|version|v|version:upgrade|vu>'
+const USAGE_MESSAGE =
+	'Usage: josh-app <init|sync|check|check:ci|dast|load|load:stress|verify|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
+// A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
+// error, though both are non-zero so CI and the pre-push hook block either way.
+const EXIT_ENVIRONMENT = 1
 
 // process.argv[0] is node, [1] is this script, [2] is the first user argument.
 const COMMAND_ARG_INDEX = 2
+// verify receives the pushed file list (lefthook `{push_files}`) as its remaining arguments.
+const FILE_ARGS_START_INDEX = 3
 
 // Orchestrate kit's framework-agnostic base (`josh init`) first, then apply the app-kit overlay —
 // one command delivers base + overlay without app-kit duplicating kit's managed file list.
@@ -73,23 +83,89 @@ function run_check_ci(): void {
 	exit_on_failure(app_check.run_check_ci(process.cwd()))
 }
 
+// A fixable prerequisite (a missing Docker daemon for `dast`/`verify`, a missing k6 binary or
+// unseeded scenario for `load`) is reported as a plain actionable line; anything else keeps its
+// stack trace, so a real defect is never disguised as an environment problem.
+function report_environment_error(error: unknown): never {
+	if (!(error instanceof EnvironmentError)) throw error
+
+	console.error(error.message)
+	process.exit(EXIT_ENVIRONMENT)
+}
+
+// Dynamic baseline security scan against the running preview server — the one layer that probes
+// the real HTTP surface, which the static analyzers (CodeQL, Sonar, OSV) structurally cannot see.
+async function run_dast(): Promise<void> {
+	try {
+		const status = await app_dast.run_dast(process.cwd())
+
+		console.info(app_dast.describe_result(status))
+		exit_on_failure(status)
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
+// Manual load test: build, boot the preview, run the k6 scenario against it, tear it down. Not a
+// pre-push hook and not scheduled by default — a load test reports numbers that need a baseline to
+// interpret, so it is run intentionally rather than gating every push (app-kit#95).
+async function execute_load(scenario: string | undefined): Promise<void> {
+	try {
+		const status = await app_load.run_load(process.cwd(), scenario)
+
+		console.info(app_load.describe_result(status))
+		exit_on_failure(status)
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
+// `load` runs the seeded baseline; an optional trailing argument runs any scenario of yours
+// (`josh-app load path/to/scenario.js`).
+async function run_load(): Promise<void> {
+	await execute_load(process.argv[FILE_ARGS_START_INDEX])
+}
+
+// `load:stress` is a first-class shortcut for the seeded "attacking" throughput-ceiling scenario.
+async function run_load_stress(): Promise<void> {
+	await execute_load(app_load.STRESS_SCENARIO_FILE)
+}
+
+// Unified pre-push runtime gate: build once, boot the preview once, run E2E and (only when a
+// header/cookie-affecting file changed) the ZAP scan against that single server, tear it down.
+// The pushed file list arrives as the trailing arguments (lefthook `{push_files}`).
+async function run_verify(): Promise<void> {
+	const files = process.argv.slice(FILE_ARGS_START_INDEX)
+
+	try {
+		exit_on_failure(await app_verify.run_verify(process.cwd(), files))
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
 const VERSION = 'version'
 const VERSION_UPGRADE = 'version:upgrade'
 
 // A Map (not an object literal) so a command name carrying a colon (`version:upgrade`) stays a
 // plain string key rather than an object property that the naming-convention rule would reject.
-const COMMAND_HANDLERS = new Map<string, () => void>([
+// `dast` is async (it awaits the preview server's readiness), so the handler type admits both.
+const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['init', run_init],
 	['sync', run_sync],
 	['check', run_check],
 	['check:ci', run_check_ci],
+	['dast', run_dast],
+	['load', run_load],
+	['load:stress', run_load_stress],
+	['verify', run_verify],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],
 ])
 
 const COMMAND_ALIASES: Record<string, string> = { v: VERSION, vu: VERSION_UPGRADE }
 
-function run(command: string | undefined): void {
+async function run(command: string | undefined): Promise<void> {
 	const resolved = command === undefined ? '' : (COMMAND_ALIASES[command] ?? command)
 	const handler = COMMAND_HANDLERS.get(resolved)
 
@@ -98,7 +174,7 @@ function run(command: string | undefined): void {
 		process.exit(EXIT_USAGE)
 	}
 
-	handler()
+	await handler()
 }
 
-run(process.argv[COMMAND_ARG_INDEX])
+await run(process.argv[COMMAND_ARG_INDEX])

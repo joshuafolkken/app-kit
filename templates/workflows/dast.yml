@@ -1,0 +1,82 @@
+# Distributed by @joshuafolkken/app-kit (`josh-app sync` copies this to .github/workflows/dast.yml).
+#
+# Deliberately a SEPARATE workflow file, never an edit to .github/workflows/ci.yml: kit
+# single-sources ci.yml and overwrites it on every `josh sync`. Two packages writing one path
+# would make the result depend on sync order, silently losing one side's content. app-kit adds
+# alongside instead — the same additive rule the lefthook preset follows.
+#
+# Local edits to this file are overwritten on the next sync. Change the scan by editing
+# zap-baseline.conf (triage) or by opening an issue against app-kit (mechanics).
+name: DAST
+
+# Runs on a SCHEDULE (nightly), NOT per-PR. The ZAP baseline needs the full ~2.2 GB zaproxy image,
+# which ephemeral runners re-pull on every run — wasteful to pay on every PR, and since this file
+# is a distributed default that cost would land on every consumer's CI. The per-PR value (the
+# security-header findings this scan actually reports) is already asserted in the Docker-free E2E
+# job by `src/routes/security-headers.e2e.ts`, which `josh-app sync` seeds into this project
+# alongside this workflow (app-kit#120), so the full scan only needs to run periodically as the broad
+# safety net. Run it on demand via the Actions "Run workflow" button (workflow_dispatch) or locally
+# with `pnpm josh-app dast`. A failed scheduled run is surfaced by GitHub (email to repo admins +
+# red in the Actions tab); it never blocks a PR. See app-kit#103.
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap-baseline:
+    name: ZAP Baseline
+    runs-on: ubuntu-latest
+    # Build + boot + passive scan; the scan itself is spider-bounded, not exhaustive.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      # Install pnpm via Corepack (driven by the packageManager pin) instead of
+      # pnpm/action-setup: its self-installer crashes on newer pnpm releases with
+      # "Cannot use 'in' operator to search for 'integrity' in undefined" (kit#662).
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Resolve pnpm store path
+        run: echo "PNPM_STORE_PATH=$(pnpm store path)" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm store cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup safe-chain
+        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Prepare
+        run: pnpm prepare
+
+      # One command shared by CI, the pre-push hook, and manual runs — the scan mechanics live in
+      # app-kit, not duplicated into every consumer's workflow YAML.
+      - name: Run ZAP baseline scan
+        run: pnpm josh-app dast
