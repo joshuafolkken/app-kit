@@ -8,6 +8,12 @@ const SCRIPT_SRC_SELF = `${SCRIPT_SRC} 'self'`
 const STYLE_SRC_OPEN = "style-src 'self' 'unsafe-inline'"
 const UNSAFE_INLINE = "'unsafe-inline'"
 const NONCE = "'nonce-abc123'"
+// A baseline header a consumer hardens, and one the baseline omits entirely — the OVERRIDE and the
+// EXTEND halves of `extra`, which app-kit#154 is about telling apart.
+const PERMISSIONS_POLICY = 'Permissions-Policy'
+const HARDENED_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()'
+const HSTS_HEADER = 'Strict-Transport-Security'
+const HSTS = 'max-age=31536000; includeSubDomains'
 
 // A nonce-based, transition-safe policy — the shape `kit.csp` in svelte.config.js emits.
 const GOOD_CSP = [
@@ -32,8 +38,16 @@ function response_of(headers: Record<string, string>): FakeResponse {
 	return { headers: () => headers }
 }
 
-function baseline_problems_of(headers: Record<string, string>): Array<string> {
-	return security_headers_e2e.baseline_problems(response_of(headers))
+function baseline_problems_of(
+	headers: Record<string, string>,
+	extra: ReadonlyArray<readonly [string, string]> = [],
+): Array<string> {
+	return security_headers_e2e.baseline_problems(response_of(headers), extra)
+}
+
+/** The baseline as served by a consumer whose Permissions-Policy denies `payment` on top of it. */
+function hardened_record(): Record<string, string> {
+	return { ...baseline_record(), [PERMISSIONS_POLICY.toLowerCase()]: HARDENED_POLICY }
 }
 
 function csp_problems_of(csp: string): Array<string> {
@@ -76,6 +90,72 @@ describe('baseline_problems — derived from SECURITY_HEADERS, never restated', 
 		expect(security_headers_e2e.baseline_problems(null)).toStrictEqual([
 			'the navigation produced no response to assert on',
 		])
+	})
+})
+
+// app-kit#154: `apply_security_headers` documents `extra` as the way to override a baseline value,
+// while this check compared against the bare baseline — so a consumer that HARDENED a header failed
+// the spec app-kit seeds. Passing the same array here is what makes the two agree.
+describe('baseline_problems — an override the consumer declared is not a departure', () => {
+	// The exact joshuafolkken-com#805 failure: the served value denies everything the baseline denies
+	// plus `payment`, and was reported as a departure anyway.
+	it('accepts a baseline header the consumer deliberately strengthened', () => {
+		const extra = [[PERMISSIONS_POLICY, HARDENED_POLICY]] as const
+
+		expect(baseline_problems_of(hardened_record(), extra)).toStrictEqual([])
+	})
+
+	// The other half of the same pair: without the array there is no declared override, so the
+	// departure is still reported — the argument is what authorizes it, not a loosened comparison.
+	it('still reports the same value when no override is declared', () => {
+		expect(baseline_problems_of(hardened_record())).toStrictEqual([
+			`${PERMISSIONS_POLICY}: expected "camera=(), microphone=(), geolocation=()", served "${HARDENED_POLICY}"`,
+		])
+	})
+
+	it('accepts a lowercase override, which wins on the response just the same', () => {
+		const extra = [[PERMISSIONS_POLICY.toLowerCase(), HARDENED_POLICY]] as const
+
+		expect(baseline_problems_of(hardened_record(), extra)).toStrictEqual([])
+	})
+
+	// The seeded spec calls this with one argument, and every consumer that only ever used the
+	// baseline keeps that call — it has to stay exactly as strict as it was.
+	it('expects the untouched baseline when the call declares no composition', () => {
+		const headers = { ...baseline_record(), 'x-frame-options': 'SAMEORIGIN' }
+
+		expect(baseline_problems_of(headers, [])).toStrictEqual(baseline_problems_of(headers))
+	})
+})
+
+describe('baseline_problems — a declared extension is asserted, not ignored', () => {
+	// Extending was never broken — it was never CHECKED either, because a header outside the baseline
+	// was not compared at all. Declaring it here puts it under the same assertion.
+	it('reports an extending header the hook applies but the response is missing', () => {
+		const extra = [[HSTS_HEADER, HSTS]] as const
+
+		expect(baseline_problems_of(baseline_record(), extra)).toStrictEqual([
+			`${HSTS_HEADER}: expected "${HSTS}", served "(absent)"`,
+		])
+	})
+
+	it('reports nothing when the extending header is served as composed', () => {
+		const headers = { ...baseline_record(), [HSTS_HEADER.toLowerCase()]: HSTS }
+
+		expect(baseline_problems_of(headers, [[HSTS_HEADER, HSTS]])).toStrictEqual([])
+	})
+
+	// The invariant the whole design rests on, asserted end to end rather than inferred from the two
+	// halves: a response the hook actually built from one array cannot depart from that same array.
+	// Feed it real `Headers` too, so the lowercase names a browser serves are what gets compared.
+	it('reports nothing for a response the hook itself composed from the same array', () => {
+		const extra = [
+			[PERMISSIONS_POLICY, HARDENED_POLICY],
+			[HSTS_HEADER, HSTS],
+		] as const
+		const response = security_headers.apply_security_headers(new Response('body'), extra)
+
+		expect(baseline_problems_of(Object.fromEntries(response.headers), extra)).toStrictEqual([])
 	})
 })
 

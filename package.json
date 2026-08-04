@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.65.0",
+	"version": "0.66.0",
 	"private": false,
 	"packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
 	"publishConfig": {
@@ -97,7 +97,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.51.0",
+		"@joshuafolkken/kit": "^1.52.0",
 		"@playwright/test": "^1.62.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
 		"@size-limit/file": "^13.0.3",
@@ -114,7 +114,7 @@
 		"esbuild": "^0.28.1",
 		"eslint": "^10.8.0",
 		"eslint-config-prettier": "^10.1.8",
-		"globals": "^17.8.0",
+		"globals": "^17.9.0",
 		"playwright": "^1.62.1",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
@@ -127,7 +127,7 @@
 		"svelte-check": "^4.7.4",
 		"svelte-fast-check": "^0.4.5",
 		"tailwindcss": "^4.3.3",
-		"tsx": "^4.23.4",
+		"tsx": "^4.23.5",
 		"typescript": "^6.0.3",
 		"vite": "^8.2.0",
 		"vitest": "^4.1.10",

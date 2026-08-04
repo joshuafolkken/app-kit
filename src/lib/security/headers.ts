@@ -32,6 +32,30 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
 	['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
 ]
 
+/**
+ * The header set a response actually ends up carrying once the baseline and `extra` are applied —
+ * one entry per header, last write wins, exactly as a sequence of `headers.set` calls would leave it.
+ *
+ * Exported because the E2E assertions have to expect what the hook applies, not what the baseline
+ * declares: comparing a served response against SECURITY_HEADERS alone reports every documented
+ * OVERRIDE as a departure (app-kit#154). Both sides deriving from this call means the consumer's one
+ * `extra` array drives the header and the assertion, so the two cannot drift.
+ *
+ * Names are folded case-insensitively because `Headers` treats them that way: a consumer writing
+ * `permissions-policy` overrides the baseline entry on the response, so it must do so here too.
+ */
+function composed_headers(
+	extra: ReadonlyArray<readonly [string, string]> = [],
+): Array<[string, string]> {
+	const composed = new Map<string, [string, string]>()
+
+	for (const [name, value] of [...SECURITY_HEADERS, ...extra]) {
+		composed.set(name.toLowerCase(), [name, value])
+	}
+
+	return composed.values().toArray()
+}
+
 // Applied to an existing Response rather than returning a new one: SvelteKit's `resolve()` result
 // carries the rendered body and its own headers, which must survive intact.
 //
@@ -41,17 +65,20 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
 // EXTENDING (a header the baseline omits, e.g. Strict-Transport-Security or a site-specific
 // Content-Security-Policy) and OVERRIDING (a stronger/relaxed baseline value, e.g. widening
 // Permissions-Policy or relaxing X-Frame-Options to SAMEORIGIN).
+//
+// Pass the same array to `baseline_problems` in `security/e2e` so the seeded spec expects what this
+// applies rather than the bare baseline.
 function apply_security_headers(
 	response: Response,
 	extra: ReadonlyArray<readonly [string, string]> = [],
 ): Response {
-	for (const [name, value] of [...SECURITY_HEADERS, ...extra]) {
+	for (const [name, value] of composed_headers(extra)) {
 		response.headers.set(name, value)
 	}
 
 	return response
 }
 
-const security_headers = { SECURITY_HEADERS, apply_security_headers }
+const security_headers = { SECURITY_HEADERS, composed_headers, apply_security_headers }
 
 export { security_headers }
