@@ -133,6 +133,32 @@ Extend the seeded file with what only your project knows — the third-party ori
 allowlists, a route carrying an embed, proof that a site-specific inline bootstrap executed. A
 re-sync never overwrites it.
 
+**If your hook composes onto the baseline, tell the spec too.** `baseline_problems(response)` with
+one argument expects the bare app-kit baseline. So a hook that _overrides_ a baseline value through
+`apply_security_headers`'s second argument — the composition point documented below — fails the spec
+even when the served value is stronger than the baseline, e.g. a `Permissions-Policy` that also
+denies `payment` (app-kit#154). Hoist the array into a module both files import and pass it to both:
+
+```ts
+// src/lib/server/security-headers.ts
+export const SECURITY_EXTRA = [
+	['Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()'], // override
+	['Strict-Transport-Security', 'max-age=31536000; includeSubDomains'], // extend
+] as const
+
+// src/hooks.server.ts
+security_headers.apply_security_headers(await resolve(event), SECURITY_EXTRA)
+
+// src/routes/security-headers.e2e.ts
+expect(security_headers_e2e.baseline_problems(response, SECURITY_EXTRA)).toStrictEqual([])
+```
+
+One list drives the header and the expectation, so there is no second value to keep in step. It also
+puts the _extending_ entries under the assertion — with no array, a header outside the baseline
+(`Strict-Transport-Security` above) is not checked at all, so a hook that quietly stopped applying it
+would go unnoticed. Extending-only projects can therefore adopt this for the extra coverage; only
+overriding ones have to.
+
 **When it runs.** `_headers` is applied by the Worker runtime (`pnpm run preview` and production),
 never by the vite dev server, so the spec skips on a dev-server run rather than reporting a false
 failure. It decides which one it is by asking the running server — the vite HMR client path answers
@@ -229,6 +255,10 @@ export const handle: Handle = async ({ event, resolve }) =>
 		['X-Frame-Options', 'SAMEORIGIN'], // override: relax the baseline DENY (pair with CSP frame-ancestors 'self')
 	])
 ```
+
+Pass that same array to `baseline_problems` in the seeded E2E spec (see [The per-PR
+net](#the-per-pr-net-security-headerse2ets) above) — otherwise the spec expects the bare baseline and
+reports your override as a departure.
 
 `Strict-Transport-Security` is deliberately **not** in the baseline: its `max-age`/`preload` is a
 site-specific HTTPS commitment (a browser that sees it refuses HTTP for the whole `max-age`), so
