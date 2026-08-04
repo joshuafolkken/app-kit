@@ -41,21 +41,25 @@ describe('package publish contract', () => {
 	})
 })
 
-function top_level_directory_of(template: string): string {
-	return template.split('/', 1)[0] ?? ''
+function is_published_source(template: string, published: ReadonlyArray<string>): boolean {
+	return published.some((entry) => template === entry || template.startsWith(`${entry}/`))
 }
 
-// `josh-app sync` reads every overlay source out of the INSTALLED package, so a directory missing
+// `josh-app sync` reads every overlay source out of the INSTALLED package, so a path missing
 // from `files` fails only in a consumer — never in this repo, where the file is right there on
 // disk. That is how the k6 scenarios could regress silently once they stopped living under the
-// already-published templates/, so the coupling gets an explicit guard.
+// already-published templates/, so the coupling gets an explicit guard. Matching is by files-entry
+// prefix, not top-level directory: the workflow masters ship as exact-file entries
+// (`.github/workflows/dast.yml`) precisely so the rest of `.github` stays unpublished (#156).
 describe('published files cover the overlay sources', () => {
-	it('publishes every directory the sync overlay seeds from', () => {
-		const published = new Set(load_manifest().files)
+	it('publishes every path the sync overlay seeds from', () => {
+		const published = load_manifest().files ?? []
 		const sources = [...cloudflare_sync.SEED_ENTRIES, ...cloudflare_sync.MANAGED_COPY_ENTRIES]
-		const directories = new Set(sources.map((entry) => top_level_directory_of(entry.template)))
+		const unpublished = sources
+			.map((entry) => entry.template)
+			.filter((template) => !is_published_source(template, published))
 
-		expect([...directories.difference(published)]).toEqual([])
+		expect(unpublished).toEqual([])
 	})
 })
 

@@ -29,6 +29,10 @@ const SECURITY_E2E_FILE = 'src/routes/security-headers.e2e.ts'
 // the single-source note on SEED_ENTRIES.
 const K6_SCENARIO = 'k6/load-test.js'
 const K6_STRESS_SCENARIO = 'k6/stress-test.js'
+// The DAST / load-test workflows, single-sourced from the copies app-kit itself runs — see the
+// MANAGED_COPY_ENTRIES note.
+const DAST_WORKFLOW = '.github/workflows/dast.yml'
+const LOAD_WORKFLOW = '.github/workflows/load.yml'
 
 interface ConsumerPackage {
 	scripts?: Record<string, string>
@@ -117,13 +121,20 @@ const SEED_ENTRIES: ReadonlyArray<SeedEntry> = [
 // consumers, unlike SEED_ENTRIES which the consumer owns after the first write. Mirrors kit's
 // AI_COPY_FILE_MAPPINGS.
 //
+// Single-sourced like the k6 scenarios: app-kit distributes the very workflows it runs, so source
+// and destination coincide and there is no templates/ copy to drift. The drift was not
+// hypothetical — Dependabot's github-actions ecosystem scans only .github/workflows/**, so every
+// action bump landed on the runtime copy alone and turned the old byte-identity mirror tests red
+// until someone updated templates/workflows by hand (#156, the app-kit case of kit#747). Both
+// files ship via their own package.json `files` entries.
+//
 // Strictly ADDITIVE with respect to .github/workflows: app-kit distributes its own dast.yml and
 // must never write ci.yml, which kit single-sources and overwrites on every `josh sync`. Two
 // packages mastering one path would make the winner depend on sync order, silently dropping one
 // side's content. Enforced by a test.
 const MANAGED_COPY_ENTRIES: ReadonlyArray<SeedEntry> = [
-	{ template: `${TEMPLATES_DIR}/workflows/dast.yml`, dest: '.github/workflows/dast.yml' },
-	{ template: `${TEMPLATES_DIR}/workflows/load.yml`, dest: '.github/workflows/load.yml' },
+	{ template: DAST_WORKFLOW, dest: DAST_WORKFLOW },
+	{ template: LOAD_WORKFLOW, dest: LOAD_WORKFLOW },
 ]
 
 function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
