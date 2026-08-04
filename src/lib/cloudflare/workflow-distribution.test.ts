@@ -12,10 +12,10 @@ const SOURCE_DIR = '.'
 const PACKAGE_JSON = 'package.json'
 const FIXTURE_NAME = 'fixture'
 
+// Single-sourced (#156): the distributed master IS the workflow app-kit runs, so the same path
+// serves as both the overlay source and the comparison baseline below.
 const DAST_WORKFLOW = '.github/workflows/dast.yml'
-const DAST_TEMPLATE = 'templates/workflows/dast.yml'
 const LOAD_WORKFLOW = '.github/workflows/load.yml'
-const LOAD_TEMPLATE = 'templates/workflows/load.yml'
 // Single-sourced: app-kit's own scenarios are what `josh-app sync` seeds, so there is no separate
 // template path to compare against.
 const K6_DIRECTORY = 'k6/'
@@ -82,7 +82,7 @@ afterEach(() => {
 describe('DAST workflow distribution', () => {
 	it('creates the workflow, including its directory, in a project that has none', () => {
 		expect(action_for(DAST_WORKFLOW)).toBe('created')
-		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_TEMPLATE, ENCODING))
+		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_WORKFLOW, ENCODING))
 	})
 
 	it('overwrites a drifted workflow so mechanics fixes reach consumers', () => {
@@ -90,7 +90,7 @@ describe('DAST workflow distribution', () => {
 		writeFileSync(fixture_path(DAST_WORKFLOW), EDITED_LOCALLY)
 
 		expect(action_for(DAST_WORKFLOW)).toBe('updated')
-		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_TEMPLATE, ENCODING))
+		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_WORKFLOW, ENCODING))
 	})
 
 	it('reports an already-current workflow as skipped rather than a phantom update', () => {
@@ -125,7 +125,7 @@ describe('DAST workflow distribution', () => {
 describe('Load-test workflow distribution', () => {
 	it('creates load.yml, including its directory, in a project that has none', () => {
 		expect(action_for(LOAD_WORKFLOW)).toBe('created')
-		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_TEMPLATE, ENCODING))
+		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_WORKFLOW, ENCODING))
 	})
 
 	it('overwrites a drifted load.yml so mechanics fixes reach consumers', () => {
@@ -133,7 +133,7 @@ describe('Load-test workflow distribution', () => {
 		writeFileSync(fixture_path(LOAD_WORKFLOW), EDITED_LOCALLY)
 
 		expect(action_for(LOAD_WORKFLOW)).toBe('updated')
-		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_TEMPLATE, ENCODING))
+		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_WORKFLOW, ENCODING))
 	})
 
 	it('reports an already-current load.yml as skipped, not a phantom update', () => {
@@ -206,11 +206,11 @@ describe('Load-test workflow runs manually, not per-PR or on a schedule (#95)', 
 	// A load test reports numbers that need a baseline to interpret, and noisy CI runners make an
 	// uncalibrated scheduled run decay into noise, so the distributed default is manual dispatch.
 	it('triggers on manual dispatch', () => {
-		expect(trigger_block_of(LOAD_TEMPLATE)).toContain(WORKFLOW_DISPATCH)
+		expect(trigger_block_of(LOAD_WORKFLOW)).toContain(WORKFLOW_DISPATCH)
 	})
 
 	it('ships the schedule commented out — an opt-in, not the default', () => {
-		const lines = trigger_block_of(LOAD_TEMPLATE).split('\n')
+		const lines = trigger_block_of(LOAD_WORKFLOW).split('\n')
 
 		// The schedule exists only as guidance behind a `#`, never an active trigger line like
 		// dast.yml's — so no bare (untrimmed-to-`schedule:`) line appears.
@@ -219,8 +219,8 @@ describe('Load-test workflow runs manually, not per-PR or on a schedule (#95)', 
 	})
 
 	it('does not run on push or pull_request', () => {
-		expect(trigger_block_of(LOAD_TEMPLATE)).not.toContain(PUSH_TRIGGER)
-		expect(trigger_block_of(LOAD_TEMPLATE)).not.toContain(PULL_REQUEST_TRIGGER)
+		expect(trigger_block_of(LOAD_WORKFLOW)).not.toContain(PUSH_TRIGGER)
+		expect(trigger_block_of(LOAD_WORKFLOW)).not.toContain(PULL_REQUEST_TRIGGER)
 	})
 })
 
@@ -330,14 +330,14 @@ describe('DAST workflow runs on a schedule, not per-PR (#103)', () => {
 	// The ~2.2GB ZAP image is re-pulled every ephemeral run, so the full scan runs nightly (broad
 	// safety net) rather than on every PR — per-PR header coverage lives in security-headers.e2e.ts.
 	it('triggers on a schedule and manual dispatch', () => {
-		const source = readFileSync(DAST_TEMPLATE, ENCODING)
+		const source = readFileSync(DAST_WORKFLOW, ENCODING)
 
 		expect(source).toMatch(/^on:\n\s+schedule:\n\s+- cron:/mu)
 		expect(source).toContain(WORKFLOW_DISPATCH)
 	})
 
 	it('does not run on push or pull_request (that would re-pull 2GB per PR)', () => {
-		const block = trigger_block_of(DAST_TEMPLATE)
+		const block = trigger_block_of(DAST_WORKFLOW)
 
 		expect(block).not.toContain(PUSH_TRIGGER)
 		expect(block).not.toContain(PULL_REQUEST_TRIGGER)
@@ -345,13 +345,15 @@ describe('DAST workflow runs on a schedule, not per-PR (#103)', () => {
 })
 
 describe('app-kit distributes what it runs', () => {
-	it('keeps its own DAST workflow identical to the distributed template', () => {
-		// Drift here means app-kit's CI would be testing a workflow no consumer receives.
-		expect(readFileSync(DAST_WORKFLOW, ENCODING)).toBe(readFileSync(DAST_TEMPLATE, ENCODING))
-	})
+	it('distributes the workflows from the very files it runs, with no second copy to drift', () => {
+		// A templates/workflows mirror kept "identical" only by a byte-comparison test is exactly
+		// what Dependabot broke on every action bump: its github-actions ecosystem scans only
+		// .github/workflows/**, so the runtime copy moved and the template stayed behind (#156).
+		// Source === destination makes the guarantee structural, like the k6 scenarios below.
+		const workflow_entries = cloudflare_sync.MANAGED_COPY_ENTRIES
 
-	it('keeps its own load-test workflow identical to the distributed template', () => {
-		expect(readFileSync(LOAD_WORKFLOW, ENCODING)).toBe(readFileSync(LOAD_TEMPLATE, ENCODING))
+		expect(workflow_entries.map((entry) => entry.template)).toEqual([DAST_WORKFLOW, LOAD_WORKFLOW])
+		expect(workflow_entries.every((entry) => entry.template === entry.dest)).toBe(true)
 	})
 
 	it('seeds the k6 scenarios from the very files it runs, with no second copy to drift', () => {
