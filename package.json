@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.69.0",
+	"version": "0.70.0",
 	"private": false,
 	"packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
 	"publishConfig": {
@@ -94,12 +94,12 @@
 	},
 	"dependencies": {
 		"eslint-plugin-svelte": "^3.22.0",
-		"typescript-eslint": "^8.65.0"
+		"typescript-eslint": "^8.66.0"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.61.0",
+		"@joshuafolkken/kit": "^1.63.0",
 		"@playwright/test": "^1.62.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
 		"@size-limit/file": "^13.0.3",
@@ -129,7 +129,7 @@
 		"svelte-check": "^4.7.4",
 		"svelte-fast-check": "^0.4.5",
 		"tailwindcss": "^4.3.3",
-		"tsx": "^4.23.5",
+		"tsx": "^4.23.6",
 		"typescript": "^6.0.3",
 		"vite": "^8.2.0",
 		"vitest": "^4.1.10",
