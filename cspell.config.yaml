@@ -19,6 +19,8 @@ words:
   # it inside code, so only app-kit's own markdown needs the entry — nothing to distribute.
   - securitypolicyviolation
   - sonarlint
+  # The attack COOP mitigates, named in headers.ts's comment on the baseline entry (#164).
+  - tabnabbing
   # The npm scope in the patchedDependencies key (pnpm-workspace.yaml). Same lifetime as the patch.
   - sveltejs
   - transpiles

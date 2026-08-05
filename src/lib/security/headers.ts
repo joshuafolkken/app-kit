@@ -30,6 +30,12 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
 	['Referrer-Policy', 'strict-origin-when-cross-origin'],
 	// Deny the powerful devices by default; opt back in per feature when a project needs one.
 	['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
+	// Severs the `window.opener` link with cross-origin openers (tabnabbing / XS-Leak channels), and
+	// closes the COOP sub-alert of ZAP rule 90004 — the shipped 90004 IGNORE covers COEP/CORP only.
+	// Breaking for popup flows (popup OAuth, payment popups): the popup loses its opener. Such a
+	// consumer relaxes to `same-origin-allow-popups` via `extra`, deliberately — same pattern as
+	// relaxing X-Frame-Options above.
+	['Cross-Origin-Opener-Policy', 'same-origin'],
 ]
 
 /**
