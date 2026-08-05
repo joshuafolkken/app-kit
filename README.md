@@ -246,8 +246,8 @@ with a recorded reason:
 ### Security headers
 
 `josh-app sync` seeds a root `_headers` file with a baseline (`X-Content-Type-Options`,
-`X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`), which closes ZAP findings
-10020 / 10021 / 10063.
+`X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`), which
+closes ZAP findings 10020 / 10021 / 10063 and the COOP sub-alert of 90004.
 
 **`_headers` covers static assets only.** Cloudflare applies it to asset responses; anything the
 Worker renders — every SSR page — bypasses it. Apply the same baseline in your server hook:
@@ -280,6 +280,24 @@ export const handle: Handle = async ({ event, resolve }) =>
 Pass that same array to `baseline_problems` in the seeded E2E spec (see [The per-PR
 net](#the-per-pr-net-security-headerse2ets) above) — otherwise the spec expects the bare baseline and
 reports your override as a departure.
+
+`Cross-Origin-Opener-Policy: same-origin` **is** in the baseline, and it is **breaking for popup
+flows**: it severs `window.opener`, so a popup-based integration (popup OAuth such as a better-auth
+social login opened in a popup, payment popups) loses its opener and the flow's completion callback
+never reaches the opening page. Redirect-based flows — better-auth's default — are unaffected. A
+consumer with a popup flow relaxes the header instead of dropping it, exactly like the
+`X-Frame-Options` relaxation above:
+
+```ts
+['Cross-Origin-Opener-Policy', 'same-origin-allow-popups'], // override: keep opener for popups THIS site opens
+```
+
+and mirrors the same value in its `_headers` file so static assets stay in step.
+
+`_headers` is seed-only — sync never rewrites the copy you own. A project seeded before this header
+joined the baseline gets it on SSR pages automatically (the hook applies the updated package
+baseline) but must add the `Cross-Origin-Opener-Policy: same-origin` line to its own `_headers` for
+static assets, or they stay covered by only half the surface.
 
 `Strict-Transport-Security` is deliberately **not** in the baseline: its `max-age`/`preload` is a
 site-specific HTTPS commitment (a browser that sees it refuses HTTP for the whole `max-age`), so

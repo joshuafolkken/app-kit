@@ -10,6 +10,9 @@ const TEMPLATE_SOURCE = readFileSync(HEADERS_TEMPLATE, ENCODING)
 
 const X_FRAME_OPTIONS = 'X-Frame-Options'
 const SAMEORIGIN = 'SAMEORIGIN'
+const COOP_HEADER = 'Cross-Origin-Opener-Policy'
+const COOP_STRICT = 'same-origin'
+const COOP_ALLOW_POPUPS = 'same-origin-allow-popups'
 const HSTS_HEADER = 'Strict-Transport-Security'
 const CSP_HEADER = 'Content-Security-Policy'
 const CSP_LOCKED = "default-src 'none'"
@@ -165,6 +168,30 @@ describe('composed_headers — the single source both the hook and the E2E expec
 		const csp = composed.filter(([name]) => name === CSP_HEADER)
 
 		expect(csp).toStrictEqual([[CSP_HEADER, CSP_LOCKED]])
+	})
+})
+
+// app-kit#164: COOP joined the baseline after consumer-side adoption proved it out
+// (joshuafolkken-com#803). The strict value is the point — `same-origin-allow-popups` would keep
+// popup flows working but weaken the protection, so the baseline pins strict and the popup-flow
+// consumer overrides deliberately, mirroring the X-Frame-Options DENY → SAMEORIGIN pattern.
+describe('Cross-Origin-Opener-Policy is in the baseline (#164)', () => {
+	it('ships the strict same-origin value, not the popup-keeping relaxation', () => {
+		expect(security_headers.SECURITY_HEADERS).toContainEqual([COOP_HEADER, COOP_STRICT])
+	})
+
+	it('lets a popup-flow consumer relax to same-origin-allow-popups via extra', () => {
+		const response = new Response('body')
+
+		security_headers.apply_security_headers(response, [[COOP_HEADER, COOP_ALLOW_POPUPS]])
+
+		expect(response.headers.get(COOP_HEADER)).toBe(COOP_ALLOW_POPUPS)
+	})
+
+	// The template's comment block is the guidance consumers actually read; the escape hatch has to
+	// be named there, not only in README — the same prose-as-payload reasoning as #121 below.
+	it('documents the popup-flow relaxation in the seeded _headers prose', () => {
+		expect(TEMPLATE_SOURCE).toContain(COOP_ALLOW_POPUPS)
 	})
 })
 
