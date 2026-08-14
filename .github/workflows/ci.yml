@@ -11,6 +11,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Which browsers the plain-runner fallback downloads when the MCR image could not be resolved.
+# Declared once here because two jobs install them and the two lists must never disagree.
+# chromium is the default because that is the single project kit scaffolds; a consumer whose
+# config drives more sets the JOSH_PLAYWRIGHT_BROWSERS repository variable to a space-separated
+# list (e.g. `chromium firefox webkit`) instead of editing this file, which josh sync overwrites.
+env:
+  JOSH_PLAYWRIGHT_BROWSERS: ${{ vars.JOSH_PLAYWRIGHT_BROWSERS || 'chromium' }}
+
 jobs:
   playwright-image:
     name: Resolve Playwright image
@@ -25,6 +33,9 @@ jobs:
       # 'true' only when Playwright is a dependency but its image is unavailable, i.e.
       # exactly when a job must download browsers itself.
       should_install_browsers: ${{ steps.resolve.outputs.should_install_browsers }}
+      # The browser names the jobs below pass to `playwright install`, sanitized here so the
+      # two install steps share one list and one set of rules for what may reach a command line.
+      browsers: ${{ steps.resolve.outputs.browsers }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,9 +48,27 @@ jobs:
       - name: Resolve image
         id: resolve
         run: |
-          # Whitelist the characters: the value lands in $GITHUB_OUTPUT as JSON, so a
-          # newline or quote smuggled into the manifest could forge an extra output line.
-          version=$(node -p "require('./package.json').devDependencies?.['@playwright/test'] ?? ''" | tr -cd 'A-Za-z0-9.-')
+          # Both dependency blocks, because `e2e-detect` below enables the E2E job from file
+          # presence alone: a project that declares @playwright/test under `dependencies` would
+          # otherwise be told it has no Playwright, get no container *and* no browser install,
+          # and run its suite on a bare runner. Whitelist the characters too: the value lands in
+          # $GITHUB_OUTPUT as JSON, so a newline or quote smuggled into the manifest could forge
+          # an extra output line.
+          version=$(node -p "const manifest = require('./package.json'); manifest.devDependencies?.['@playwright/test'] ?? manifest.dependencies?.['@playwright/test'] ?? ''" | tr -cd 'A-Za-z0-9.-')
+
+          # Sanitized once, here, for both jobs that install browsers: the value comes from
+          # repository settings and is interpolated into their command line, so only letters,
+          # dashes and the spaces between them survive. Uppercase is kept on purpose — a mistyped
+          # `Chromium` then reaches Playwright as an unknown browser and fails at the install
+          # step, where the mistake is, rather than being silently narrowed to chromium and
+          # resurfacing much later as a missing executable.
+          set -- $(printf '%s' "${JOSH_PLAYWRIGHT_BROWSERS}" | tr -cd 'A-Za-z -')
+          # Never empty: `playwright install` with no browser named fetches chromium *and*
+          # firefox *and* webkit plus ffmpeg, roughly 1 GB, which is the download this knob
+          # exists to avoid and which the 8-minute `checks` budget does not survive.
+          [ "$#" -gt 0 ] || set -- chromium
+          browsers="$*"
+          echo "browsers=${browsers}" >> "$GITHUB_OUTPUT"
 
           if [ -z "${version}" ]; then
             echo 'container=null' >> "$GITHUB_OUTPUT"
@@ -61,7 +90,7 @@ jobs:
           else
             echo 'container=null' >> "$GITHUB_OUTPUT"
             echo 'should_install_browsers=true' >> "$GITHUB_OUTPUT"
-            echo "::warning::Playwright image ${image} could not be resolved on MCR (HTTP ${status}). Running on the plain runner and installing browsers with 'playwright install --with-deps' instead."
+            echo "::warning::Playwright image ${image} could not be resolved on MCR (HTTP ${status}). Running on the plain runner and installing ${browsers} instead (set the JOSH_PLAYWRIGHT_BROWSERS repository variable to change the list)."
           fi
 
   checks:
@@ -143,9 +172,15 @@ jobs:
 
       # Vitest browser-mode projects (*.svelte.test.ts) drive a real Playwright browser,
       # which the container image ships but a plain runner does not. Same guard as e2e.
+      # Named rather than left to the default, which downloads every browser Playwright ships
+      # (~1 GB) on the one path that has the least headroom to spare. Left unquoted below so a
+      # multi-browser list splits into arguments; the resolve job already whitelisted it, so
+      # nothing but browser names can reach the command line.
       - name: Install Playwright browsers
         if: needs.playwright-image.outputs.should_install_browsers == 'true'
-        run: ./node_modules/.bin/playwright install --with-deps
+        env:
+          PLAYWRIGHT_BROWSERS: ${{ needs.playwright-image.outputs.browsers }}
+        run: ./node_modules/.bin/playwright install --with-deps ${PLAYWRIGHT_BROWSERS}
 
       - name: Run unit tests
         run: pnpm josh test:unit
@@ -202,12 +237,40 @@ jobs:
       contents: read
       packages: read
     container: ${{ fromJSON(needs.playwright-image.outputs.container) }}
-    timeout-minutes: 10
+    # Derived, not guessed: a retried run costs setup + two attempts + the upload of the first
+    # attempt's evidence. The retry repeats the whole `Run E2E tests` step — Playwright's CI
+    # webServer builds the app before serving it, so the second attempt pays for the build again,
+    # not just the specs — while checkout/install/prepare are shared. Any suite that fit the old
+    # 10-minute budget had setup + one attempt <= 10, which bounds a single attempt at 10; the
+    # extra attempt therefore adds at most 10, and the evidence upload (a failed run keeps videos
+    # and traces, so it is not instant) is allowed 5 on top. Running out mid-retry would end the
+    # job as `cancelled`, withholding the release exactly like the crash this retry absorbs and
+    # truncating the uploads that would explain it, so the headroom is the point. The cost is that
+    # a hung preview server holds a runner for 25 minutes rather than 10 before the job is killed.
+    timeout-minutes: 25
     # Playwright preview は localhost:4173。ワークフロー共通の BETTER_AUTH_URL（本番）を
     # 引き継ぐと Better Auth が origin を拒否する（CI E2E では本番 URL は使わない）。
     # ホスト/ポートは playwright.config.ts の PREVIEW_PORT（4173）と一致させること。
     env:
       BETTER_AUTH_URL: http://localhost:4173
+      # A crashing preview worker prints nothing but an empty `✘ [ERROR]` to the job log;
+      # the stack trace goes to wrangler's debug log file, which defaults to the global
+      # config dir (/github/home/.config/.wrangler/logs) and dies with the runner. Point it
+      # inside the workspace so the upload below can reach it. Kept relative on purpose:
+      # `${{ github.workspace }}` resolves to the host path in a container job, which is not
+      # where the workspace is mounted. The preview server inherits the workspace as its cwd
+      # and upload-artifact resolves a relative path against the same directory, so a
+      # relative path is the one spelling both sides agree on, container or plain runner.
+      WRANGLER_LOG_PATH: e2e-web-server-logs/
+      # No WRANGLER_LOG bump: that variable gates console output only — the debug file
+      # records every level unconditionally. Sanitization (wrangler's own default) is
+      # pinned here so a repository-level opt-out cannot leak tokens into the artifact.
+      WRANGLER_LOG_SANITIZE: 'true'
+      # Single source for "this run is allowed to retry": a push to the default branch, the only
+      # run whose failure withholds a release. Every step of the retry chain below reads this one
+      # flag, so the rule that permits a failure to be survived and the rule that acts on it
+      # cannot drift apart — a pull request run never enters the chain at all.
+      E2E_RETRY_ENABLED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -268,11 +331,98 @@ jobs:
       # matching its own Playwright version. Invoked through the local bin rather than
       # `pnpm exec` because Sonar's S6505 misreads `pnpm ... install` as a package
       # install missing --ignore-scripts (this downloads browser binaries, not packages).
+      # Same named-browsers list as the checks job above, for the same reason.
       - name: Install Playwright browsers
         if: needs.playwright-image.outputs.should_install_browsers == 'true'
-        run: ./node_modules/.bin/playwright install --with-deps
+        env:
+          PLAYWRIGHT_BROWSERS: ${{ needs.playwright-image.outputs.browsers }}
+        run: ./node_modules/.bin/playwright install --with-deps ${PLAYWRIGHT_BROWSERS}
 
+      # Only a run allowed to retry may continue past a failure: a push to the default branch gates
+      # the auto-tag dispatch below, so one transient crash there withholds the release until a
+      # human notices and re-runs the job by hand (#783). A pull request run keeps failing on the
+      # first attempt — a red check there costs nothing but the re-run button.
       - name: Run E2E tests
+        id: e2e_tests
+        continue-on-error: ${{ env.E2E_RETRY_ENABLED == 'true' }}
+        run: pnpm exec playwright test
+
+      # The retry overwrites both output directories, so the first attempt's evidence is moved
+      # aside before it starts and uploaded under its own -attempt-1 names. This is what keeps a
+      # green retry honest: the crash it papered over stays fully diagnosable, which is why this
+      # retry could only land after the web server log was being captured at all (#781).
+      # Every step from here to the retry carries the same condition, and each part of it is
+      # load-bearing. !cancelled() rather than the implicit success(): a bare outcome check is
+      # ANDed with success(), so a hiccup in one of these steps would skip the rest — including
+      # the retry, withholding the release over the diagnostics — while a superseded run being
+      # cancelled by the concurrency group above should not start a second suite. The retry flag
+      # keeps a pull request out of the chain entirely: nothing is renamed there, so the report
+      # and log the run publishes stay the ones its single attempt produced.
+      #
+      # This step never fails the job: it exists to save evidence, and a move that does not happen
+      # is announced instead, because the retry below will overwrite what was left behind.
+      # continue-on-error is what makes that hold rather than merely intend it. The rename is
+      # already kept from tripping `-e` by the `if !` around it, but the annotations are not: a
+      # write error exits non-zero and ends the step, on a runner that has just filled its disk
+      # with the failed attempt's videos, traces and report. Failing here would withhold the
+      # release even when the retry passes — the outcome #783 was opened to prevent (#789).
+      - name: Preserve first attempt output
+        if: ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome == 'failure' }}
+        continue-on-error: true
+        run: |
+          # Announced, not just archived: a retry that passes leaves a green job, and without an
+          # annotation a test failing half the time would ship release after release with nothing
+          # on the run to read. Worded so it stays true whether or not the attempt got as far as
+          # writing a report — it points at the naming convention, never at a specific artifact.
+          echo "::warning::The first E2E attempt failed and is being retried; whatever output it produced is attached to this run under the -attempt-1 artifact names."
+
+          for dir in playwright-report "${WRANGLER_LOG_PATH%/}"; do
+            if [ -d "${dir}" ] && ! mv "${dir}" "${dir}-attempt-1"; then
+              echo "::warning::Could not set ${dir} aside; the retry will overwrite the first attempt's copy."
+            fi
+          done
+
+      # continue-on-error for the same reason the move above carries it: collecting evidence must
+      # not be what decides the release. Without it a transient artifact-service error here would
+      # end the job red even after the retry passed — withholding the tag exactly as the crash
+      # did. if-no-files-found: ignore covers the directory the move could not rename, and the
+      # consumer whose preview script is not wrangler and writes no log at all.
+      - name: Upload first attempt test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome == 'failure' }}
+        continue-on-error: true
+        with:
+          name: playwright-report-attempt-1
+          path: playwright-report-attempt-1/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload first attempt web server log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome == 'failure' }}
+        continue-on-error: true
+        with:
+          name: e2e-web-server-log-attempt-1
+          path: e2e-web-server-logs-attempt-1/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # One retry, and only after a failure — a green run never starts this step and pays nothing.
+      # It is deliberately unconditional rather than keyed to a "whole suite is down" signature:
+      # any such rule has to be re-derived from reporter output whenever Playwright changes it and
+      # silently stops retrying the day it drifts, which is the failure mode that is hardest to
+      # notice. The price of the simpler rule is that a genuinely broken suite on the default
+      # branch costs one extra E2E run before it reports red, and that a real failure which
+      # happens to pass on the second attempt is reported green — the -attempt-1 artifacts above
+      # are what make that second case recoverable rather than invisible.
+      #
+      # Known limit: nothing frees the preview port between attempts. A first attempt whose server
+      # died releases it, which is the case this retry targets; a server that survived as an
+      # orphan holding the port makes the retry stop at "port already used" instead. That is a
+      # loud, diagnosable failure, and killing by port would need tooling the container image does
+      # not guarantee and a guess at which process a consumer's preview script actually started.
+      - name: Retry E2E tests
+        if: ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome == 'failure' }}
         run: pnpm exec playwright test
 
       - name: Upload test results
@@ -281,6 +431,22 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 30
+
+      # Separate from playwright-report: that artifact explains which tests failed, this one
+      # explains why the server they talk to went away. Consumers whose preview script is not
+      # wrangler write nothing here, so a missing directory is ignored rather than fatal.
+      # cancelled() is part of the condition because a preview server that hangs instead of
+      # crashing burns the job's timeout, and GitHub cancels a timed-out job rather than
+      # failing it — the one case where a `failure()`-only step would skip the log that
+      # explains the hang.
+      - name: Upload web server log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure() || cancelled()
+        with:
+          name: e2e-web-server-log
+          path: e2e-web-server-logs/
+          if-no-files-found: ignore
           retention-days: 30
 
   notify-auto-tag:
