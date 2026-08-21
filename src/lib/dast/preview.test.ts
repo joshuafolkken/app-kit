@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Ownership } from './port-owner.js'
 import { preview_server, type PreviewDependencies, type PreviewHandle } from './preview.js'
 
 const CWD = '/consumer/project'
@@ -11,6 +12,7 @@ interface Harness {
 	stop_count: () => number
 	probe_count: () => number
 	start_count: () => number
+	warnings: () => ReadonlyArray<string>
 }
 
 interface HarnessOptions {
@@ -21,14 +23,28 @@ interface HarnessOptions {
 	server_output?: string
 	// After how many probes the spawned process dies, standing in for a wrangler that cannot bind.
 	exits_after_probes?: number
+	// Whether the kernel reports the port as free before the spawn. `false` stands in for a holder
+	// that owns the socket without answering HTTP.
+	is_port_free?: boolean
+	// Who the listening socket belongs to once something answers.
+	ownership?: Ownership
+	// `false` stands in for a spawn that never produced a pid, leaving no identity to compare against.
+	has_group_id?: boolean
 }
+
+const GROUP_ID = 4242
 
 const NEVER = Number.MAX_SAFE_INTEGER
 
-// A fake clock advanced by sleep(), so a timeout is exercised without a real 2-minute wait.
-function make_harness(options: HarnessOptions): Harness {
-	const counts = { stops: 0, probes: 0, starts: 0, clock: 0 }
-	const { exits_after_probes = NEVER, server_output = '' } = options
+interface Counters {
+	stops: number
+	probes: number
+	starts: number
+	clock: number
+}
+
+function build_start(options: HarnessOptions, counts: Counters): () => PreviewHandle {
+	const { exits_after_probes = NEVER, server_output = '', has_group_id = true } = options
 
 	function stop(): void {
 		counts.stops += 1
@@ -41,8 +57,19 @@ function make_harness(options: HarnessOptions): Harness {
 			stop,
 			output: () => server_output,
 			has_exited: () => counts.probes >= exits_after_probes,
+			group_id: () => (has_group_id ? GROUP_ID : undefined),
 		}
 	}
+
+	return start
+}
+
+function build_deps(
+	options: HarnessOptions,
+	counts: Counters,
+	warnings: Array<string>,
+): PreviewDependencies {
+	const { is_port_free = true, ownership = 'owned' } = options
 
 	async function probe(): Promise<boolean> {
 		counts.probes += 1
@@ -54,11 +81,36 @@ function make_harness(options: HarnessOptions): Harness {
 		counts.clock += ms
 	}
 
+	async function port_free(): Promise<boolean> {
+		return is_port_free
+	}
+
+	function warn(message: string): void {
+		warnings.push(message)
+	}
+
 	return {
-		deps: { start, probe, sleep, now: () => counts.clock },
+		start: build_start(options, counts),
+		probe,
+		sleep,
+		now: () => counts.clock,
+		is_port_free: port_free,
+		check_ownership: () => ownership,
+		warn,
+	}
+}
+
+// A fake clock advanced by sleep(), so a timeout is exercised without a real 2-minute wait.
+function make_harness(options: HarnessOptions): Harness {
+	const counts: Counters = { stops: 0, probes: 0, starts: 0, clock: 0 }
+	const warnings: Array<string> = []
+
+	return {
+		deps: build_deps(options, counts, warnings),
 		stop_count: () => counts.stops,
 		probe_count: () => counts.probes,
 		start_count: () => counts.starts,
+		warnings: () => warnings,
 	}
 }
 
@@ -275,5 +327,105 @@ describe('preview server signal teardown', () => {
 		expect(state.raised).toContain('SIGINT')
 		expect(state.raised).toContain('SIGTERM')
 		expect(state.stops).toBe(preview_server.TEARDOWN_SIGNALS.length)
+	})
+})
+
+// app-kit#175: #136's pre-spawn probe asks whether SOMETHING answers on the port, never whose answer
+// it is. Two holders slip through that question — one that owns the socket without answering HTTP,
+// and one that claims the port after the check has already passed.
+describe('preview server refuses a port held without answering', () => {
+	it('fails when the kernel reports the port taken even though nothing answers', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, is_port_free: false })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow(
+			/already held by another process/u,
+		)
+	})
+
+	it('never spawns onto a silently held port', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, is_port_free: false })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow()
+		expect(harness.start_count()).toBe(0)
+	})
+
+	// A server mid-shutdown still owns its socket and answers again moments later — the shape of the
+	// incident behind this issue, and the reason "nothing answers" is not the same as "nobody is here".
+	it('explains that a shutting-down server can start answering again', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, is_port_free: false })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow(
+			/can start answering again/u,
+		)
+	})
+})
+
+describe('preview server refuses an answer from a foreign process', () => {
+	it('fails when the listening socket belongs to another process group', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'foreign' })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow(
+			/is not the one josh-app started/u,
+		)
+	})
+
+	// Leaving our own spawn alive would keep a second server on a port this run has just declared
+	// untrustworthy.
+	it('tears down its own spawn rather than leaving it beside the foreign server', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'foreign' })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow()
+		expect(harness.stop_count()).toBe(1)
+	})
+
+	// The ordinary occupied case sends the reader looking for a server that was there from the start;
+	// this one has to say the opposite, or the lookup starts from a false premise.
+	it('says the port was free at startup, so the reader looks for a late arrival', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'foreign' })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).rejects.toThrow(
+			/was free at startup/u,
+		)
+	})
+})
+
+// Without `lsof` the ownership question cannot be asked at all. That is a fact about the machine, not
+// about the server, and the pre-spawn checks have already established the port was free — so the run
+// continues and says exactly what it could not confirm.
+describe('preview server continues when ownership cannot be determined', () => {
+	it('still returns a handle when the lookup is unavailable', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'unknown' })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).resolves.toBeDefined()
+	})
+
+	it('warns that the listening process could not be confirmed', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'unknown' })
+
+		await preview_server.start_preview(CWD, PORT, harness.deps)
+
+		expect(harness.warnings().join('\n')).toMatch(/Could not confirm which process is listening/u)
+	})
+
+	it('names what is still guaranteed, so the warning is not read as a failure', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, ownership: 'unknown' })
+
+		await preview_server.start_preview(CWD, PORT, harness.deps)
+
+		expect(harness.warnings().join('\n')).toMatch(/verified free before the server was started/u)
+	})
+
+	it('treats a spawn with no pid as unconfirmed rather than foreign', async () => {
+		const harness = make_harness({ ready_after_probes: READY_ON_BOOT, has_group_id: false })
+
+		await expect(preview_server.start_preview(CWD, PORT, harness.deps)).resolves.toBeDefined()
+	})
+
+	it('does not warn when the listener is confirmed to be ours', async () => {
+		const harness = harness_ready_after(READY_ON_BOOT)
+
+		await preview_server.start_preview(CWD, PORT, harness.deps)
+
+		expect(harness.warnings()).toEqual([])
 	})
 })
