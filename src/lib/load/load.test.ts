@@ -71,7 +71,7 @@ function make_dependencies(state: HarnessState, options: HarnessOptions): LoadDe
 	async function start_preview(): Promise<PreviewHandle> {
 		state.boots += 1
 
-		return { stop, output: no_output, has_exited: () => false }
+		return { stop, output: no_output, has_exited: () => false, group_id: () => undefined }
 	}
 
 	function has_scenario(): boolean {

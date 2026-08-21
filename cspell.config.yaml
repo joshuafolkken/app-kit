@@ -9,6 +9,11 @@ words:
   - hsts
   - idempotently
   - jgame
+  # POSIX process identifiers, in port-owner.ts's comments and in the `ps -o pgid=` column it parses.
+  # Not ours to rename: `pgid` is the literal ps output selector, and `pids` reads as the plural of
+  # the identifier the surrounding code already calls a pid (#175).
+  - pgid
+  - pids
   # Cloudflare's local Workers runtime and SvelteKit's prerender flag, both appearing inside
   # patches/@sveltejs__adapter-cloudflare@7.2.9.patch — a vendored diff of upstream code, so the
   # spelling is not ours to change. Both entries can go when that patch is removed (#149).
