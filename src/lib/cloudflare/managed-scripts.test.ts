@@ -86,6 +86,32 @@ describe('Cloudflare managed-scripts single source', () => {
 	})
 })
 
+// `dev` is NOT a managed key — app-kit does not distribute it — so it is read straight from the
+// manifest rather than through read_canonical_scripts. It is asserted here anyway because it is the
+// other half of the same contract as `preview` above: playwright.config.ts runs `pnpm run dev` on
+// its local branch and `pnpm run preview` on its CI branch, waiting on the dev and preview port it
+// resolves from kit. Both scripts have to derive their port from that same definition or the suite
+// waits on a port nothing opened (#181).
+describe('dev server script derives its port from kit', () => {
+	it('binds the port kit resolves, never a literal of its own', () => {
+		const { dev } = load_scripts()
+
+		expect(dev).toContain('--port $(pnpm josh port dev)')
+		expect(dev).not.toMatch(/--port\s+\d/u)
+	})
+
+	// vite does not fail on a busy port — it prints `Port N is in use, trying another one...` and
+	// binds the next free one. Left to drift, a seeded dev port silently lands somewhere Playwright
+	// is not waiting, so the seed fixes nothing and the timeout just gets a new cause. `--strictPort`
+	// is what makes the collision loud, matching the guarantee the PORT_SEED docs state and the
+	// fail-loud precedent app-kit#136 set for the preview port.
+	it('exits on a busy port instead of drifting to whatever is free', () => {
+		const { dev } = load_scripts()
+
+		expect(dev).toContain('--strictPort')
+	})
+})
+
 // The published app-shell templates must stay byte-identical to the files app-kit
 // itself ships, so the seed a consumer scaffolds from is always what app-kit runs.
 describe('app-shell templates mirror app-kit own files', () => {
