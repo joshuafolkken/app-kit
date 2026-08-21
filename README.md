@@ -203,12 +203,18 @@ test.beforeEach(async ({ page, baseURL: base_url }) => {
 
 ### Unified pre-push gate (`josh-app verify`)
 
-The E2E suite and the DAST scan both need the built app running on port 4173. Rather than each
+The E2E suite and the DAST scan both need the built app running on the preview port. Rather than each
 building and booting its own preview (duplicate work serially, a port/build collision in
 parallel), the pre-push hook runs one `josh-app verify` command that **builds once, boots the
 preview once, then runs Playwright and the ZAP scan against that single server**, and tears it
 down. Playwright reuses the already-booted server via `PLAYWRIGHT_REUSE_SERVER=1` (kit#673), so it
 never rebuilds.
+
+That port is not a literal anywhere in app-kit: `verify`, `josh-app dast` and `josh-app load` all
+resolve it through kit's single definition (`@joshuafolkken/kit/ports`), and the distributed
+`preview` script binds `--port $(pnpm josh port preview)` from the same source — which is what lets
+`PORT_SEED` in your `.env` move the preview, the scan and Playwright together. Unset it and the port
+is the historical `4173`, exactly as before.
 
 `verify` receives the pushed file list and keeps the scan narrowly triggered: E2E always runs, but
 the ~34s ZAP scan runs **only** when a header/cookie-affecting file changed — `_headers`,
@@ -218,8 +224,8 @@ attributes), so a component or utility change cannot alter its result, and spend
 on one is how hooks end up bypassed. An empty file list is fail-safe → scan (a security check is
 never skipped silently).
 
-**The port must be free.** Before booting, `verify` checks whether anything already answers on 4173
-and stops if so, naming the port and the command that identifies the owner. It never adopts a server
+**The port must be free.** Before booting, `verify` checks whether anything already answers on the
+preview port and stops if so, naming the port and the command that identifies the owner. It never adopts a server
 it did not start: a stranger's preview (or an orphaned `wrangler dev` from an interrupted run) would
 otherwise satisfy every readiness probe, and both Playwright and the scan would check that
 application instead of yours — the header findings would then say nothing about this build. A boot
@@ -369,7 +375,7 @@ earlier version and otherwise leaves your tuning untouched. Delete it only if yo
 
 **Pick a scenario per run.** `josh-app load` runs the baseline and `josh-app load:stress` runs the
 stress scenario; to run **your own**, pass its path: `josh-app load path/to/scenario.js`. Every
-scenario reads its target from `__ENV.BASE_URL`, which the command points at the preview on `:4173`
+scenario reads its target from `__ENV.BASE_URL`, which the command points at the preview port
 — so the same file can also run standalone against a deployed URL:
 `k6 run -e BASE_URL=https://your-app.workers.dev k6/load-test.js`.
 

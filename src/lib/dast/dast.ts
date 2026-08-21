@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
 import { EnvironmentError } from '#process/environment-error.js'
 import { process_runner, type CommandRunner } from '#process/runner.js'
+import { preview_port } from './preview-port.js'
 import { preview_server, type PreviewHandle } from './preview.js'
 import { zap } from './zap.js'
 
@@ -11,8 +12,8 @@ import { zap } from './zap.js'
 // against it, and tear the server down — including on failure. The scan is passive (no attack
 // traffic), so it is safe to point at a local preview.
 //
-// Port 4173 is the preview server's own port, shared with playwright.config.ts.
-const PREVIEW_PORT = 4173
+// The preview port is resolved through preview_port, kit's single definition — the same number
+// playwright.config.ts and the distributed `preview` script derive (app-kit#177).
 
 const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
 
@@ -158,20 +159,23 @@ async function run_dast(
 ): Promise<number> {
 	assert_docker_available(deps, cwd)
 
+	// Resolved before the build for the same reason the Docker preflight runs there: a malformed
+	// PORT_SEED throws, and discovering that after a full build wastes the whole build.
+	const port = preview_port.resolve(cwd)
+
 	const build_status = process_runner.to_exit_status(deps.pnpm(BUILD_ARGV, cwd))
 	if (build_status !== process_runner.SUCCESS_STATUS) return build_status
 
-	const server = await deps.start_preview(cwd, PREVIEW_PORT)
+	const server = await deps.start_preview(cwd, port)
 
 	try {
-		return await scan_running_server(cwd, PREVIEW_PORT, deps)
+		return await scan_running_server(cwd, port, deps)
 	} finally {
 		server.stop()
 	}
 }
 
 const app_dast = {
-	PREVIEW_PORT,
 	BUILD_ARGV,
 	DOCKER_UNAVAILABLE_MESSAGE,
 	describe_result,
