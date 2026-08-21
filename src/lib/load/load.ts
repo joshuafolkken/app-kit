@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { preview_port } from '#dast/preview-port.js'
 import { preview_server, type PreviewHandle } from '#dast/preview.js'
 import { EnvironmentError } from '#process/environment-error.js'
 import { process_runner, type CommandRunner } from '#process/runner.js'
@@ -10,9 +11,9 @@ import { k6 } from './k6.js'
 // defines no failing thresholds, so k6 exits 0 and the command surfaces latency/throughput numbers
 // without gating a push on an uncalibrated baseline. Deliberately NOT a lefthook hook (app-kit#95).
 //
-// Port 4173 is the preview server's own port, shared with playwright.config.ts and the DAST scan.
+// The preview port is resolved through preview_port, kit's single definition — the same number
+// playwright.config.ts, the DAST scan and the distributed `preview` script derive (app-kit#177).
 // The preview boot/teardown is preview_server (single-sourced with dast/verify), not re-derived.
-const PREVIEW_PORT = 4173
 
 const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
 
@@ -111,19 +112,23 @@ async function run_load(
 ): Promise<number> {
 	assert_prerequisites(deps, cwd, scenario)
 
+	// Resolved before the build for the same reason the k6 preflight runs there: a malformed
+	// PORT_SEED throws, and discovering that after a full build wastes the whole build.
+	const port = preview_port.resolve(cwd)
+
 	const build_status = process_runner.to_exit_status(deps.pnpm(BUILD_ARGV, cwd))
 	if (build_status !== SUCCESS) return build_status
 
-	const server = await deps.start_preview(cwd, PREVIEW_PORT)
+	const server = await deps.start_preview(cwd, port)
 
 	try {
-		return load_running_server(cwd, PREVIEW_PORT, scenario, deps)
+		return load_running_server(cwd, port, scenario, deps)
 	} finally {
 		server.stop()
 	}
 }
 
-const app_load = { PREVIEW_PORT, SCENARIO_FILE, STRESS_SCENARIO_FILE, describe_result, run_load }
+const app_load = { SCENARIO_FILE, STRESS_SCENARIO_FILE, describe_result, run_load }
 
 export { app_load }
 export type { LoadDependencies }

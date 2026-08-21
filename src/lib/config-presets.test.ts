@@ -20,6 +20,8 @@ const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const KIT = '@joshuafolkken/kit'
+// kit 1.85.0 is the release that added the `./ports` export and the `josh port` command.
+const PORTS_KIT_FLOOR = '>=1.85.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
@@ -88,6 +90,17 @@ describe('SvelteKit config preset exports', () => {
 
 		expect(files).toEqual(expect.arrayContaining(['eslint', 'tsconfig', 'cspell', 'lefthook']))
 		expect(peer_dependencies[KIT]).toBeDefined()
+	})
+
+	// #177: the bundle is built with `--packages=external`, so `@joshuafolkken/kit/ports` — which
+	// josh-app now imports to resolve the preview port, and which the distributed `preview` script
+	// reaches through `josh port` — is resolved in the CONSUMER's node_modules at run time. kit
+	// gained both in 1.85.0; a lower floor lets a consumer install a kit where the subpath is not
+	// exported and `josh-app dast` dies on an unresolvable import instead of at install time.
+	it('floors the kit peer at the release that exports the port definition', () => {
+		const { peerDependencies: peer_dependencies } = load_manifest()
+
+		expect(peer_dependencies[KIT]).toBe(PORTS_KIT_FLOOR)
 	})
 })
 

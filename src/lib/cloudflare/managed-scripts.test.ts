@@ -63,6 +63,17 @@ describe('Cloudflare managed-scripts single source', () => {
 		expect(preview).not.toContain('--remote')
 	})
 
+	// #177: the port wrangler binds must come from kit's single definition, the same source
+	// playwright.config.ts and `josh-app dast` read. A literal here would agree with them only while
+	// `PORT_SEED` is 0: with a seed set, Playwright's webServer and the ZAP scan would both wait on
+	// the seeded port while this script started wrangler on 4173.
+	it('preview binds the port kit resolves, never a literal of its own', () => {
+		const { preview } = managed_scripts.read_canonical_scripts(MANIFEST)
+
+		expect(preview).toContain('--port $(pnpm josh port preview)')
+		expect(preview).not.toMatch(/--port\s+\d/u)
+	})
+
 	// #56: prepare:gen is the only automatic `wrangler types` invocation and
 	// worker-configuration.d.ts is gitignored, so a swallowed gen failure ships a
 	// misleading `Cannot find name 'Env'` from svelte-check instead of the real cause.
