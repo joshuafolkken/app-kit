@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.76.0",
+	"version": "0.77.0",
 	"private": false,
 	"packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
 	"publishConfig": {
@@ -77,7 +77,7 @@
 		"preinstall": "pnpm dlx @aikidosec/safe-chain setup-ci",
 		"dev": "vite dev",
 		"build": "vite build && pnpm run prepack",
-		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173 --local",
+		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port $(pnpm josh port preview) --local",
 		"prepare": "pnpm prepare:gen && pnpm prepare:sync && pnpm prepare:lefthook && pnpm prepare:gh-packages",
 		"prepare:gen": "[ ! -f wrangler.jsonc ] || pnpm gen",
 		"prepare:sync": "svelte-kit sync || echo ''",
@@ -137,7 +137,7 @@
 		"wrangler": "^4.124.0"
 	},
 	"peerDependencies": {
-		"@joshuafolkken/kit": ">=1.12.0",
+		"@joshuafolkken/kit": ">=1.85.0",
 		"eslint": "^10.0.0",
 		"svelte": "^5.0.0"
 	},

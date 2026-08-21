@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app_dast } from '#dast/dast.js'
+import { preview_port } from '#dast/preview-port.js'
 import { preview_server, type PreviewHandle } from '#dast/preview.js'
 import { process_runner } from '#process/runner.js'
 
@@ -10,8 +11,10 @@ import { process_runner } from '#process/runner.js'
 // parallel). Here both checks are just HTTP clients against one server, so build-once and a single
 // port fall out for free. See app-kit #97.
 //
-// Port 4173 is the preview server's own port, shared with playwright.config.ts and the scan.
-const { PREVIEW_PORT } = app_dast
+// The preview port is resolved through preview_port, kit's single definition — the same number
+// playwright.config.ts, the scan and the distributed `preview` script derive (app-kit#177). That
+// agreement is load-bearing here: the E2E step runs with PLAYWRIGHT_REUSE_SERVER=1, so Playwright
+// adopts the server booted below instead of booting its own, and it finds it only by that port.
 
 const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
 
@@ -101,16 +104,17 @@ function aggregate_status(e2e_status: number, scan_status: number): number {
 // header regression is still reported even if a test also fails.
 async function run_against_server(
 	cwd: string,
+	port: number,
 	will_scan: boolean,
 	deps: VerifyDependencies,
 ): Promise<number> {
-	const server = await deps.start_preview(cwd, PREVIEW_PORT)
+	const server = await deps.start_preview(cwd, port)
 
 	try {
 		if (!will_scan) return deps.run_e2e(cwd)
 
 		// Start the scan first (non-blocking) so its container runs during the synchronous E2E.
-		const scan_promise = deps.scan(cwd, PREVIEW_PORT)
+		const scan_promise = deps.scan(cwd, port)
 		const e2e_status = deps.run_e2e(cwd)
 
 		return aggregate_status(e2e_status, await scan_promise)
@@ -130,10 +134,14 @@ async function run_verify(
 	// actually run — an E2E-only push must not require Docker.
 	if (will_scan) deps.preflight_docker(cwd)
 
+	// Resolved alongside that preflight, not at boot time: a malformed PORT_SEED throws, and this
+	// is the gate a push waits on — discovering the typo after the build wastes the whole build.
+	const port = preview_port.resolve(cwd)
+
 	const build_status = deps.build(cwd)
 	if (build_status !== process_runner.SUCCESS_STATUS) return build_status
 
-	return await run_against_server(cwd, will_scan, deps)
+	return await run_against_server(cwd, port, will_scan, deps)
 }
 
 const app_verify = {

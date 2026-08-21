@@ -1,7 +1,8 @@
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
 import { EnvironmentError } from '#process/environment-error.js'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { app_dast, type DastDependencies, type ZapWorkspace } from './dast.js'
+import { port_seed_fixture } from './port-seed-fixture.js'
 import type { PreviewHandle } from './preview.js'
 
 const CWD = '/consumer/project'
@@ -19,6 +20,14 @@ const WORKSPACE_MOUNT = `${WORKSPACE_DIR}:/zap/wrk:rw`
 const SCAN_CRASH = 'spawn docker EPIPE'
 const DOCKER_MISSING_PATTERN = /requires a running Docker/u
 
+const { BASE_PREVIEW_PORT, TEST_SEED, SEEDED_PREVIEW_PORT } = port_seed_fixture
+const seed = port_seed_fixture.isolate()
+
+// The scan's `-t` target, as zap.build_scan_argv renders it.
+function target_url(port: number): string {
+	return `http://host.docker.internal:${String(port)}`
+}
+
 // The preflight is docker call #1; the scan is #2.
 const PREFLIGHT_CALL_COUNT = 1
 const SCAN_CALL_INDEX = 1
@@ -35,6 +44,7 @@ interface HarnessOptions {
 interface HarnessState {
 	docker_argv: Array<ReadonlyArray<string>>
 	pnpm_argv: Array<ReadonlyArray<string>>
+	preview_ports: Array<number>
 	stops: number
 	boots: number
 	opens: number
@@ -47,7 +57,15 @@ function no_output(): string {
 }
 
 function make_state(): HarnessState {
-	return { docker_argv: [], pnpm_argv: [], stops: 0, boots: 0, opens: 0, closes: 0 }
+	return {
+		docker_argv: [],
+		pnpm_argv: [],
+		preview_ports: [],
+		stops: 0,
+		boots: 0,
+		opens: 0,
+		closes: 0,
+	}
 }
 
 // Both docker paths record into docker_argv (preflight at [0], scan at [SCAN_CALL_INDEX]) and read
@@ -83,8 +101,9 @@ function make_dependencies(state: HarnessState, options: HarnessOptions): DastDe
 		state.stops += 1
 	}
 
-	async function start_preview(): Promise<PreviewHandle> {
+	async function start_preview(_cwd: string, port: number): Promise<PreviewHandle> {
 		state.boots += 1
+		state.preview_ports.push(port)
 
 		return { stop, output: no_output, has_exited: () => false, group_id: () => undefined }
 	}
@@ -240,6 +259,35 @@ describe('josh-app dast — scan workspace', () => {
 
 		expect(state.opens).toBe(1)
 		expect(state.closes).toBe(1)
+	})
+})
+
+// app-kit#177: the port is kit's single definition, not a literal in this file. The seed reaches
+// the resolver through process.env here — CWD has no `.env` — and an environment variable is what
+// `PORT_SEED=1 josh-app dast` sets anyway. Restored after each test because the value is global.
+describe('josh-app dast — preview port', () => {
+	beforeEach(seed.clear)
+	afterEach(seed.restore)
+
+	it('boots and scans the historical 4173 when no seed is set', async () => {
+		const { state, deps } = make_harness()
+
+		await app_dast.run_dast(CWD, deps)
+
+		expect(state.preview_ports).toEqual([BASE_PREVIEW_PORT])
+		expect(scan_argv(state)).toContain(target_url(BASE_PREVIEW_PORT))
+	})
+
+	// The whole point of the single definition: Playwright resolves the seeded port from the same
+	// kit module, so the scan must not stay behind on 4173 while wrangler listens on 4174.
+	it('follows PORT_SEED so the scan targets the same port Playwright resolves', async () => {
+		seed.set(TEST_SEED)
+		const { state, deps } = make_harness()
+
+		await app_dast.run_dast(CWD, deps)
+
+		expect(state.preview_ports).toEqual([SEEDED_PREVIEW_PORT])
+		expect(scan_argv(state)).toContain(target_url(SEEDED_PREVIEW_PORT))
 	})
 })
 

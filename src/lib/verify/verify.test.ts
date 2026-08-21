@@ -1,6 +1,7 @@
+import { port_seed_fixture } from '#dast/port-seed-fixture.js'
 import type { PreviewHandle } from '#dast/preview.js'
 import { EnvironmentError } from '#process/environment-error.js'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { app_verify, type VerifyDependencies } from './verify.js'
 
 const CWD = '/consumer/project'
@@ -14,8 +15,13 @@ const CODE_FILE = 'src/lib/foo.ts'
 const SVELTE_FILE = 'src/App.svelte'
 const SCAN_CRASH = 'spawn docker EPIPE'
 
+const { BASE_PREVIEW_PORT, TEST_SEED, SEEDED_PREVIEW_PORT } = port_seed_fixture
+const seed = port_seed_fixture.isolate()
+
 interface VerifyState {
 	order: Array<string>
+	preview_ports: Array<number>
+	scan_ports: Array<number>
 	boots: number
 	stops: number
 	scans: number
@@ -45,9 +51,10 @@ function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependenci
 
 			return options.build_status ?? SUCCESS
 		},
-		async start_preview(): Promise<PreviewHandle> {
+		async start_preview(_cwd: string, port: number): Promise<PreviewHandle> {
 			state.order.push('boot')
 			state.boots += 1
+			state.preview_ports.push(port)
 
 			return { stop, output: () => '', has_exited: () => false, group_id: () => undefined }
 		},
@@ -56,9 +63,10 @@ function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependenci
 
 			return options.e2e_status ?? SUCCESS
 		},
-		async scan(): Promise<number> {
+		async scan(_cwd: string, port: number): Promise<number> {
 			state.order.push('scan')
 			state.scans += 1
+			state.scan_ports.push(port)
 			if (options.scan_error !== undefined) throw options.scan_error
 
 			return options.scan_status ?? SUCCESS
@@ -70,7 +78,14 @@ function make_harness(options: VerifyOptions = {}): {
 	state: VerifyState
 	deps: VerifyDependencies
 } {
-	const state: VerifyState = { order: [], boots: 0, stops: 0, scans: 0 }
+	const state: VerifyState = {
+		order: [],
+		preview_ports: [],
+		scan_ports: [],
+		boots: 0,
+		stops: 0,
+		scans: 0,
+	}
 
 	return { state, deps: make_deps(state, options) }
 }
@@ -178,6 +193,46 @@ describe('verify — short-circuiting & exit aggregation', () => {
 		const { deps } = make_harness()
 
 		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(SUCCESS)
+	})
+})
+
+// app-kit#177: the port comes from kit's single definition, not a literal in verify.ts. It has to
+// reach BOTH the boot and the scan, and — because the E2E step runs with PLAYWRIGHT_REUSE_SERVER=1
+// — it is also the only thing that lets Playwright find the server this command booted. CWD has no
+// `.env`, so the seed arrives through process.env; restored after each test as it is global.
+describe('verify — preview port', () => {
+	beforeEach(seed.clear)
+	afterEach(seed.restore)
+
+	it('boots and scans the historical 4173 when no seed is set', async () => {
+		const { state, deps } = make_harness()
+
+		await app_verify.run_verify(CWD, [HEADERS_FILE], deps)
+
+		expect(state.preview_ports).toEqual([BASE_PREVIEW_PORT])
+		expect(state.scan_ports).toEqual([BASE_PREVIEW_PORT])
+	})
+
+	it('follows PORT_SEED for both the boot and the scan', async () => {
+		seed.set(TEST_SEED)
+		const { state, deps } = make_harness()
+
+		await app_verify.run_verify(CWD, [HEADERS_FILE], deps)
+
+		expect(state.preview_ports).toEqual([SEEDED_PREVIEW_PORT])
+		expect(state.scan_ports).toEqual([SEEDED_PREVIEW_PORT])
+	})
+
+	// The E2E-only path boots the same server Playwright then reuses, so it must move with the seed
+	// too — a boot left on 4173 would strand Playwright waiting on the seeded port.
+	it('follows PORT_SEED on the E2E-only path, where no scan runs', async () => {
+		seed.set(TEST_SEED)
+		const { state, deps } = make_harness()
+
+		await app_verify.run_verify(CWD, [CODE_FILE], deps)
+
+		expect(state.preview_ports).toEqual([SEEDED_PREVIEW_PORT])
+		expect(state.scans).toBe(0)
 	})
 })
 

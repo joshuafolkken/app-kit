@@ -1,7 +1,8 @@
 import type { SpawnOutcome } from '#cloudflare/orchestrate.js'
+import { port_seed_fixture } from '#dast/port-seed-fixture.js'
 import type { PreviewHandle } from '#dast/preview.js'
 import { EnvironmentError } from '#process/environment-error.js'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { app_load, type LoadDependencies } from './load.js'
 
 const CWD = '/consumer/project'
@@ -13,6 +14,14 @@ const STRESS_SCENARIO = 'k6/stress-test.js'
 const VERSION_ARGV_HEAD = 'version'
 // The scenario run is the k6 call AFTER the preflight (`k6 version`) at index 0.
 const RUN_CALL_INDEX = 1
+
+const { BASE_PREVIEW_PORT, TEST_SEED, SEEDED_PREVIEW_PORT } = port_seed_fixture
+const seed = port_seed_fixture.isolate()
+
+// The scenario's target, as k6.build_target_url renders it into `--env BASE_URL=...`.
+function target_environment(port: number): string {
+	return `BASE_URL=http://127.0.0.1:${String(port)}`
+}
 
 const K6_MISSING_PATTERN = /requires the k6/u
 const SCENARIO_MISSING_PATTERN = /could not find the k6 scenario/u
@@ -29,6 +38,7 @@ interface HarnessOptions {
 interface HarnessState {
 	k6_argv: Array<ReadonlyArray<string>>
 	pnpm_argv: Array<ReadonlyArray<string>>
+	preview_ports: Array<number>
 	boots: number
 	stops: number
 }
@@ -38,7 +48,7 @@ function no_output(): string {
 }
 
 function make_state(): HarnessState {
-	return { k6_argv: [], pnpm_argv: [], boots: 0, stops: 0 }
+	return { k6_argv: [], pnpm_argv: [], preview_ports: [], boots: 0, stops: 0 }
 }
 
 function preflight_outcome(options: HarnessOptions): SpawnOutcome {
@@ -68,8 +78,9 @@ function make_dependencies(state: HarnessState, options: HarnessOptions): LoadDe
 		return { status: options.build_status ?? SUCCESS, error: undefined }
 	}
 
-	async function start_preview(): Promise<PreviewHandle> {
+	async function start_preview(_cwd: string, port: number): Promise<PreviewHandle> {
 		state.boots += 1
+		state.preview_ports.push(port)
 
 		return { stop, output: no_output, has_exited: () => false, group_id: () => undefined }
 	}
@@ -144,7 +155,7 @@ describe('josh-app load — run pipeline', () => {
 		expect(run_argv(state)).toEqual([
 			'run',
 			'--env',
-			'BASE_URL=http://127.0.0.1:4173',
+			target_environment(BASE_PREVIEW_PORT),
 			app_load.SCENARIO_FILE,
 		])
 	})
@@ -167,6 +178,35 @@ describe('josh-app load — run pipeline', () => {
 
 		expect(await app_load.run_load(CWD, app_load.SCENARIO_FILE, deps)).toBe(K6_THRESHOLD_EXIT)
 		expect(state.stops).toBe(1)
+	})
+})
+
+// app-kit#177: the port comes from kit's single definition, not a literal in load.ts. CWD has no
+// `.env`, so the seed reaches the resolver through process.env — which is what `PORT_SEED=1
+// josh-app load` sets anyway. Restored after each test because the value is global.
+describe('josh-app load — preview port', () => {
+	beforeEach(seed.clear)
+	afterEach(seed.restore)
+
+	it('boots and targets the historical 4173 when no seed is set', async () => {
+		const { state, deps } = make_harness()
+
+		await app_load.run_load(CWD, undefined, deps)
+
+		expect(state.preview_ports).toEqual([BASE_PREVIEW_PORT])
+		expect(run_argv(state)).toContain(target_environment(BASE_PREVIEW_PORT))
+	})
+
+	// Without this the scenario would hammer 4173 while wrangler listens on the seeded port, and
+	// every request would be refused — or worse, answered by another project's preview.
+	it('follows PORT_SEED so the scenario targets the booted server', async () => {
+		seed.set(TEST_SEED)
+		const { state, deps } = make_harness()
+
+		await app_load.run_load(CWD, undefined, deps)
+
+		expect(state.preview_ports).toEqual([SEEDED_PREVIEW_PORT])
+		expect(run_argv(state)).toContain(target_environment(SEEDED_PREVIEW_PORT))
 	})
 })
 
