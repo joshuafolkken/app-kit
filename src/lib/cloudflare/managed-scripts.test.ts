@@ -6,6 +6,10 @@ const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const PREPARE_KEY = 'prepare'
 
+// Both `--port 5173` and `--port=5173` are valid CLI spellings, so a pattern anchored on whitespace
+// alone would wave the second one through and the no-literal-port contract would not hold.
+const LITERAL_PORT_PATTERN = /--port(?:\s+|=)\d/u
+
 interface Manifest {
 	scripts: Record<string, string>
 }
@@ -71,7 +75,7 @@ describe('Cloudflare managed-scripts single source', () => {
 		const { preview } = managed_scripts.read_canonical_scripts(MANIFEST)
 
 		expect(preview).toContain('--port $(pnpm josh port preview)')
-		expect(preview).not.toMatch(/--port\s+\d/u)
+		expect(preview).not.toMatch(LITERAL_PORT_PATTERN)
 	})
 
 	// #56: prepare:gen is the only automatic `wrangler types` invocation and
@@ -97,15 +101,17 @@ describe('dev server script derives its port from kit', () => {
 		const { dev } = load_scripts()
 
 		expect(dev).toContain('--port $(pnpm josh port dev)')
-		expect(dev).not.toMatch(/--port\s+\d/u)
+		expect(dev).not.toMatch(LITERAL_PORT_PATTERN)
 	})
 
-	// vite does not fail on a busy port — it prints `Port N is in use, trying another one...` and
-	// binds the next free one. Left to drift, a seeded dev port silently lands somewhere Playwright
-	// is not waiting, so the seed fixes nothing and the timeout just gets a new cause. `--strictPort`
-	// is what makes the collision loud, matching the guarantee the PORT_SEED docs state and the
-	// fail-loud precedent app-kit#136 set for the preview port.
-	it('exits on a busy port instead of drifting to whatever is free', () => {
+	// Why the flag has to be there: vite does not fail on a busy port — it prints `Port N is in use,
+	// trying another one...` and binds the next free one (observed on vite 8.2.2). Left to drift, a
+	// seeded dev port silently lands somewhere Playwright is not waiting, so the seed fixes nothing
+	// and the timeout just gets a new cause. `--strictPort` is what makes the collision loud,
+	// matching the guarantee the PORT_SEED docs state and the fail-loud precedent app-kit#136 set
+	// for the preview port. This asserts the flag is declared, not vite's reaction to a taken port —
+	// exercising that needs a real listener and a real boot, which belongs nowhere near a unit suite.
+	it('declares --strictPort, the flag that stops vite drifting off a busy port', () => {
 		const { dev } = load_scripts()
 
 		expect(dev).toContain('--strictPort')

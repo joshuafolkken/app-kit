@@ -137,7 +137,7 @@
 		"wrangler": "^4.124.0"
 	},
 	"peerDependencies": {
-		"@joshuafolkken/kit": ">=1.85.0",
+		"@joshuafolkken/kit": ">=1.86.0",
 		"eslint": "^10.0.0",
 		"svelte": "^5.0.0"
 	},
