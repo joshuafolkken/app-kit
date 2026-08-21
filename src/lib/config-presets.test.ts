@@ -20,8 +20,11 @@ const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const KIT = '@joshuafolkken/kit'
-// kit 1.85.0 is the release that added the `./ports` export and the `josh port` command.
-const PORTS_KIT_FLOOR = '>=1.85.0'
+// 1.85.0 added the `./ports` export, but `ports.load_environment_file` — the call preview-port.ts
+// makes on every resolution — only arrived in 1.86.0 (kit#820). A consumer on 1.85.0 therefore
+// resolves the subpath fine and then dies on `load_environment_file is not a function`, so the
+// floor is the later release, not the one that introduced the export.
+const PORTS_KIT_FLOOR = '>=1.86.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
@@ -93,11 +96,11 @@ describe('SvelteKit config preset exports', () => {
 	})
 
 	// #177: the bundle is built with `--packages=external`, so `@joshuafolkken/kit/ports` — which
-	// josh-app now imports to resolve the preview port, and which the distributed `preview` script
-	// reaches through `josh port` — is resolved in the CONSUMER's node_modules at run time. kit
-	// gained both in 1.85.0; a lower floor lets a consumer install a kit where the subpath is not
-	// exported and `josh-app dast` dies on an unresolvable import instead of at install time.
-	it('floors the kit peer at the release that exports the port definition', () => {
+	// josh-app imports to resolve the preview port, and which the distributed `preview` and `dev`
+	// scripts reach through `josh port` — is resolved in the CONSUMER's node_modules at run time. A
+	// lower floor lets a consumer install a kit whose ports module is missing the piece josh-app
+	// calls, so the failure lands at scan time instead of at install time (#181).
+	it('floors the kit peer at the release providing every port helper josh-app calls', () => {
 		const { peerDependencies: peer_dependencies } = load_manifest()
 
 		expect(peer_dependencies[KIT]).toBe(PORTS_KIT_FLOOR)

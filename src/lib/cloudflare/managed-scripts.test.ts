@@ -6,6 +6,10 @@ const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const PREPARE_KEY = 'prepare'
 
+// Both `--port 5173` and `--port=5173` are valid CLI spellings, so a pattern anchored on whitespace
+// alone would wave the second one through and the no-literal-port contract would not hold.
+const LITERAL_PORT_PATTERN = /--port(?:\s+|=)\d/u
+
 interface Manifest {
 	scripts: Record<string, string>
 }
@@ -71,7 +75,7 @@ describe('Cloudflare managed-scripts single source', () => {
 		const { preview } = managed_scripts.read_canonical_scripts(MANIFEST)
 
 		expect(preview).toContain('--port $(pnpm josh port preview)')
-		expect(preview).not.toMatch(/--port\s+\d/u)
+		expect(preview).not.toMatch(LITERAL_PORT_PATTERN)
 	})
 
 	// #56: prepare:gen is the only automatic `wrangler types` invocation and
@@ -83,6 +87,34 @@ describe('Cloudflare managed-scripts single source', () => {
 
 		expect(prepare_gen).toBe('[ ! -f wrangler.jsonc ] || pnpm gen')
 		expect(prepare_gen).not.toContain('|| true')
+	})
+})
+
+// `dev` is NOT a managed key — app-kit does not distribute it — so it is read straight from the
+// manifest rather than through read_canonical_scripts. It is asserted here anyway because it is the
+// other half of the same contract as `preview` above: playwright.config.ts runs `pnpm run dev` on
+// its local branch and `pnpm run preview` on its CI branch, waiting on the dev and preview port it
+// resolves from kit. Both scripts have to derive their port from that same definition or the suite
+// waits on a port nothing opened (#181).
+describe('dev server script derives its port from kit', () => {
+	it('binds the port kit resolves, never a literal of its own', () => {
+		const { dev } = load_scripts()
+
+		expect(dev).toContain('--port $(pnpm josh port dev)')
+		expect(dev).not.toMatch(LITERAL_PORT_PATTERN)
+	})
+
+	// Why the flag has to be there: vite does not fail on a busy port — it prints `Port N is in use,
+	// trying another one...` and binds the next free one (observed on vite 8.2.2). Left to drift, a
+	// seeded dev port silently lands somewhere Playwright is not waiting, so the seed fixes nothing
+	// and the timeout just gets a new cause. `--strictPort` is what makes the collision loud,
+	// matching the guarantee the PORT_SEED docs state and the fail-loud precedent app-kit#136 set
+	// for the preview port. This asserts the flag is declared, not vite's reaction to a taken port —
+	// exercising that needs a real listener and a real boot, which belongs nowhere near a unit suite.
+	it('declares --strictPort, the flag that stops vite drifting off a busy port', () => {
+		const { dev } = load_scripts()
+
+		expect(dev).toContain('--strictPort')
 	})
 })
 
