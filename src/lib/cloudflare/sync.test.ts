@@ -82,6 +82,23 @@ afterEach(() => {
 	rmSync(state.directory, { recursive: true, force: true })
 })
 
+// #183 (kit#825): the overlay must hand consumers the pnpm-free port wiring. Inside
+// `$(pnpm josh port …)` pnpm's own stdout — `[ELIFECYCLE] …` on a bad PORT_SEED, install logs when
+// node_modules is stale — becomes the port argument, and an inline substitution's failure never
+// stops the command it is spliced into. The assignment form fixes both, so a consumer's synced
+// `preview` must carry it, byte-identical to app-kit's canonical script.
+describe('cloudflare sync port wiring', () => {
+	it('writes the consumer preview with the pnpm-free assignment-form port wiring', () => {
+		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+
+		const { preview } = fixture_scripts()
+
+		expect(preview).toBe(managed_scripts.read_canonical_scripts(PACKAGE_JSON).preview)
+		expect(preview?.startsWith('PREVIEW_PORT=$(josh port preview) && ')).toBe(true)
+		expect(preview).not.toContain('$(pnpm')
+	})
+})
+
 describe('cloudflare sync overlay', () => {
 	it('adds the managed scripts, app-shell templates, and seeds wrangler.jsonc', () => {
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)

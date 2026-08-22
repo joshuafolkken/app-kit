@@ -8,7 +8,7 @@ import { ports } from '@joshuafolkken/kit/ports'
 //
 // `.env` is loaded first because `josh-app` is an esbuild-bundled node binary: nothing on its path
 // supplies tsx's `--env-file-if-exists=.env`, so `PORT_SEED` never reaches `process.env` and the
-// resolver would hand back the unseeded 4173 while `pnpm josh port preview` — which DOES get the
+// resolver would hand back the unseeded 4173 while `josh port preview` — which DOES get the
 // file, and is what the distributed `preview` script asks — starts wrangler on the seeded one. That
 // is the same disagreement kit#820 fixed on the Playwright side, and playwright.config.ts opens
 // with this identical call for the identical reason.
