@@ -5,6 +5,7 @@ import { managed_scripts } from './managed-scripts.js'
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const PREPARE_KEY = 'prepare'
+const DEV_KEY = 'dev'
 
 // Both `--port 5173` and `--port=5173` are valid CLI spellings, so a pattern anchored on whitespace
 // alone would wave the second one through and the no-literal-port contract would not hold.
@@ -101,17 +102,26 @@ describe('Cloudflare managed-scripts single source', () => {
 	})
 })
 
-// `dev` is NOT a managed key — app-kit does not distribute it — so it is read straight from the
-// manifest rather than through read_canonical_scripts. It is asserted here anyway because it is the
-// other half of the same contract as `preview` above: playwright.config.ts runs `pnpm run dev` on
-// its local branch and `pnpm run preview` on its CI branch, waiting on the dev and preview port it
-// resolves from kit. Both scripts have to derive their port from that same definition or the suite
-// waits on a port nothing opened (#181).
+// `dev` is the other half of the same contract as `preview` above: playwright.config.ts runs
+// `pnpm run dev` on its local branch and `pnpm run preview` on its CI branch, waiting on the dev
+// and preview port it resolves from kit. Both scripts have to derive their port from that same
+// definition or the suite waits on a port nothing opened (#181).
+//
+// #188: app-kit's own manifest already had the wiring while every consumer kept a bare `vite dev`
+// on 5173, because only `preview` was a managed key — so a seeded project's Playwright waited on
+// 5173 + seed and lost the suite to a webServer timeout no `sync` could repair. The membership
+// assertion below is what covers consumers; the two shape assertions read through
+// read_canonical_scripts to go the same way `sync` does, which additionally makes a renamed or
+// removed key throw rather than assert against `undefined`.
 describe('dev server script derives its port from kit', () => {
-	it('binds the port kit resolves — never a literal, never through pnpm', () => {
-		const { dev } = load_scripts()
+	it('is a managed key, so `josh-app sync` repairs it in an existing consumer', () => {
+		expect(managed_scripts.MANAGED_SCRIPT_KEYS).toContain(DEV_KEY)
+	})
 
-		expect(dev?.startsWith('DEV_PORT=$(josh port dev) && ')).toBe(true)
+	it('binds the port kit resolves — never a literal, never through pnpm', () => {
+		const { dev } = managed_scripts.read_canonical_scripts(MANIFEST)
+
+		expect(dev.startsWith('DEV_PORT=$(josh port dev) && ')).toBe(true)
 		expect(dev).toContain('--port $DEV_PORT')
 		expect(dev).not.toMatch(LITERAL_PORT_PATTERN)
 		expect(dev).not.toMatch(PNPM_WRAPPED_PORT_PATTERN)
@@ -125,7 +135,7 @@ describe('dev server script derives its port from kit', () => {
 	// for the preview port. This asserts the flag is declared, not vite's reaction to a taken port —
 	// exercising that needs a real listener and a real boot, which belongs nowhere near a unit suite.
 	it('declares --strictPort, the flag that stops vite drifting off a busy port', () => {
-		const { dev } = load_scripts()
+		const { dev } = managed_scripts.read_canonical_scripts(MANIFEST)
 
 		expect(dev).toContain('--strictPort')
 	})

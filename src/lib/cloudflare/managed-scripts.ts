@@ -6,9 +6,23 @@ import { readFileSync } from 'node:fs'
 // guard asserts app-kit's own package.json never diverges from the set it
 // distributes. This is the ownership game-kit's jgame currently duplicates and
 // will re-base onto (joshuafolkken/game-kit#355).
+//
+// Every value in this set is written for a POSIX shell, and that is the documented requirement
+// (README → Prerequisites) rather than an accident #188 could have designed away. `dev` and
+// `preview` resolve their port with `$(josh port …)`, and the prepare chain gates on `[ … ]` and
+// `command -v`; cmd.exe has none of them, so a Windows consumer already needs WSL or Git Bash to
+// get through `pnpm install`, long before it reaches a server script. The two alternatives were
+// measured and rejected. pnpm's `shell-emulator` is not the escape hatch it looks like: pnpm 11
+// reads the setting from pnpm-workspace.yaml rather than .npmrc, and once enabled its shell cannot
+// parse `!`, which turns the `! command -v lefthook …` guard below into `command not found: !` and
+// fails `prepare` on any machine without lefthook. Resolving the port in Node instead would need a
+// runner these values could name from both sides, and there is none: this manifest's script values
+// are copied verbatim into consumers, while app-kit's own `josh-app` bin is not linked into its own
+// node_modules/.bin — only kit's `josh` is, which would put the runner upstream.
 const BARE_PREPARE = 'prepare'
 
 const MANAGED_SCRIPT_KEYS = [
+	'dev',
 	'preview',
 	BARE_PREPARE,
 	'prepare:gen',

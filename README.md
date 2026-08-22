@@ -12,6 +12,7 @@ Like the base kit, app-kit has two roles:
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) with [pnpm](https://pnpm.io/)
+- **A POSIX shell.** The `package.json` scripts app-kit distributes are written for `sh`: `dev` and `preview` resolve their port with `$(josh port …)`, and the `prepare` chain gates on `[ … ]` and `command -v`. `cmd.exe` has none of that, so on Windows run them from WSL or Git Bash — a plain `cmd.exe` fails at `pnpm install`, before any server script. pnpm's `shell-emulator` is not a substitute: its shell cannot parse `!`, which breaks the `prepare` guards.
 - [gh CLI](https://cli.github.com/) — required for GitHub Packages authentication. Install via `brew install gh` (macOS), `winget install GitHub.cli` (Windows), or see the [gh installation docs](https://github.com/cli/cli#installation).
 - **GitHub Packages auth.** app-kit is published to the GitHub Packages registry, so a one-time auth setup is required:
   - `~/.npmrc` (user-level) contains:
@@ -217,6 +218,18 @@ resolve it through kit's single definition (`@joshuafolkken/kit/ports`), and the
 resolution stops the server start — kit#825) — which is what lets `PORT_SEED` in your `.env` move
 the preview, the scan and Playwright together. Unset it and the port is the historical `4173`,
 exactly as before.
+
+**`dev` is wired the same way, and is fully managed** (app-kit 0.81.0 — before that only `preview`
+was, so a seeded consumer's Playwright waited on `5173 + PORT_SEED` while its `vite dev` bound
+`5173`, and no sync could repair it). Two consequences worth knowing before you upgrade:
+
+- **`josh-app sync` overwrites `dev`**, as it does every managed script — it is not seed-only like
+  `_headers`. If you had customized it (a `--host` flag, a pre-step), re-apply that after the sync
+  or move it into a script of your own that sync does not manage.
+- **The distributed `dev` passes `--strictPort`**, so a busy port now fails loudly instead of vite
+  silently binding the next free one. That silence is the bug the seed exists to remove: a drifted
+  port is a port Playwright is not waiting on. If you run several kit projects at once, give each
+  one a `PORT_SEED` in its `.env` rather than relying on the drift.
 
 `verify` receives the pushed file list and keeps the scan narrowly triggered: E2E always runs, but
 the ~34s ZAP scan runs **only** when a header/cookie-affecting file changed — `_headers`,
