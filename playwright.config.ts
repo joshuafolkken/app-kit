@@ -1,3 +1,4 @@
+import { environment_flags } from '@joshuafolkken/kit/env'
 import { ports } from '@joshuafolkken/kit/ports'
 import { defineConfig, devices, type ReporterDescription } from '@playwright/test'
 
@@ -7,12 +8,22 @@ import { defineConfig, devices, type ReporterDescription } from '@playwright/tes
 // exactly. An invalid seed throws here rather than serving a default port, which would silently put
 // two projects back on one port.
 //
-// Playwright loads this config itself, so nothing on the way in has read `.env` — `josh port` gets
-// it from a tsx flag that no Playwright entry point passes. Reading it here is what makes the two
-// agree; without it the seed reached `josh port` alone and a consumer wiring `--port $(pnpm josh
-// port preview)` as documented lost the whole suite to a webServer timeout (#820). A variable
-// already set in the environment still wins over the file, and a project with no `.env` is
-// untouched.
+// Playwright loads this config itself, so nothing on the way in has read `.env`. Reading it here is
+// what makes this config and `josh port` agree — the command calls the same loader — and without it
+// the seed reached `josh port` alone, so a consumer wiring its `preview` script through
+// `josh port preview` as documented lost the whole suite to a webServer timeout (#820). The loader
+// applies only the settings this config reads and leaves the rest of `.env` out of the environment
+// the webServer child inherits (#826). A variable already set in the environment still wins over
+// the file, and a project with no `.env` is untouched.
+//
+// The working directory is the anchor, and the loader ascends from it to the project root — the
+// same root `pnpm run` hands the `webServer` command, so both sides name one file from anywhere
+// inside the project. The one layout that escapes that is a run whose working directory sits in a
+// *different* package from this config, as `playwright test --config ../../playwright.config.ts`
+// does in a workspace: Playwright would default `webServer.cwd` to this file's directory while the
+// seed came from the other package's `.env`. No kit-distributed project has that shape — this
+// config is written to a project root — so the anchor stays where every documented entry point
+// puts it.
 ports.load_environment_file()
 
 const DEV_PORT = ports.resolve_development_port()
@@ -44,31 +55,10 @@ type EnvConfig = {
 	reporter: ReporterDescription[]
 }
 
-const TRUTHY_FLAG_VALUES = new Set(['1', 'true', 'yes', 'on'])
-const FALSY_FLAG_VALUES = new Set(['0', 'false', 'no', 'off'])
-
-function normalize_flag_value(value: string): string {
-	return value.trim().toLowerCase()
-}
-
-// Env vars are always strings, so `Boolean(value)` would enable the flag for '0' and 'false' too —
-// the two spellings someone reaches for to turn it off. Only affirmative spellings enable.
-function is_flag_enabled(value: string | undefined): boolean {
-	return value !== undefined && TRUTHY_FLAG_VALUES.has(normalize_flag_value(value))
-}
-
-// `CI` is not an opt-in flag with a fixed vocabulary — Woodpecker exports `CI=woodpecker` — so the
-// affirmative allow-list above would drop such runs into dev mode. Invert the test instead: any
-// value counts as CI except an empty one and the explicit negatives. (`ci-info` opts out on the
-// exact string 'false' alone; the negative set here also covers '0', 'no' and 'off'.)
-function is_ci_enabled(value: string | undefined): boolean {
-	if (value === undefined) return false
-	const normalized = normalize_flag_value(value)
-
-	return normalized.length > 0 && !FALSY_FLAG_VALUES.has(normalized)
-}
-
-const IS_CI = is_ci_enabled(process.env['CI'])
+// The flag vocabulary lives in `@joshuafolkken/kit/env` (#828) — one exported predicate, so this
+// config and every consumer config that adds an env-driven toggle agree on what "switched on"
+// means instead of each declaring its own set and drifting.
+const IS_CI = environment_flags.is_ci_enabled(process.env['CI'])
 
 // `is_ci_enabled` only decides what this config returns; Playwright's own modules read
 // `process.env['CI']` directly with the bare truthiness it replaces, so an explicit opt-out such as
@@ -92,7 +82,7 @@ if (!IS_CI) delete process.env['CI']
 // whichever foreign app got there first and — baseURL being derived from this port — run the whole
 // suite green against it. Failing on a busy port replaces a silent pass against the wrong
 // application; a seed reduces how often a foreign server is on the port at all.
-const IS_REUSE_ENABLED = is_flag_enabled(process.env['PLAYWRIGHT_REUSE_SERVER'])
+const IS_REUSE_ENABLED = environment_flags.is_flag_enabled(process.env['PLAYWRIGHT_REUSE_SERVER'])
 
 const web_server_config = IS_CI
 	? {
