@@ -10,6 +10,15 @@ const PREPARE_KEY = 'prepare'
 // alone would wave the second one through and the no-literal-port contract would not hold.
 const LITERAL_PORT_PATTERN = /--port(?:\s+|=)\d/u
 
+// #183 (kit#825): the port wiring must not run `josh port` through `pnpm`. pnpm writes its own
+// text to stdout — `[ELIFECYCLE] Command failed…` on a bad `PORT_SEED`, install/lifecycle logs when
+// node_modules is older than package.json — and inside `$(pnpm josh port …)` that text becomes the
+// port argument. `pnpm run` puts node_modules/.bin on PATH, so the script calls `josh` directly,
+// and the assignment form (`X_PORT=$(josh port x) && server --port $X_PORT`) makes a failed
+// resolution stop the server start: an inline substitution's failure would not stop the command
+// it is spliced into.
+const PNPM_WRAPPED_PORT_PATTERN = /\$\(pnpm\s/u
+
 interface Manifest {
 	scripts: Record<string, string>
 }
@@ -71,11 +80,13 @@ describe('Cloudflare managed-scripts single source', () => {
 	// playwright.config.ts and `josh-app dast` read. A literal here would agree with them only while
 	// `PORT_SEED` is 0: with a seed set, Playwright's webServer and the ZAP scan would both wait on
 	// the seeded port while this script started wrangler on 4173.
-	it('preview binds the port kit resolves, never a literal of its own', () => {
+	it('preview binds the port kit resolves — never a literal, never through pnpm', () => {
 		const { preview } = managed_scripts.read_canonical_scripts(MANIFEST)
 
-		expect(preview).toContain('--port $(pnpm josh port preview)')
+		expect(preview.startsWith('PREVIEW_PORT=$(josh port preview) && ')).toBe(true)
+		expect(preview).toContain('--port $PREVIEW_PORT')
 		expect(preview).not.toMatch(LITERAL_PORT_PATTERN)
+		expect(preview).not.toMatch(PNPM_WRAPPED_PORT_PATTERN)
 	})
 
 	// #56: prepare:gen is the only automatic `wrangler types` invocation and
@@ -97,11 +108,13 @@ describe('Cloudflare managed-scripts single source', () => {
 // resolves from kit. Both scripts have to derive their port from that same definition or the suite
 // waits on a port nothing opened (#181).
 describe('dev server script derives its port from kit', () => {
-	it('binds the port kit resolves, never a literal of its own', () => {
+	it('binds the port kit resolves — never a literal, never through pnpm', () => {
 		const { dev } = load_scripts()
 
-		expect(dev).toContain('--port $(pnpm josh port dev)')
+		expect(dev?.startsWith('DEV_PORT=$(josh port dev) && ')).toBe(true)
+		expect(dev).toContain('--port $DEV_PORT')
 		expect(dev).not.toMatch(LITERAL_PORT_PATTERN)
+		expect(dev).not.toMatch(PNPM_WRAPPED_PORT_PATTERN)
 	})
 
 	// Why the flag has to be there: vite does not fail on a busy port — it prints `Port N is in use,

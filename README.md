@@ -212,9 +212,11 @@ never rebuilds.
 
 That port is not a literal anywhere in app-kit: `verify`, `josh-app dast` and `josh-app load` all
 resolve it through kit's single definition (`@joshuafolkken/kit/ports`), and the distributed
-`preview` script binds `--port $(pnpm josh port preview)` from the same source — which is what lets
-`PORT_SEED` in your `.env` move the preview, the scan and Playwright together. Unset it and the port
-is the historical `4173`, exactly as before.
+`preview` script resolves it from the same source with `PREVIEW_PORT=$(josh port preview) && …`
+(pnpm-free and assignment-form, so pnpm's stdout noise never becomes the port argument and a failed
+resolution stops the server start — kit#825) — which is what lets `PORT_SEED` in your `.env` move
+the preview, the scan and Playwright together. Unset it and the port is the historical `4173`,
+exactly as before.
 
 `verify` receives the pushed file list and keeps the scan narrowly triggered: E2E always runs, but
 the ~34s ZAP scan runs **only** when a header/cookie-affecting file changed — `_headers`,
