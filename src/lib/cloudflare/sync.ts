@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { managed_marker_logic } from '@joshuafolkken/kit/managed-marker'
 import { app_check } from '#check/check.js'
 import { baseline } from '#dast/baseline.js'
 import { config_patch } from './config-patch.js'
@@ -220,11 +221,63 @@ function seed_file(entry: SeedEntry, target: string, source: string): OverlayCha
 	return { file: entry.dest, action: 'created' }
 }
 
+// MANAGED_COPY_ENTRIES maps each workflow to itself: app-kit distributes the very file it runs, so
+// applying the overlay to app-kit's own repository — `pnpm josh-app sync`, where the working
+// directory and the package root are the same place — makes source and destination one file.
+// Stamping it there would be wrong twice over. The note tells the reader to edit the file in some
+// other package, and the stamp is what makes a consumer's Dependabot auto-merge stand down — but a
+// bump to `dast.yml` HERE is a real update nobody upstream maintains, so it must keep merging as it
+// always has (#192).
+//
+// The question is deliberately "am I about to write the file I just read?" rather than the broader
+// "is the target this same package?". They agree for every entry today, but they would not for an
+// entry mastered under `templates/`: such a file IS rewritten by a sync even in this repository, so
+// a bump to it would be reverted here too and the stamp would be correct. Widening this to compare
+// target with source would silently drop that case.
+function is_self_copy(destination: string, template_path: string): boolean {
+	return path.resolve(destination) === path.resolve(template_path)
+}
+
+// The name stamped into a distributed workflow, read from the manifest of the package doing the
+// distributing rather than repeated as a literal. `source` is app-kit's own package root, so its
+// manifest is the authority on app-kit's name — and the two copies of that string this repository
+// already carries (`version.ts`, `scripts/josh-app.ts`) do not become three.
+//
+// Read per entry rather than hoisted into `apply_overlay` and threaded through. Two managed entries
+// means two reads of one small file, and resolving the name from `source` INSIDE this seam is what
+// lets a test assert the stamp carries app-kit's real manifest name; a caller-supplied name would
+// make that assertion prove only that the argument came back out.
+function package_name_of(source: string): string {
+	const raw = readFileSync(path.join(source, MANIFEST), ENCODING)
+
+	return (JSON.parse(raw) as { name: string }).name
+}
+
+// Exactly what a managed copy of `entry` should contain at `destination` — the whole of #192's
+// decision, and nothing that touches the filesystem beyond reading the template, so it can be
+// exercised directly instead of through an `apply_overlay` run.
+//
+// #192: a workflow app-kit overwrites on every sync carries a stamp naming app-kit, which is how a
+// consumer's `dependabot-auto-merge.yml` knows to leave a bump to it open. Without one, the bump
+// auto-merges and the next `josh-app sync` writes it straight back — the loop joshuafolkken/kit#836
+// closed for kit's own workflows, reproduced one distribution layer down. The stamp goes on through
+// kit's exported helper (joshuafolkken/kit#844), never hand-written here: it is what the consumer
+// side parses, and a drifted token or a doubled header breaks that reader silently. The helper also
+// leaves an already-stamped file alone, which is what keeps a re-sync idempotent.
+function managed_copy_content(entry: SeedEntry, destination: string, source: string): string {
+	const template_path = path.join(source, entry.template)
+	const raw = readFileSync(template_path, ENCODING)
+	if (is_self_copy(destination, template_path)) return raw
+
+	return managed_marker_logic.apply_marker_for_destination(entry.dest, raw, package_name_of(source))
+}
+
 // Byte-copy a fully-managed file, overwriting whatever is there. Identical content reports
-// `skipped` rather than `updated` so a re-sync's summary stays honest about what actually moved.
+// `skipped` rather than `updated` so a re-sync's summary stays honest about what actually moved —
+// the comparison runs on the stamped content, so a second sync has nothing to write.
 function copy_managed_file(entry: SeedEntry, target: string, source: string): OverlayChange {
 	const destination = path.join(target, entry.dest)
-	const content = readFileSync(path.join(source, entry.template), ENCODING)
+	const content = managed_copy_content(entry, destination, source)
 	const did_exist = existsSync(destination)
 
 	if (did_exist && readFileSync(destination, ENCODING) === content) {
@@ -289,7 +342,13 @@ function apply_overlay(target: string, source: string): Array<OverlayChange> {
 	return changes
 }
 
-const cloudflare_sync = { SEED_ENTRIES, MANAGED_COPY_ENTRIES, apply_overlay, summarize }
+const cloudflare_sync = {
+	SEED_ENTRIES,
+	MANAGED_COPY_ENTRIES,
+	apply_overlay,
+	managed_copy_content,
+	summarize,
+}
 
 export { cloudflare_sync }
 export type { OverlayChange }

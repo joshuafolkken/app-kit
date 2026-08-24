@@ -359,6 +359,25 @@ triage decisions and header policy are yours.
 a **separate, additive** workflow that never touches `.github/workflows/ci.yml`, which kit
 single-sources. Two packages mastering one path would make the result depend on sync order.
 
+**Managed workflows carry a stamp** (app-kit 0.82.0). `dast.yml` and `load.yml` are written with a
+two-line header naming app-kit:
+
+```yaml
+# josh-managed-workflow: @joshuafolkken/app-kit
+# Overwritten on every sync of that package. Edit it there, not here.
+```
+
+The header is what kit's distributed `dependabot-auto-merge.yml` reads to decide that a Dependabot
+bump to one of these files must **not** auto-merge. Without it the bump merges, your next
+`josh-app sync` writes app-kit's pins straight back, and Dependabot proposes the same bump again.
+Leave the two lines in place; edits to these workflows belong in app-kit either way.
+
+The decision is per **pull request**, not per file. Dependabot's github-actions updates open one PR
+per action and edit every workflow that uses it, so a PR that touches `dast.yml` alongside a
+workflow you own is held open as a whole — the bump to your own workflow rides along and waits for
+you. Only a PR that touches no stamped workflow at all auto-merges. Merging such a PR by hand is
+fine: the pins in your own workflows are yours, and app-kit rewrites only the files it stamps.
+
 ## Load testing (k6)
 
 `josh-app load` measures how the app behaves under load. It builds the project, boots the preview
