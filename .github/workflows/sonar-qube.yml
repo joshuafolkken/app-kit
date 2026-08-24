@@ -1,3 +1,5 @@
+# josh-managed-workflow: @joshuafolkken/kit
+# Overwritten on every sync of that package. Edit it there, not here.
 name: SonarQube
 on:
   push:
