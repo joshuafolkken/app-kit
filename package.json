@@ -1,8 +1,8 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.84.0",
+	"version": "0.85.0",
 	"private": false,
-	"packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
+	"packageManager": "pnpm@11.23.0+sha512.f00082e5b283a199b74e079da28d155c008fe232f44c8a06ea7ddfa014ecf719fc362f790ecc67b28106ddac2afb24c49a9a079159da560b2ce7d1e98efd11af",
 	"publishConfig": {
 		"registry": "https://npm.pkg.github.com",
 		"access": "public"
@@ -99,7 +99,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.99.0",
+		"@joshuafolkken/kit": "^1.100.0",
 		"@playwright/test": "^1.62.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
 		"@size-limit/file": "^13.0.3",
@@ -112,7 +112,7 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^26.2.0",
 		"@vitest/browser-playwright": "^4.1.11",
-		"cspell": "^10.0.1",
+		"cspell": "^10.1.0",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.9.0",
 		"eslint-config-prettier": "^10.1.8",
@@ -144,7 +144,7 @@
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
+			"version": "11.23.0+sha512.f00082e5b283a199b74e079da28d155c008fe232f44c8a06ea7ddfa014ecf719fc362f790ecc67b28106ddac2afb24c49a9a079159da560b2ce7d1e98efd11af",
 			"onFail": "error"
 		}
 	},
