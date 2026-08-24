@@ -51,9 +51,21 @@ interface SeedEntry {
 
 type OverlayAction = 'created' | 'skipped' | 'updated'
 
+// Which managed script keys a sync rewrote, and how (#189). `added` filled a key the consumer did
+// not have; `replaced` overwrote a value they did — the case worth naming, because that value was
+// theirs and it is gone. `previous` is what it held, so the summary is enough to put a deliberate
+// customization back without digging through git.
+// A union rather than one shape with an optional field: `previous` exists exactly when the kind is
+// `replaced`, and saying so lets the summary read it without a fallback that could never render.
+type ScriptChange =
+	{ key: string; kind: 'added' } | { key: string; kind: 'replaced'; previous: unknown }
+
 interface OverlayChange {
 	file: string
 	action: OverlayAction
+	// Present only on the manifest change, and only when a managed script actually moved — a
+	// dependency-only update keeps the single-line summary it has always printed.
+	scripts?: ReadonlyArray<ScriptChange>
 }
 
 // Files app-kit seeds once, then the consumer owns. These are heavily customized
@@ -138,20 +150,53 @@ const MANAGED_COPY_ENTRIES: ReadonlyArray<SeedEntry> = [
 	{ template: LOAD_WORKFLOW, dest: LOAD_WORKFLOW },
 ]
 
-function did_apply_managed_scripts(consumer: ConsumerPackage, canonical: ManagedScripts): boolean {
-	const scripts = consumer.scripts ?? {}
-	let did_change = false
+// The manifest is a consumer's JSON, so the declared string type is a claim: `scripts.dev` can be a
+// number, null or an object. Such a value is still `replaced` — something was there and the sync
+// destroyed it, which is the whole of what #189 exists to surface — and `previous` keeps it as it
+// was found. Encoding happens once, at render time; doing it here too would print a number `0` as
+// `"0"`, indistinguishable from the string.
+function script_change(key: string, previous: unknown): ScriptChange {
+	if (previous === undefined) return { key, kind: 'added' }
+
+	return { key, kind: 'replaced', previous }
+}
+
+// A `scripts` that is not an object is refused rather than worked around. Assigning keys to an
+// array does not survive `JSON.stringify`, so the overwrite would be silently dropped while the
+// summary announced nine scripts it had rewritten — the manifest unchanged on disk and the report
+// claiming otherwise. That is worse than the malformed input itself, and it is exactly the class of
+// silent divergence #189 set out to close.
+function consumer_scripts(consumer: ConsumerPackage): Record<string, unknown> {
+	const raw: unknown = consumer.scripts
+	if (raw === undefined || raw === null) return {}
+
+	if (typeof raw !== 'object' || Array.isArray(raw)) {
+		throw new TypeError(`${MANIFEST} has a "scripts" field that is not an object`)
+	}
+
+	return raw as Record<string, unknown>
+}
+
+// Returns what moved rather than whether anything did (#189). The overwrite itself is deliberate —
+// app-kit masters these keys — but a consumer whose `dev` carried a `--host` flag or a pre-step had
+// no way to see it go: the summary said `updated: package.json` and nothing else.
+function apply_managed_scripts(
+	consumer: ConsumerPackage,
+	canonical: ManagedScripts,
+): Array<ScriptChange> {
+	const scripts = consumer_scripts(consumer)
+	const changes: Array<ScriptChange> = []
 
 	for (const key of managed_scripts.MANAGED_SCRIPT_KEYS) {
 		if (scripts[key] === canonical[key]) continue
 
+		changes.push(script_change(key, scripts[key]))
 		scripts[key] = canonical[key]
-		did_change = true
 	}
 
-	consumer.scripts = scripts
+	consumer.scripts = scripts as Record<string, string>
 
-	return did_change
+	return changes
 }
 
 // `josh-app check` spawns the FAST_CHECK_PACKAGE bin (imported from #check so the seeded
@@ -190,13 +235,17 @@ function sync_scripts(target: string, source: string): OverlayChange {
 	) as ConsumerPackage
 	const canonical = managed_scripts.pick_managed_scripts(source_package.scripts ?? {})
 
-	const did_scripts = did_apply_managed_scripts(consumer, canonical)
+	const script_changes = apply_managed_scripts(consumer, canonical)
 	const did_dependency = did_seed_fast_check(consumer, fast_check_range_of(source_package))
-	if (!did_scripts && !did_dependency) return { file: MANIFEST, action: 'skipped' }
+	if (!did_dependency && script_changes.length === 0) return { file: MANIFEST, action: 'skipped' }
 
 	writeFileSync(target_manifest, `${JSON.stringify(consumer, undefined, '\t')}\n`)
 
-	return { file: MANIFEST, action: 'updated' }
+	return {
+		file: MANIFEST,
+		action: 'updated',
+		...(script_changes.length > 0 && { scripts: script_changes }),
+	}
 }
 
 // An existing file is the consumer's: left untouched unless the entry declares a `patch`, the one
@@ -313,9 +362,33 @@ function sync_zap_baseline(target: string, source: string): OverlayChange {
 	return patch_file(target, ZAP_BASELINE_CONF, merge)
 }
 
-// Format an overlay result as an indented, auditable per-file summary.
+// Printed whole, and quoted. Truncating was tried and removed: a customization is almost always a
+// suffix, the longest managed value (`gen:pre`) runs to 178 characters, and this summary is the only
+// place the old value appears before it is gone — so any cut drops the part the reader came for.
+// Nine managed keys bound the output on their own.
+//
+// `JSON.stringify` rather than raw interpolation: a script value may legally contain a newline, and
+// `summarize` joins its rows with one. Interpolating it raw would split the row into extra lines
+// that read as top-level file entries. Quoting also makes a value with leading or trailing spaces,
+// or an empty one, visible instead of silently blank.
+function summarize_script(change: ScriptChange): string {
+	if (change.kind === 'added') return `    added script: ${change.key}`
+
+	return `    replaced script: ${change.key} (was: ${JSON.stringify(change.previous)})`
+}
+
+function summarize_change(change: OverlayChange): string {
+	const head = `  ${change.action}: ${change.file}`
+	const scripts = change.scripts ?? []
+	if (scripts.length === 0) return head
+
+	return [head, ...scripts.map((script) => summarize_script(script))].join('\n')
+}
+
+// Format an overlay result as an indented, auditable per-file summary. A manifest change lists the
+// managed scripts it rewrote underneath it (#189); every other file keeps its single line.
 function summarize(changes: ReadonlyArray<OverlayChange>): string {
-	return changes.map((change) => `  ${change.action}: ${change.file}`).join('\n')
+	return changes.map((change) => summarize_change(change)).join('\n')
 }
 
 // Idempotent, non-destructive overlay: merge app-kit's Cloudflare lifecycle scripts into
@@ -351,4 +424,4 @@ const cloudflare_sync = {
 }
 
 export { cloudflare_sync }
-export type { OverlayChange }
+export type { OverlayChange, ScriptChange }
