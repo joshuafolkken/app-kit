@@ -20,11 +20,17 @@ const DAST_GLOB_SAMPLES: ReadonlyArray<readonly [string, string]> = [
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const KIT = '@joshuafolkken/kit'
-// 1.85.0 added the `./ports` export, but `ports.load_environment_file` — the call preview-port.ts
-// makes on every resolution — only arrived in 1.86.0 (kit#820). A consumer on 1.85.0 therefore
-// resolves the subpath fine and then dies on `load_environment_file is not a function`, so the
-// floor is the later release, not the one that introduced the export.
-const PORTS_KIT_FLOOR = '>=1.86.0'
+// The floor tracks the LAST kit release josh-app took a hard dependency on, so it moves whenever a
+// new kit subpath or helper is imported. Two raised it so far:
+//
+// - 1.86.0 (kit#820): 1.85.0 added the `./ports` export, but `ports.load_environment_file` — the
+//   call preview-port.ts makes on every resolution — only arrived in 1.86.0, so a consumer on
+//   1.85.0 resolves the subpath fine and then dies on `load_environment_file is not a function`.
+// - 1.98.0 (kit#844, app-kit#192): sync.ts imports `@joshuafolkken/kit/managed-marker` to stamp the
+//   workflows app-kit byte-copies. That subpath does not exist earlier, and the import is at module
+//   scope, so on a lower kit EVERY josh-app command — not just `sync` — dies at load with
+//   ERR_PACKAGE_PATH_NOT_EXPORTED.
+const KIT_PEER_FLOOR = '>=1.98.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
@@ -95,15 +101,15 @@ describe('SvelteKit config preset exports', () => {
 		expect(peer_dependencies[KIT]).toBeDefined()
 	})
 
-	// #177: the bundle is built with `--packages=external`, so `@joshuafolkken/kit/ports` — which
-	// josh-app imports to resolve the preview port, and which the distributed `preview` and `dev`
-	// scripts reach through `josh port` — is resolved in the CONSUMER's node_modules at run time. A
-	// lower floor lets a consumer install a kit whose ports module is missing the piece josh-app
-	// calls, so the failure lands at scan time instead of at install time (#181).
-	it('floors the kit peer at the release providing every port helper josh-app calls', () => {
+	// #177: the bundle is built with `--packages=external`, so every `@joshuafolkken/kit/*` specifier
+	// josh-app imports is resolved in the CONSUMER's node_modules at run time — the ports module the
+	// preview port comes from, and the marker module sync.ts stamps with. A lower floor lets a
+	// consumer install a kit that is missing one of them, so the failure lands when they run a
+	// command instead of at install time (#181).
+	it('floors the kit peer at the release providing every kit module josh-app imports', () => {
 		const { peerDependencies: peer_dependencies } = load_manifest()
 
-		expect(peer_dependencies[KIT]).toBe(PORTS_KIT_FLOOR)
+		expect(peer_dependencies[KIT]).toBe(KIT_PEER_FLOOR)
 	})
 })
 

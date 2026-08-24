@@ -68,6 +68,18 @@ function action_for(file: string): string | undefined {
 	return changes.find((change) => change.file === file)?.action
 }
 
+// What a consumer's copy of an app-kit-managed workflow must be: whatever `managed_copy_content`
+// decides for that destination (#192). Asking the seam rather than re-deriving the stamp here is
+// what keeps this assertion about apply_overlay's routing; the stamp's own content is pinned
+// against app-kit's real package name in workflow-stamp.test.ts.
+function distributed(file: string): string {
+	return cloudflare_sync.managed_copy_content(
+		{ template: file, dest: file },
+		fixture_path(file),
+		SOURCE_DIR,
+	)
+}
+
 beforeEach(() => {
 	state.directory = mkdtempSync(path.join(tmpdir(), 'app-kit-dast-'))
 	const manifest = { name: FIXTURE_NAME, scripts: {} }
@@ -82,7 +94,7 @@ afterEach(() => {
 describe('DAST workflow distribution', () => {
 	it('creates the workflow, including its directory, in a project that has none', () => {
 		expect(action_for(DAST_WORKFLOW)).toBe('created')
-		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_WORKFLOW, ENCODING))
+		expect(read_fixture(DAST_WORKFLOW)).toBe(distributed(DAST_WORKFLOW))
 	})
 
 	it('overwrites a drifted workflow so mechanics fixes reach consumers', () => {
@@ -90,13 +102,18 @@ describe('DAST workflow distribution', () => {
 		writeFileSync(fixture_path(DAST_WORKFLOW), EDITED_LOCALLY)
 
 		expect(action_for(DAST_WORKFLOW)).toBe('updated')
-		expect(read_fixture(DAST_WORKFLOW)).toBe(readFileSync(DAST_WORKFLOW, ENCODING))
+		expect(read_fixture(DAST_WORKFLOW)).toBe(distributed(DAST_WORKFLOW))
 	})
 
+	// #192 gave this a second job. The overlay now compares the STAMPED content against disk; had it
+	// kept comparing the raw template, every sync would rewrite the file and — kit's helper refusing
+	// to stamp an already-stamped one — report `updated` forever.
 	it('reports an already-current workflow as skipped rather than a phantom update', () => {
 		cloudflare_sync.apply_overlay(state.directory, SOURCE_DIR)
+		const after_first = read_fixture(DAST_WORKFLOW)
 
 		expect(action_for(DAST_WORKFLOW)).toBe('skipped')
+		expect(read_fixture(DAST_WORKFLOW)).toBe(after_first)
 	})
 
 	it('never writes ci.yml, which kit single-sources', () => {
@@ -125,7 +142,7 @@ describe('DAST workflow distribution', () => {
 describe('Load-test workflow distribution', () => {
 	it('creates load.yml, including its directory, in a project that has none', () => {
 		expect(action_for(LOAD_WORKFLOW)).toBe('created')
-		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_WORKFLOW, ENCODING))
+		expect(read_fixture(LOAD_WORKFLOW)).toBe(distributed(LOAD_WORKFLOW))
 	})
 
 	it('overwrites a drifted load.yml so mechanics fixes reach consumers', () => {
@@ -133,7 +150,7 @@ describe('Load-test workflow distribution', () => {
 		writeFileSync(fixture_path(LOAD_WORKFLOW), EDITED_LOCALLY)
 
 		expect(action_for(LOAD_WORKFLOW)).toBe('updated')
-		expect(read_fixture(LOAD_WORKFLOW)).toBe(readFileSync(LOAD_WORKFLOW, ENCODING))
+		expect(read_fixture(LOAD_WORKFLOW)).toBe(distributed(LOAD_WORKFLOW))
 	})
 
 	it('reports an already-current load.yml as skipped, not a phantom update', () => {
