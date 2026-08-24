@@ -1,0 +1,259 @@
+# josh-managed-workflow: @joshuafolkken/kit
+# Overwritten on every sync of that package. Edit it there, not here.
+name: Dependabot auto-merge
+
+on: pull_request
+
+# One run per pull request, and a superseded one is cancelled rather than left to finish. Both halves
+# of this workflow decide from the pull request as it stands — which files the diff touches, and who
+# pushed — while `gh pr merge --auto` is state that outlives the run that set it. A run that has been
+# overtaken is therefore deciding about a diff that no longer exists: it can arm auto-merge after a
+# newer run already withdrew it, on a diff that newer run found upstream-managed, and nothing runs
+# afterwards to undo that (joshuafolkken/kit#842). `github.ref` is the pull request's own merge ref,
+# so the group is per pull request and one bump never waits on another's run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # Gated on who opened the pull request, not on who triggered this run. `github.actor` names the
+  # latter, so a push by anyone other than Dependabot — a maintainer rebasing the branch by hand, or
+  # amending the bump — skipped the whole job. That mattered once the job acquired something to undo:
+  # `gh pr merge --auto` is state on the pull request, so a run that never happens cannot withdraw an
+  # auto-merge an earlier run armed, and the bump merges itself the moment the checks go green
+  # (joshuafolkken/kit#838). The author is the stable fact about a Dependabot pull request; arming is
+  # what stays restricted to Dependabot's own events, on the step below.
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      # Whether the pull request touches a workflow some upstream package overwrites. Decided from
+      # the changed files because Dependabot's metadata cannot answer it: for the github-actions
+      # ecosystem it reports one `directory` for the whole repository and never names the workflow
+      # file it bumped.
+      #
+      # The answer is read off each file rather than looked up in a list of paths. A list can only
+      # describe what the package holding the list distributes, and this repository may receive
+      # workflows from more than one: kit writes `ci.yml`, and a package built on kit writes its own
+      # alongside it. Neither knows the other's set, and whichever `sync` ran last would decide a
+      # shared list — so the list drifts from the files it claims to describe and the merge/revert
+      # loop joshuafolkken/kit#836 closed reopens one tier down (joshuafolkken/kit#844). A stamp
+      # written by the package that overwrites the file cannot drift from it, and composes across any
+      # number of distribution tiers without the distributors having to agree on anything.
+      #
+      # It runs first because the decision below reads its output, and for no other reason. It used to
+      # run before the metadata step so that the withdrawal was reached even when that action failed
+      # the job (joshuafolkken/kit#838); containing that failure removed the constraint, so what order
+      # remains is data dependency alone (joshuafolkken/kit#845).
+      #
+      # Everything comes from the API, so no checkout is needed. `--paginate` is what makes the file
+      # list complete rather than the first page of a large diff, and the `select` narrows it to
+      # workflows inside `--jq` rather than through `grep`: the default shell is `bash -e` without
+      # `pipefail`, so a `gh` failure inside a pipeline would be masked by grep's status, and grep
+      # itself answers 1 for "no match" and 2 for "I could not look" — two readings this step must
+      # not conflate, since one of them means "merge it" (joshuafolkken/kit#844). An assignment
+      # carries the command's status, and `case` has no failure mode at all.
+      #
+      # Each file is read through the `contents_url` the same response supplies, rather than a URL
+      # built from the path here. GitHub has already encoded it, and it already points at this pull
+      # request's head — a path composed by hand would break on the first workflow whose name
+      # contains a space or a `#`, and every read failing means every bump is held back for good.
+      #
+      # The stamp is matched at the start of the file, not anywhere in it, because this workflow
+      # declares the token in its own `env` in order to match on it — a substring test would call
+      # every copy of this file managed for the wrong reason, and would say nothing about files that
+      # merely mention it.
+      #
+      # A file that cannot be read fails the step rather than answering. That covers a deletion, a
+      # rate-limited API, a network failure and a response that carried no URL to read alike: none of
+      # them is evidence that the consumer owns the file. Failing lands on the same safe side as
+      # answering "managed" would — the step publishes no output, and the reconciling step below reads
+      # that as this run having no entitlement to arm — and it lands there visibly. Answering
+      # instead would withdraw a previously armed auto-merge on a green job, with nothing to look at
+      # and no retry until the next push; this call runs once per changed workflow, so the case is not
+      # rare enough to leave silent.
+      #
+      # `gh`'s own stderr reaches the job log rather than being discarded, because the causes are not
+      # equally interesting and the step cannot tell them apart: a deletion is routine, a 403 means
+      # every bump in this repository is being held back for a reason someone has to fix.
+      # Only stdout is captured, so the message cannot be mistaken for file content.
+      - name: Check whether the pull request touches an upstream-managed workflow
+        id: managed
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          MANAGED_MARKER: '# josh-managed-workflow:'
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          changed="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --paginate \
+            --jq '.[] | select(.filename | startswith(".github/workflows/"))
+                      | [.filename, .contents_url] | @tsv')"
+
+          has_managed=false
+
+          while IFS="$(printf '\t')" read -r file url; do
+            [ -n "$file$url" ] || continue
+
+            if [ -n "$url" ] &&
+              content="$(gh api "$url" -H 'Accept: application/vnd.github.raw')"; then
+              case "$content" in
+                "$MANAGED_MARKER"*)
+                  echo "$file is written by an upstream package — holding this bump back."
+                  has_managed=true
+                  break
+                  ;;
+              esac
+            else
+              echo "$file could not be read — refusing to decide." >&2
+              exit 1
+            fi
+          done <<<"$changed"
+
+          echo "has-upstream-managed=$has_managed" >>"$GITHUB_OUTPUT"
+
+      # `dependabot/fetch-metadata` is the one part of the decision that cannot be an expression: the
+      # ecosystem and the semver level come from an action, not from a context. It carries no gate at
+      # all any more, and `continue-on-error` is what makes that safe. The action fails outright when
+      # the branch's first commit is not Dependabot's — a maintainer who amended or rebased the bump —
+      # and a failed step used to take every step after it with it, which is why the withdrawal had to
+      # be placed before it and why it had to repeat the arming gate to avoid running at all
+      # (joshuafolkken/kit#838). Neither is needed once the failure is contained: the step publishes no
+      # outputs, the decision below reads them as empty, and an empty ecosystem cannot equal
+      # `github_actions`, so the run declines to arm — reached by the ordinary path rather than by a
+      # special case. It declines to arm rather than reconciling to "not armed": these outputs are
+      # absent from the entitlement half below, so an arm an earlier run made is left in place. See
+      # the reconciling step for why the two halves name different inputs (joshuafolkken/kit#845).
+      - name: Fetch Dependabot metadata
+        id: metadata
+        continue-on-error: true
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+
+      # `gh pr merge --auto` is state that outlives the run that set it, and for four rounds this
+      # workflow managed that state with two steps whose conditions had to be exact complements of
+      # each other: one that armed, one that withdrew. Nothing enforced the complement — #840 made it
+      # hold by writing one as the literal negation of the other, which is a convention, not a
+      # structure. Every fix since #836 has been the same shape: a new axis, added to N conditions.
+      #
+      # So there is one step that changes the state now, and it takes both directions from what is
+      # declared below rather than from a gate of its own (joshuafolkken/kit#845).
+      #
+      # There are two declarations rather than one because there are genuinely two questions, and the
+      # old design's mistake was conflating them into a complement:
+      #
+      #   MAY_ARM          — is this *run* entitled to decide? Facts about the run: who pushed, and
+      #                      whether the diff holds a workflow an upstream package overwrites.
+      #   SHOULD_BE_ARMED  — does this *bump* qualify? MAY_ARM plus the ecosystem and the semver
+      #                      level, which are facts about the bump and do not change over a pull
+      #                      request's life.
+      #
+      # The second contains the first verbatim, and a kit unit test holds that containment — so they
+      # cannot drift into disagreeing the way two complements could.
+      #
+      # The distinction is what the withdrawal keys on, and it is load-bearing. On a run that is still
+      # entitled, a bump that simply does not qualify — an npm security advisory, a github-actions
+      # major — is left exactly as it is: if a maintainer read it and enabled auto-merge by hand, that
+      # is their decision and this workflow has no business undoing it. Withdrawing there would strand
+      # the pull request green, mergeable and unmerged, which is the state joshuafolkken/kit#834
+      # exists to prevent.
+      #
+      # What is withdrawn is an arm the *run* is not entitled to: a diff that grew an upstream-managed
+      # workflow (joshuafolkken/kit#838), a push by someone other than Dependabot, or an input that
+      # could not answer (joshuafolkken/kit#840). Those take back a hand-armed auto-merge too, and
+      # deliberately — a push nobody reviewed as part of the bump is exactly the case #840 closed, and
+      # who armed it earlier does not make the new commits reviewed. So a human is overridden when
+      # merging would be harmful, and only then; falling outside this workflow's policy is not.
+      #
+      # Both stay expressions rather than shell on purpose. Written here, GitHub's own engine
+      # evaluates them, and kit's tests evaluate the very same strings with that engine — a matrix
+      # over actor, managed, ecosystem and semver level proves which updates can reach the arming
+      # call. Moved into the script below they would still work, and every guard on them would decay
+      # from an evaluation into a substring match.
+      #
+      # A missing input makes the chains that name it false, and the two chains name different ones,
+      # which is the point rather than an oversight. A `managed` step that could not answer costs the
+      # run its entitlement, so an arm it finds is taken back. A metadata action that could not answer
+      # costs only qualification: the bump is not armed *now*, and an arm an earlier run made is left
+      # alone, because that run did verify the ecosystem and the semver level and neither changes over
+      # a pull request's life. Withdrawing there would strip a good arm every time the action has a
+      # bad day. So the safe side is per question, not per input — "do not arm on what I cannot
+      # verify", and "take back what this run is not entitled to".
+      #
+      # The two failures also announce themselves differently, which is why only one of them fails a
+      # step. A `managed` step that guessed would let an unreviewed bump merge, and nothing would say
+      # so — it has to be loud. A metadata action that cannot answer makes bumps stop merging, which
+      # announces itself by the pile of open pull requests; the log below names it as well, so a
+      # broken action is not mistaken for a queue of bumps that merely do not qualify.
+      #
+      # `!cancelled()` is what reaches this step after `managed` fails; a cancelled run is left alone
+      # because it changed nothing about the pull request and so has nothing to reconcile, and because
+      # the run that superseded it will decide from the current state anyway (joshuafolkken/kit#840).
+      #
+      # The two directions are not equally dangerous, and #846 will build on that. Failing to arm
+      # leaves the bump open for a human — an inconvenience. Failing to withdraw leaves an auto-merge
+      # armed on a diff nobody re-approved, and this workflow is not a required check, so a red run
+      # does not hold the merge back. That is why only the arming call carries `--match-head-commit`:
+      # it makes GitHub refuse the arm if the branch moved since this run decided (the mutation's
+      # `expectedHeadOid`), closing the window the concurrency group above only narrows
+      # (joshuafolkken/kit#842). Withdrawing from a stale view costs at most an auto-merge the next
+      # run re-arms, so it needs no such guard.
+      #
+      # The armed state is read before either branch because `--disable-auto` is an error, not a
+      # no-op, on a pull request that has none — and `--auto` on one already armed is a needless
+      # write. `autoMergeRequest` is null exactly when nothing is armed.
+      - name: Reconcile the pull request's auto-merge state
+        id: reconcile
+        if: '!cancelled()'
+        env:
+          MAY_ARM: >-
+            ${{ github.actor == 'dependabot[bot]'
+            && steps.managed.outputs.has-upstream-managed == 'false' }}
+          # Not part of either decision — it only lets the log below say which of the two reasons kept
+          # this run from arming. A metadata action that is broken rather than merely unsatisfied
+          # otherwise looks exactly like an npm advisory, and nothing else in the run says so.
+          METADATA_ANSWERED: >-
+            ${{ steps.metadata.outputs.package-ecosystem != '' }}
+          SHOULD_BE_ARMED: >-
+            ${{ github.actor == 'dependabot[bot]'
+            && steps.managed.outputs.has-upstream-managed == 'false'
+            && steps.metadata.outputs.package-ecosystem == 'github_actions'
+            && (steps.metadata.outputs.update-type == 'version-update:semver-patch'
+            || steps.metadata.outputs.update-type == 'version-update:semver-minor') }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          armed="$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')"
+
+          if [ "$SHOULD_BE_ARMED" = 'true' ]; then
+            if [ "$armed" = 'true' ]; then
+              echo 'Auto-merge is already enabled — nothing to do.'
+              exit 0
+            fi
+
+            gh pr merge --auto --merge --match-head-commit "$HEAD_SHA" "$PR_URL"
+            exit 0
+          fi
+
+          if [ "$MAY_ARM" = 'true' ]; then
+            if [ "$METADATA_ANSWERED" = 'true' ]; then
+              echo 'This bump does not qualify for auto-merge — leaving the pull request as it is.'
+            else
+              echo 'The metadata step did not answer, so nothing about this bump could be verified.' >&2
+              echo 'Leaving the pull request as it is. Bumps will not arm until that step works.' >&2
+            fi
+
+            exit 0
+          fi
+
+          if [ "$armed" != 'true' ]; then
+            echo 'Auto-merge is not enabled — nothing to withdraw.'
+            exit 0
+          fi
+
+          gh pr merge --disable-auto "$PR_URL"
