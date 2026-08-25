@@ -23,6 +23,11 @@ const PNPM_EXEC_PATH_VARIABLE = 'npm_execpath'
 const PNPM_PATH_COMMAND = 'pnpm'
 const JS_ENTRY_PATTERN = /\.[cm]?js$/u
 
+// The one production build every runtime command runs before it boots a preview — `dast`, `load`,
+// `verify` and `shot` each need the app compiled first, and each carried its own copy of this argv
+// until it was single-sourced here (app-kit#200).
+const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
+
 const SUCCESS_STATUS = 0
 // A spawn that dies without a status (e.g. killed by a signal) still has to fail the command.
 const SIGNAL_FAILURE_STATUS = 1
@@ -124,7 +129,14 @@ function to_exit_status(outcome: SpawnOutcome): number {
 	return outcome.status ?? SIGNAL_FAILURE_STATUS
 }
 
+// The build step as `verify` and `shot` run it: the default runner, straight to an exit status.
+// `dast` and `load` inject their own pnpm runner instead, so they pass BUILD_ARGV to that.
+function run_build(cwd: string): number {
+	return to_exit_status(run_pnpm(BUILD_ARGV, cwd))
+}
+
 const process_runner = {
+	BUILD_ARGV,
 	SUCCESS_STATUS,
 	resolve_pnpm_invocation,
 	current_pnpm_invocation,
@@ -133,6 +145,7 @@ const process_runner = {
 	run_command_async,
 	run_pnpm,
 	run_pnpm_with_environment,
+	run_build,
 	to_exit_status,
 }
 
