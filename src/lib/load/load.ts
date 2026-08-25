@@ -15,8 +15,6 @@ import { k6 } from './k6.js'
 // playwright.config.ts, the DAST scan and the distributed `preview` script derive (app-kit#177).
 // The preview boot/teardown is preview_server (single-sourced with dast/verify), not re-derived.
 
-const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
-
 // The default scenario `josh-app sync` seeds and `josh-app load` runs when given no argument. A
 // path relative to the project root, so the same default resolves in app-kit and every consumer.
 // `josh-app load <path>` overrides it with any scenario of yours.
@@ -116,7 +114,7 @@ async function run_load(
 	// PORT_SEED throws, and discovering that after a full build wastes the whole build.
 	const port = preview_port.resolve(cwd)
 
-	const build_status = process_runner.to_exit_status(deps.pnpm(BUILD_ARGV, cwd))
+	const build_status = process_runner.to_exit_status(deps.pnpm(process_runner.BUILD_ARGV, cwd))
 	if (build_status !== SUCCESS) return build_status
 
 	const server = await deps.start_preview(cwd, port)

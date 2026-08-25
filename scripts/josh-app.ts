@@ -7,6 +7,7 @@ import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
 import { app_load } from '#load/load.js'
 import { EnvironmentError } from '#process/environment-error.js'
+import { app_shot } from '#shot/shot.js'
 import { app_verify } from '#verify/verify.js'
 import { app_version } from '#version/version.js'
 
@@ -29,7 +30,7 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
 const USAGE_MESSAGE =
-	'Usage: josh-app <init|sync|check|check:ci|dast|load|load:stress|verify|version|v|version:upgrade|vu>'
+	'Usage: josh-app <init|sync|check|check:ci|dast|load|load:stress|shot|verify|version|v|version:upgrade|vu>'
 
 const EXIT_USAGE = 1
 // A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
@@ -38,7 +39,8 @@ const EXIT_ENVIRONMENT = 1
 
 // process.argv[0] is node, [1] is this script, [2] is the first user argument.
 const COMMAND_ARG_INDEX = 2
-// verify receives the pushed file list (lefthook `{push_files}`) as its remaining arguments.
+// verify receives the pushed file list (lefthook `{push_files}`) as its remaining arguments, and
+// `shot` its route list; both start at the same position.
 const FILE_ARGS_START_INDEX = 3
 
 // Orchestrate kit's framework-agnostic base (`josh init`) first, then apply the app-kit overlay —
@@ -131,6 +133,24 @@ async function run_load_stress(): Promise<void> {
 	await execute_load(app_load.STRESS_SCENARIO_FILE)
 }
 
+// Build once, boot the preview once, screenshot every requested route against that single server,
+// tear it down. The mechanism behind the completion gate's "look at the rendered result" rule
+// (app-kit#200): `josh-app shot / /blog` writes PNGs an agent can read back from a fixed directory.
+// A usage error (no routes, a relative route) is reported as one — routes.ts raises it before any
+// build starts, so there is nothing to tear down.
+async function run_shot(): Promise<void> {
+	const argv = process.argv.slice(FILE_ARGS_START_INDEX)
+
+	try {
+		const result = await app_shot.run_shot(process.cwd(), argv)
+
+		console.info(app_shot.describe_result(result.outcomes))
+		exit_on_failure(result.status)
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
 // Unified pre-push runtime gate: build once, boot the preview once, run E2E and (only when a
 // header/cookie-affecting file changed) the ZAP scan against that single server, tear it down.
 // The pushed file list arrives as the trailing arguments (lefthook `{push_files}`).
@@ -158,6 +178,7 @@ const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['dast', run_dast],
 	['load', run_load],
 	['load:stress', run_load_stress],
+	['shot', run_shot],
 	['verify', run_verify],
 	[VERSION, run_version],
 	[VERSION_UPGRADE, run_version_upgrade],

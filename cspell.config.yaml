@@ -14,6 +14,11 @@ words:
   # the identifier the surrounding code already calls a pid (#175).
   - pgid
   - pids
+  # Plurals of two terms cspell knows only in the singular, both from the `shot` command (#200):
+  # the preflight checks each runtime command runs before building, and the browser viewports a
+  # screenshot run opens pages at.
+  - preflights
+  - viewports
   # Cloudflare's local Workers runtime and SvelteKit's prerender flag, both appearing inside
   # patches/@sveltejs__adapter-cloudflare@7.2.9.patch — a vendored diff of upstream code, so the
   # spelling is not ours to change. Both entries can go when that patch is removed (#149).
