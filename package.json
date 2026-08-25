@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.85.0",
+	"version": "0.86.0",
 	"private": false,
 	"packageManager": "pnpm@11.23.0+sha512.f00082e5b283a199b74e079da28d155c008fe232f44c8a06ea7ddfa014ecf719fc362f790ecc67b28106ddac2afb24c49a9a079159da560b2ce7d1e98efd11af",
 	"publishConfig": {
@@ -27,6 +27,7 @@
 		"!dist/dast/**",
 		"!dist/lint-guards/**",
 		"!dist/process/**",
+		"!dist/shot/**",
 		"!dist/verify/**"
 	],
 	"exports": {
@@ -70,6 +71,7 @@
 		"#dast/*": "./src/lib/dast/*",
 		"#load/*": "./src/lib/load/*",
 		"#process/*": "./src/lib/process/*",
+		"#shot/*": "./src/lib/shot/*",
 		"#verify/*": "./src/lib/verify/*",
 		"#version/*": "./src/lib/version/*"
 	},
@@ -99,7 +101,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.100.0",
+		"@joshuafolkken/kit": "^1.102.0",
 		"@playwright/test": "^1.62.1",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
 		"@size-limit/file": "^13.0.3",

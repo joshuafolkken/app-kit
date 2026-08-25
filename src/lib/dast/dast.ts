@@ -15,8 +15,6 @@ import { zap } from './zap.js'
 // The preview port is resolved through preview_port, kit's single definition — the same number
 // playwright.config.ts and the distributed `preview` script derive (app-kit#177).
 
-const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
-
 // A missing Docker daemon fails loudly instead of skipping: a security check that silently
 // no-ops is worse than one that is absent, because the green result is misread as coverage
 // (the precedent set in joshuafolkken/kit#670).
@@ -163,7 +161,7 @@ async function run_dast(
 	// PORT_SEED throws, and discovering that after a full build wastes the whole build.
 	const port = preview_port.resolve(cwd)
 
-	const build_status = process_runner.to_exit_status(deps.pnpm(BUILD_ARGV, cwd))
+	const build_status = process_runner.to_exit_status(deps.pnpm(process_runner.BUILD_ARGV, cwd))
 	if (build_status !== process_runner.SUCCESS_STATUS) return build_status
 
 	const server = await deps.start_preview(cwd, port)
@@ -176,7 +174,6 @@ async function run_dast(
 }
 
 const app_dast = {
-	BUILD_ARGV,
 	DOCKER_UNAVAILABLE_MESSAGE,
 	describe_result,
 	preflight_docker,

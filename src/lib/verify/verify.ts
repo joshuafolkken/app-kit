@@ -16,8 +16,6 @@ import { process_runner } from '#process/runner.js'
 // agreement is load-bearing here: the E2E step runs with PLAYWRIGHT_REUSE_SERVER=1, so Playwright
 // adopts the server booted below instead of booting its own, and it finds it only by that port.
 
-const BUILD_ARGV: ReadonlyArray<string> = ['run', 'build']
-
 // Delegate E2E to kit's guarded runner (`josh test:e2e` → skips cleanly when Playwright or the
 // e2e suite is absent) rather than reimplementing the guard. The env makes Playwright reuse the
 // server this command already booted: PLAYWRIGHT_REUSE_SERVER=1 flips reuseExistingServer on in
@@ -68,10 +66,6 @@ interface VerifyDependencies {
 	scan: (cwd: string, port: number) => Promise<number>
 }
 
-function default_build(cwd: string): number {
-	return process_runner.to_exit_status(process_runner.run_pnpm(BUILD_ARGV, cwd))
-}
-
 function default_run_e2e(cwd: string): number {
 	return process_runner.to_exit_status(
 		process_runner.run_pnpm_with_environment(E2E_ARGV, cwd, E2E_ENV),
@@ -80,7 +74,7 @@ function default_run_e2e(cwd: string): number {
 
 const DEFAULT_DEPENDENCIES: VerifyDependencies = {
 	preflight_docker: app_dast.preflight_docker,
-	build: default_build,
+	build: process_runner.run_build,
 	start_preview: preview_server.start_preview,
 	run_e2e: default_run_e2e,
 	scan: app_dast.scan_running_server,
@@ -145,7 +139,6 @@ async function run_verify(
 }
 
 const app_verify = {
-	BUILD_ARGV,
 	E2E_ARGV,
 	E2E_ENV,
 	is_dast_relevant,
