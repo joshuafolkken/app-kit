@@ -66,3 +66,8 @@ e2e/.auth/chrome-profile/
 .claude/scheduled_tasks.lock
 
 .pnpm-store
+.eslintcache.edit
+.eslintcache.related
+.tsbuildinfo
+.cspellcache
+.time-history.jsonl

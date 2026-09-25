@@ -37,8 +37,8 @@ interface PreviewDependencies {
 //   - a process can hold the socket while answering no HTTP (an orphaned workerd mid-teardown), and
 //     the pre-check waves it through; port_owner.is_port_free asks the kernel instead,
 //   - and nothing re-examines the port once booting starts, so a process that claims loopback during
-//     the boot inherits every later probe; port_owner.check_ownership compares the listener's process
-//     group against the one we spawned.
+//     the boot inherits every later probe; port_owner.check_ownership traces the listener back to
+//     our spawn, including when pnpm moves its script into a different process group.
 //
 // 'unverified' is the third answer and deliberately not an error: without `lsof` the run still has
 // the guarantee the pre-spawn checks gave it, and only the mid-boot takeover goes unnoticed.

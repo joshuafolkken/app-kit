@@ -58,8 +58,10 @@ async function is_port_free(port: number): Promise<boolean> {
 // separately is what lets the caller decide, rather than having this module silently pick either
 // "trust it" or "fail the run" on its behalf.
 type Ownership = 'owned' | 'foreign' | 'unknown'
+type CommandReader = (command: string, argv: ReadonlyArray<string>) => string | undefined
 
 const LSOF_COMMAND = 'lsof'
+const MAX_ANCESTOR_DEPTH = 32
 
 // `-t` prints bare PIDs and nothing else, which is the whole parse. Everything before it is shared
 // with the hint printed to the user, and shared as CODE rather than as a matching pair of strings:
@@ -107,26 +109,49 @@ function to_ps_selector(pid: number): ReadonlyArray<string> {
 	return ['-p', String(pid)]
 }
 
-function read_group_ids(pids: ReadonlyArray<number>): ReadonlyArray<number> {
+function read_group_ids(pids: ReadonlyArray<number>, read: CommandReader): ReadonlyArray<number> {
 	const selectors = pids.flatMap((pid: number) => to_ps_selector(pid))
-	const output = read_command('ps', ['-o', 'pgid=', ...selectors])
+	const output = read('ps', ['-o', 'pgid=', ...selectors])
 	if (output === undefined) return []
 
 	return parse_ids(output)
 }
 
-// The listener is rarely the process we spawned: `wrangler dev` runs its own `workerd` child, and it
-// is that child holding the socket. Comparing process GROUPS rather than PIDs is what makes the
-// descendant count as ours — the same reason teardown signals the group (`-pid`) instead of the
-// child.
-function resolve_listener_group_ids(port: number): ReadonlyArray<number> {
-	const listeners = read_command(LSOF_COMMAND, build_lsof_argv(port))
+// The listener is usually a workerd descendant. pnpm may put its script in another process group,
+// so the original group comparison alone no longer proves that descendant belongs to our spawn.
+function resolve_listener_pids(port: number, read: CommandReader): ReadonlyArray<number> {
+	const listeners = read(LSOF_COMMAND, build_lsof_argv(port))
 	if (listeners === undefined) return []
 
-	const pids = parse_ids(listeners)
-	if (pids.length === 0) return []
+	return parse_ids(listeners)
+}
 
-	return read_group_ids(pids)
+function read_parent_id(pid: number, read: CommandReader): number | undefined {
+	const output = read('ps', ['-o', 'ppid=', '-p', String(pid)])
+	if (output === undefined) return undefined
+
+	return parse_ids(output)[0]
+}
+
+function is_descendant(pid: number, ancestor: number, read: CommandReader): boolean {
+	let current = pid
+
+	for (let depth = 0; depth < MAX_ANCESTOR_DEPTH && current > 0; depth += 1) {
+		if (current === ancestor) return true
+		current = read_parent_id(current, read) ?? 0
+	}
+
+	return false
+}
+
+function has_descendant(
+	pids: ReadonlyArray<number>,
+	ancestor: number,
+	read: CommandReader,
+): boolean {
+	for (const pid of pids) if (is_descendant(pid, ancestor, read)) return true
+
+	return false
 }
 
 // Kept separate from the lookup so the decision can be exercised without a live socket: an empty
@@ -138,8 +163,18 @@ function decide_ownership(group_ids: ReadonlyArray<number>, group_id: number): O
 	return group_ids.includes(group_id) ? 'owned' : 'foreign'
 }
 
-function check_ownership(port: number, group_id: number): Ownership {
-	return decide_ownership(resolve_listener_group_ids(port), group_id)
+function check_ownership(
+	port: number,
+	group_id: number,
+	read: CommandReader = read_command,
+): Ownership {
+	const pids = resolve_listener_pids(port, read)
+	if (pids.length === 0) return 'unknown'
+
+	const group_ownership = decide_ownership(read_group_ids(pids, read), group_id)
+	if (group_ownership === 'owned') return 'owned'
+
+	return has_descendant(pids, group_id, read) ? 'owned' : group_ownership
 }
 
 // Names the port and how to find its owner: the whole failure is "something else is on 4173", and a

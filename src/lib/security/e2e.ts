@@ -219,6 +219,8 @@ async function is_development_server(
 /** Give the page a bounded window to finish loading; a polling widget may never reach idle. */
 async function settle(page: SettlePage, timeout_ms: number = SETTLE_TIMEOUT_MS): Promise<void> {
 	try {
+		// This wait is bounded and a timeout is handled below so polling cannot hang the check.
+		// eslint-disable-next-line sonarjs/no-networkidle-wait
 		await page.waitForLoadState('networkidle', { timeout: timeout_ms })
 	} catch {
 		// Still busy after the window — report on whatever has arrived by now.

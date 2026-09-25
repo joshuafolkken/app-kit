@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { KIT_PACKAGE_NAME, type UpstreamHookContext } from '@joshuafolkken/kit/version'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +16,8 @@ const CONTEXT: UpstreamHookContext = {
 	latest: STUB_LATEST,
 	upstream_latest: STUB_UPSTREAM_LATEST,
 }
-const KIT_MANIFEST = `${process.cwd()}/node_modules/@joshuafolkken/kit/package.json`
+const NODE_MODULES = 'node_modules'
+const KIT_MANIFEST = `${process.cwd()}/${NODE_MODULES}/${KIT_PACKAGE_NAME}/package.json`
 
 // Read the emitted global upgrade hint, failing loudly when the hook is missing — the assertions
 // below are about the command's shape, so an absent hook must not silently pass as "not contains".
@@ -40,8 +42,24 @@ describe('app version commands', () => {
 		const config = app_version.build_config(SELF_DIR)
 
 		// kit >=1.4.0 always targets its own shipped script — app-kit publishes no scripts/, so a
-		// package-name-derived path would point at a file that does not exist (kit#622 / kit#637)
-		expect(config.fix_gh_packages_path).toContain('@joshuafolkken/kit/scripts/fix-gh-packages')
+		// package-name-derived path would point at a file that does not exist (kit#622 / kit#637).
+		// Pinned as "kit's own copy, and the file is really there" rather than kit's directory
+		// layout: the script moved into scripts/gh/ in kit 1.767.0, which broke a spelled-out layout
+		// while the property that literal stood for still held. Existence is the regression itself —
+		// an ERR_MODULE_NOT_FOUND path is what kit#622 shipped — so it is the honest assertion.
+		const resolved = path.join(process.cwd(), config.fix_gh_packages_path)
+
+		expect(config.fix_gh_packages_path).toContain(`${NODE_MODULES}/${KIT_PACKAGE_NAME}/`)
+		expect(existsSync(resolved)).toBe(true)
+	})
+
+	it('runs the shipped kit repair script during prepare', () => {
+		const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as {
+			scripts: Record<string, string>
+		}
+		const config = app_version.build_config(SELF_DIR)
+
+		expect(manifest.scripts['prepare:gh-packages']).toContain(config.fix_gh_packages_path)
 	})
 
 	it('includes the kit upstream in the version chain', () => {
