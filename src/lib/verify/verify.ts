@@ -1,15 +1,18 @@
 import path from 'node:path'
 import { app_dast } from '#dast/dast.js'
 import { preview_port } from '#dast/preview-port.js'
+import { preview_release } from '#dast/preview-release.js'
 import { preview_server, type PreviewHandle } from '#dast/preview.js'
 import { process_runner } from '#process/runner.js'
+import { e2e_retry } from './e2e-retry.js'
 
-// `josh-app verify`: the unified pre-push runtime gate. It builds ONCE, boots the preview server
-// ONCE, then runs the E2E suite and the ZAP baseline scan against that single running server, and
-// tears it down — including on failure. Before this, the pre-push `test-e2e` and `dast` commands
+// `josh-app verify`: the unified pre-push runtime gate. It builds once, boots the preview server,
+// then runs the E2E suite and the ZAP baseline scan against that server, and tears it down —
+// including on failure. A confirmed preview crash gets one fresh server and one retry. Before
+// this, the pre-push `test-e2e` and `dast` commands
 // each built and booted their own preview (duplicate work serially, a port/build collision in
-// parallel). Here both checks are just HTTP clients against one server, so build-once and a single
-// port fall out for free. See app-kit #97.
+// parallel). Here both checks are just HTTP clients against one server at a time, so build-once
+// and a single port fall out for free. See app-kit #97.
 //
 // The preview port is resolved through preview_port, kit's single definition — the same number
 // playwright.config.ts, the scan and the distributed `preview` script derive (app-kit#177). That
@@ -65,6 +68,8 @@ interface VerifyDependencies {
 	build: (cwd: string) => number
 	start_preview: (cwd: string, port: number) => Promise<PreviewHandle>
 	run_e2e: (cwd: string) => number
+	has_crashed: (cwd: string, log_directory: string) => boolean
+	wait_for_release: (port: number) => Promise<void>
 	scan: (cwd: string, port: number) => Promise<number>
 }
 
@@ -79,6 +84,8 @@ const DEFAULT_DEPENDENCIES: VerifyDependencies = {
 	build: process_runner.run_build,
 	start_preview: preview_server.start_preview,
 	run_e2e: default_run_e2e,
+	has_crashed: e2e_retry.has_crashed,
+	wait_for_release: preview_release.wait_for_release,
 	scan: app_dast.scan_running_server,
 }
 
@@ -92,31 +99,70 @@ function aggregate_status(e2e_status: number, scan_status: number): number {
 	return scan_status
 }
 
-// Run the checks against the one booted server, then tear it down (always). When the scan runs it
+// Run the checks against one booted server, then tear it down (always). When the scan runs it
 // is FANNED OUT with E2E: `deps.scan` spawns the ZAP container asynchronously and returns before it
 // finishes, so the container runs at the OS level while the synchronous E2E step executes — the two
 // overlap against the single server (both are just HTTP clients; a ZAP baseline scan is passive).
 // This hides the scan under a slow E2E suite (#100). E2E no longer short-circuits the scan, so a
 // header regression is still reported even if a test also fails.
-async function run_against_server(
-	cwd: string,
-	port: number,
-	will_scan: boolean,
-	deps: VerifyDependencies,
-): Promise<number> {
-	const server = await deps.start_preview(cwd, port)
+interface AttemptContext {
+	cwd: string
+	port: number
+	will_scan: boolean
+	log_directory: string
+	deps: VerifyDependencies
+}
+
+interface AttemptResult {
+	status: number
+	is_crashed: boolean
+	scan_status: number
+}
+
+async function settle_scan(scan_promise: Promise<number>): Promise<number> {
+	try {
+		return await scan_promise
+	} catch {
+		// The crashed server invalidates this scan; the next attempt runs it again.
+		return process_runner.SUCCESS_STATUS
+	}
+}
+
+async function run_checks(context: AttemptContext, can_retry: boolean): Promise<AttemptResult> {
+	const { cwd, port, will_scan, log_directory, deps } = context
+	const scan_promise = will_scan
+		? deps.scan(cwd, port)
+		: Promise.resolve(process_runner.SUCCESS_STATUS)
+	const e2e_status = deps.run_e2e(cwd)
+	const is_crashed =
+		can_retry &&
+		e2e_status !== process_runner.SUCCESS_STATUS &&
+		deps.has_crashed(cwd, log_directory)
+
+	const scan_status = is_crashed ? await settle_scan(scan_promise) : await scan_promise
+
+	return { status: aggregate_status(e2e_status, scan_status), is_crashed, scan_status }
+}
+
+async function run_attempt(context: AttemptContext, can_retry: boolean): Promise<AttemptResult> {
+	const server = await context.deps.start_preview(context.cwd, context.port)
 
 	try {
-		if (!will_scan) return deps.run_e2e(cwd)
-
-		// Start the scan first (non-blocking) so its container runs during the synchronous E2E.
-		const scan_promise = deps.scan(cwd, port)
-		const e2e_status = deps.run_e2e(cwd)
-
-		return aggregate_status(e2e_status, await scan_promise)
+		return await run_checks(context, can_retry)
 	} finally {
 		server.stop()
 	}
+}
+
+async function run_against_server(context: AttemptContext): Promise<number> {
+	const first = await run_attempt(context, true)
+	if (!first.is_crashed) return first.status
+
+	process.stdout.write('E2E preview server crashed; restarting it and retrying the suite once.\n')
+	await context.deps.wait_for_release(context.port)
+	const second = await run_attempt(context, false)
+
+	return aggregate_status(second.status, first.scan_status)
 }
 
 async function run_verify(
@@ -137,7 +183,11 @@ async function run_verify(
 	const build_status = deps.build(cwd)
 	if (build_status !== process_runner.SUCCESS_STATUS) return build_status
 
-	return await run_against_server(cwd, port, will_scan, deps)
+	async function run_with_logs(log_directory: string): Promise<number> {
+		return await run_against_server({ cwd, port, will_scan, log_directory, deps })
+	}
+
+	return await e2e_retry.with_logs(run_with_logs)
 }
 
 const app_verify = {

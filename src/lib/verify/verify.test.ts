@@ -14,6 +14,7 @@ const HEADERS_FILE = '_headers'
 const CODE_FILE = 'src/lib/foo.ts'
 const SVELTE_FILE = 'src/App.svelte'
 const SCAN_CRASH = 'spawn docker EPIPE'
+const CRASH_CHECK = 'crash-check'
 
 const { BASE_PREVIEW_PORT, TEST_SEED, SEEDED_PREVIEW_PORT } = port_seed_fixture
 const seed = port_seed_fixture.isolate()
@@ -25,6 +26,8 @@ interface VerifyState {
 	boots: number
 	stops: number
 	scans: number
+	crash_checks: number
+	release_waits: number
 }
 
 interface VerifyOptions {
@@ -33,19 +36,43 @@ interface VerifyOptions {
 	scan_status?: number
 	docker_missing?: boolean
 	scan_error?: Error
+	scan_statuses?: Array<number>
+	crash_verdict?: boolean
+	e2e_statuses?: Array<number>
 }
 
-function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependencies {
+function make_stop(state: VerifyState): () => void {
 	function stop(): void {
 		state.order.push('stop')
 		state.stops += 1
 	}
 
+	return stop
+}
+
+function make_release(state: VerifyState): () => Promise<void> {
+	async function wait_for_release(): Promise<void> {
+		state.order.push('release')
+		state.release_waits += 1
+	}
+
+	return wait_for_release
+}
+
+function make_preflight(state: VerifyState, options: VerifyOptions): () => void {
+	function preflight_docker(): void {
+		state.order.push('preflight')
+		if (options.docker_missing === true) throw new EnvironmentError('no docker')
+	}
+
+	return preflight_docker
+}
+
+function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependencies {
+	const stop = make_stop(state)
+
 	return {
-		preflight_docker(): void {
-			state.order.push('preflight')
-			if (options.docker_missing === true) throw new EnvironmentError('no docker')
-		},
+		preflight_docker: make_preflight(state, options),
 		build(): number {
 			state.order.push('build')
 
@@ -61,15 +88,22 @@ function make_deps(state: VerifyState, options: VerifyOptions): VerifyDependenci
 		run_e2e(): number {
 			state.order.push('e2e')
 
-			return options.e2e_status ?? SUCCESS
+			return options.e2e_statuses?.shift() ?? options.e2e_status ?? SUCCESS
 		},
+		has_crashed(): boolean {
+			state.order.push(CRASH_CHECK)
+			state.crash_checks += 1
+
+			return options.crash_verdict ?? false
+		},
+		wait_for_release: make_release(state),
 		async scan(_cwd: string, port: number): Promise<number> {
 			state.order.push('scan')
 			state.scans += 1
 			state.scan_ports.push(port)
 			if (options.scan_error !== undefined) throw options.scan_error
 
-			return options.scan_status ?? SUCCESS
+			return options.scan_statuses?.shift() ?? options.scan_status ?? SUCCESS
 		},
 	}
 }
@@ -85,6 +119,8 @@ function make_harness(options: VerifyOptions = {}): {
 		boots: 0,
 		stops: 0,
 		scans: 0,
+		crash_checks: 0,
+		release_waits: 0,
 	}
 
 	return { state, deps: make_deps(state, options) }
@@ -193,6 +229,83 @@ describe('verify — short-circuiting & exit aggregation', () => {
 		const { deps } = make_harness()
 
 		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(SUCCESS)
+	})
+})
+
+describe('verify — preview crash retry', () => {
+	it('restarts the preview and E2E once after a confirmed crash', async () => {
+		const { state, deps } = make_harness({
+			e2e_statuses: [E2E_FAILURE, SUCCESS],
+			crash_verdict: true,
+		})
+
+		expect(await app_verify.run_verify(CWD, [CODE_FILE], deps)).toBe(SUCCESS)
+		expect(state.order).toEqual([
+			'build',
+			'boot',
+			'e2e',
+			CRASH_CHECK,
+			'stop',
+			'release',
+			'boot',
+			'e2e',
+			'stop',
+		])
+		expect(state.crash_checks).toBe(1)
+		expect(state.release_waits).toBe(1)
+	})
+
+	it('does not retry an ordinary E2E failure', async () => {
+		const { state, deps } = make_harness({ e2e_status: E2E_FAILURE })
+
+		expect(await app_verify.run_verify(CWD, [CODE_FILE], deps)).toBe(E2E_FAILURE)
+		expect(state.boots).toBe(1)
+		expect(state.crash_checks).toBe(1)
+	})
+
+	it('fails after a second E2E failure without a third attempt', async () => {
+		const { state, deps } = make_harness({ e2e_status: E2E_FAILURE, crash_verdict: true })
+
+		expect(await app_verify.run_verify(CWD, [CODE_FILE], deps)).toBe(E2E_FAILURE)
+		expect(state.boots).toBe(2)
+		expect(state.crash_checks).toBe(1)
+	})
+})
+
+describe('verify — crash retry with DAST', () => {
+	it('repeats the concurrent scan when the preview crashed', async () => {
+		const { state, deps } = make_harness({
+			e2e_statuses: [E2E_FAILURE, SUCCESS],
+			crash_verdict: true,
+		})
+
+		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(SUCCESS)
+		expect(state.order).toEqual([
+			'preflight',
+			'build',
+			'boot',
+			'scan',
+			'e2e',
+			CRASH_CHECK,
+			'stop',
+			'release',
+			'boot',
+			'scan',
+			'e2e',
+			'stop',
+		])
+		expect(state.scans).toBe(2)
+	})
+
+	it('keeps a completed DAST finding even if the retry passes', async () => {
+		const { state, deps } = make_harness({
+			e2e_statuses: [E2E_FAILURE, SUCCESS],
+			scan_statuses: [ZAP_WARN_EXIT, SUCCESS],
+			crash_verdict: true,
+		})
+
+		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(ZAP_WARN_EXIT)
+		expect(state.scans).toBe(2)
 	})
 })
 
