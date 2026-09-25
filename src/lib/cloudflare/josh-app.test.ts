@@ -9,7 +9,15 @@ const CLI_PATH = path.join(REPO_ROOT, 'scripts/josh-app.ts')
 function tracked_file_state(): Map<string, { mtime_ns: bigint; size: bigint }> {
 	const files = execFileSync(
 		'/usr/bin/git',
-		['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+		[
+			'-c',
+			`safe.directory=${REPO_ROOT}`,
+			'ls-files',
+			'--cached',
+			'--others',
+			'--exclude-standard',
+			'-z',
+		],
 		{
 			cwd: REPO_ROOT,
 		},
