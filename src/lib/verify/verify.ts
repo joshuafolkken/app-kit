@@ -40,8 +40,10 @@ const DAST_BASENAMES: ReadonlySet<string> = new Set([
 
 function is_dast_relevant(file: string): boolean {
 	const base = path.basename(file)
-	if (DAST_BASENAMES.has(base)) return true
-	if (HEADER_ROUTE_SUFFIXES.some((suffix) => base.endsWith(suffix))) return true
+
+	if (DAST_BASENAMES.has(base) || HEADER_ROUTE_SUFFIXES.some((suffix) => base.endsWith(suffix))) {
+		return true
+	}
 
 	// `+*.server.ts` server-route variants (e.g. +page.server.ts) also emit their own responses.
 	return base.startsWith('+') && base.endsWith('.server.ts')
