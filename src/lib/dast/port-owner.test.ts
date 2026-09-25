@@ -195,7 +195,8 @@ function read_listener_groups(port: number): ReadonlyArray<number> {
 }
 
 describe('ownership of a live socket', () => {
-	// The end-to-end chain — lsof finds the listener, ps maps it to a group, the decision compares it.
+	// The end-to-end chain — lsof finds the listener, ps maps its group and ancestry, and the decision
+	// compares them with the process we started.
 	// The unit tests above cover each link; only these prove they are joined correctly.
 	//
 	// The expectation follows what the INDEPENDENT lookup could see, so one assertion covers both
@@ -206,6 +207,18 @@ describe('ownership of a live socket', () => {
 		const groups = read_listener_groups(port)
 
 		expect(port_owner.check_ownership(port, groups[0] ?? OUR_GROUP)).toBe(
+			groups.length === 0 ? 'unknown' : 'owned',
+		)
+	})
+
+	it('accepts a listener descended from the process that started it', async () => {
+		const port = await hold_loopback()
+		const groups = read_listener_groups(port)
+		const parent = run_tool(PS_BINARY, ['-o', 'ppid=', '-p', String(process.ppid)])
+		const [ancestor] = to_ids(parent ?? '')
+
+		expect(ancestor).toBeDefined()
+		expect(port_owner.check_ownership(port, ancestor ?? OUR_GROUP)).toBe(
 			groups.length === 0 ? 'unknown' : 'owned',
 		)
 	})
