@@ -3,6 +3,7 @@ import { app_dast } from '#dast/dast.js'
 import { preview_port } from '#dast/preview-port.js'
 import { preview_release } from '#dast/preview-release.js'
 import { preview_server, type PreviewHandle } from '#dast/preview.js'
+import { zap } from '#dast/zap.js'
 import { process_runner } from '#process/runner.js'
 import { e2e_retry } from './e2e-retry.js'
 
@@ -162,7 +163,11 @@ async function run_against_server(context: AttemptContext): Promise<number> {
 	await context.deps.wait_for_release(context.port)
 	const second = await run_attempt(context, false)
 
-	return aggregate_status(second.status, first.scan_status)
+	const first_finding = zap.is_finding_status(first.scan_status)
+		? first.scan_status
+		: process_runner.SUCCESS_STATUS
+
+	return aggregate_status(second.status, first_finding)
 }
 
 async function run_verify(

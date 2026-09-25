@@ -9,12 +9,19 @@ interface ReleaseState {
 	clock: number
 }
 
-function make_deps(state: ReleaseState, release_after: number): ReleaseDependencies {
+function make_deps(
+	state: ReleaseState,
+	release_after: number,
+	answer_until = 0,
+): ReleaseDependencies {
 	return {
 		async is_port_free(): Promise<boolean> {
 			state.checks += 1
 
 			return state.checks >= release_after
+		},
+		async probe(): Promise<boolean> {
+			return state.checks < answer_until
 		},
 		async sleep(ms: number): Promise<void> {
 			state.clock += ms
@@ -33,6 +40,14 @@ describe('preview port release', () => {
 
 		expect(state.checks).toBe(3)
 		expect(state.clock).toBe(TICK_MS * 2)
+	})
+
+	it('waits while the old wildcard listener still answers HTTP', async () => {
+		const state = { checks: 0, clock: 0 }
+
+		await preview_release.wait_for_release(PORT, make_deps(state, 1, 3))
+
+		expect(state.checks).toBe(3)
 	})
 
 	it('fails when a stopped preview keeps holding the port', async () => {

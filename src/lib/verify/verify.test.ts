@@ -9,6 +9,7 @@ const SUCCESS = 0
 const BUILD_FAILURE = 1
 const E2E_FAILURE = 2
 const ZAP_WARN_EXIT = 2
+const ZAP_ERROR_EXIT = 3
 
 const HEADERS_FILE = '_headers'
 const CODE_FILE = 'src/lib/foo.ts'
@@ -296,7 +297,9 @@ describe('verify — crash retry with DAST', () => {
 		])
 		expect(state.scans).toBe(2)
 	})
+})
 
+describe('verify — DAST result after preview crash', () => {
 	it('keeps a completed DAST finding even if the retry passes', async () => {
 		const { state, deps } = make_harness({
 			e2e_statuses: [E2E_FAILURE, SUCCESS],
@@ -305,6 +308,17 @@ describe('verify — crash retry with DAST', () => {
 		})
 
 		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(ZAP_WARN_EXIT)
+		expect(state.scans).toBe(2)
+	})
+
+	it('accepts a clean retry after the crashed server caused a scan error', async () => {
+		const { state, deps } = make_harness({
+			e2e_statuses: [E2E_FAILURE, SUCCESS],
+			scan_statuses: [ZAP_ERROR_EXIT, SUCCESS],
+			crash_verdict: true,
+		})
+
+		expect(await app_verify.run_verify(CWD, [HEADERS_FILE], deps)).toBe(SUCCESS)
 		expect(state.scans).toBe(2)
 	})
 })

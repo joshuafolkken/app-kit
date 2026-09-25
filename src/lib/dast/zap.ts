@@ -6,6 +6,14 @@ const DOCKER_BIN = 'docker'
 // freeze the passive rules at release time — the opposite of what a security scan is for.
 const ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
 const ZAP_BASELINE_SCRIPT = 'zap-baseline.py'
+// zap-baseline.py returns 1 for FAIL findings, 2 for WARN findings, and 3 for other failures.
+const FAIL_STATUS = 1
+const WARN_STATUS = 2
+const FINDING_STATUSES: ReadonlySet<number> = new Set([FAIL_STATUS, WARN_STATUS])
+
+function is_finding_status(status: number): boolean {
+	return FINDING_STATUSES.has(status)
+}
 
 // The directory zap-baseline.py reads its `-c` config from and writes reports to.
 const ZAP_WORK_DIR = '/zap/wrk'
@@ -56,6 +64,7 @@ const zap = {
 	PREFLIGHT_ARGV,
 	build_target_url,
 	build_scan_argv,
+	is_finding_status,
 }
 
 export { zap }
