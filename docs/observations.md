@@ -3,3 +3,5 @@
 - rf:none | none | - | 2026-09-25 | #203
 - rf:tests | medium | src/lib/dast/port-owner.test.ts | 2026-09-25 | #203
 - rf:none | none | - | 2026-09-25 | #205
+- rf:bug-risks | medium | src/lib/cloudflare/self-sync.ts:1 | 2026-09-25 | #202
+- rf:none | none | - | 2026-09-25 | #202
