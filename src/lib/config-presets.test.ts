@@ -202,20 +202,6 @@ describe('presets layer on kit base where resolution allows', () => {
 		expect(source).toMatch(/from\s*'\.\/rules\/svelte\.js'/u)
 	})
 
-	it('applies the generic test-filename rules last so route/param overrides cannot cancel the spec ban (kit#626)', () => {
-		const source = read_file(ESLINT_PRESET)
-		// inspect the composition body so each block name appears exactly once (its spread arg)
-		const body = source.slice(source.indexOf('function create_sveltekit_config'))
-
-		const parameter_index = body.indexOf('parameter_overrides')
-		const spec_index = body.indexOf('spec_filename_overrides')
-		const centralized_index = body.indexOf('centralized_tests_overrides')
-
-		expect(parameter_index).toBeGreaterThan(-1)
-		expect(spec_index).toBeGreaterThan(parameter_index)
-		expect(centralized_index).toBeGreaterThan(parameter_index)
-	})
-
 	it('owns the Svelte unicorn override (no-top-level-assignment-in-function off for Svelte source)', () => {
 		const source = read_file(ESLINT_PRESET)
 

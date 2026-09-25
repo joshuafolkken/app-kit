@@ -7,15 +7,14 @@
 //     knowledge that used to live in kit's `create_sveltekit_config`. Moved here as the
 //     single owner (kit deletes its copy in kit#623 / kit#601) — a transfer, not a clone.
 //   - kit `eslint/test-filename` (spec / centralized-tests bans): GENERIC test-naming policy
-//     (kit #593) that kit KEEPS. Imported (not cloned) and applied LAST so flat-config
-//     later-wins ordering stops the spec ban from being cancelled by the route/param
-//     `no-restricted-syntax` overrides above it (see kit#626).
+//     included by kit base. Route/param intersections restore the spec ban after their
+//     SvelteKit-specific `no-restricted-syntax` overrides (kit#626, app-kit#205).
 //
 // Consumers import `@joshuafolkken/app-kit/eslint/sveltekit`.
 import { create_base_config } from '@joshuafolkken/kit/eslint/base'
 import {
-	CENTRALIZED_TESTS_DIRECTORY_PATTERNS,
-	centralized_tests_directory_rules,
+	extend_restricted_syntax,
+	SPEC_FILENAME_ENTRY,
 	SPEC_FILENAME_PATTERNS,
 	spec_filename_rules,
 } from '@joshuafolkken/kit/eslint/test-filename'
@@ -125,13 +124,27 @@ const route_boolean_name_overrides = {
 	},
 }
 
-// Generic test-filename enforcement (kit #593) — applied LAST so the later-wins flat-config
-// order keeps the *.spec ban effective even for files matched by the route/param
-// `no-restricted-syntax` overrides above (kit#626). Imported from kit, never cloned.
-const spec_filename_overrides = { files: SPEC_FILENAME_PATTERNS, rules: spec_filename_rules }
-const centralized_tests_overrides = {
-	files: CENTRALIZED_TESTS_DIRECTORY_PATTERNS,
-	rules: centralized_tests_directory_rules,
+// The base already composes its shared selectors with both bans. Only route/param overrides
+// replace that rule later, so restore the spec ban at those intersections without changing
+// the base rule on every other forbidden file.
+/** @param {string[]} patterns */
+function intersect_with_spec(patterns) {
+	return patterns.map(function intersect_pattern(pattern) {
+		return [pattern, ...SPEC_FILENAME_PATTERNS]
+	})
+}
+
+const route_spec_filename_overrides = {
+	files: intersect_with_spec(SVELTE_FILE_PATTERNS.routes),
+	rules: extend_restricted_syntax(
+		{ 'no-restricted-syntax': ROUTE_NO_RESTRICTED_SYNTAX },
+		SPEC_FILENAME_ENTRY,
+	),
+}
+
+const parameter_spec_filename_overrides = {
+	files: intersect_with_spec(SVELTE_FILE_PATTERNS.params),
+	rules: spec_filename_rules,
 }
 
 /**
@@ -172,8 +185,8 @@ function create_sveltekit_config(options) {
 		parameter_overrides,
 		phrase_overrides,
 		route_boolean_name_overrides,
-		spec_filename_overrides,
-		centralized_tests_overrides,
+		route_spec_filename_overrides,
+		parameter_spec_filename_overrides,
 	)
 }
 
