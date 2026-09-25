@@ -5,3 +5,7 @@
 - rf:none | none | - | 2026-09-25 | #205
 - rf:bug-risks | medium | src/lib/cloudflare/self-sync.ts:1 | 2026-09-25 | #202
 - rf:none | none | - | 2026-09-25 | #202
+- rf:bug-risks | medium | src/lib/verify/verify.ts:157 | 2026-09-25 | #204
+- rf:bug-risks | medium | src/lib/verify/verify.ts:137 | 2026-09-25 | #204
+- rf:bug-risks | medium | src/lib/dast/preview-release.ts:31 | 2026-09-25 | #204
+- rf:bug-risks | medium | src/lib/verify/verify.ts:165 | 2026-09-25 | #204
