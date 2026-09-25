@@ -11,3 +11,5 @@
 - rf:bug-risks | medium | src/lib/verify/verify.ts:165 | 2026-09-25 | #204
 - rf:none | none | - | 2026-09-25 | #216
 - rf:none | none | - | 2026-09-25 | #216
+- rf:tests | medium | src/lib/cloudflare/ci-pnpm-setup.test.ts | 2026-09-25 | #219
+- rf:none | none | - | 2026-09-25 | #219
