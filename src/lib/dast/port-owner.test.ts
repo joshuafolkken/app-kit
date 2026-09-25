@@ -10,6 +10,19 @@ const TERSE_FLAG = '-t'
 const OUR_GROUP = 4242
 const OTHER_GROUP = 9999
 const EPHEMERAL = 0
+const SPAWNED_PID = 100
+const CHILD_PID = 200
+const LISTENER_PID = 300
+const LISTENER_GROUP = 400
+
+function read_separate_group(command: string, argv: ReadonlyArray<string>): string | undefined {
+	if (command === 'lsof') return `${String(LISTENER_PID)}\n`
+	if (argv.includes('pgid=')) return `${String(LISTENER_GROUP)}\n`
+	if (argv.at(-1) === String(LISTENER_PID)) return `${String(CHILD_PID)}\n`
+	if (argv.at(-1) === String(CHILD_PID)) return `${String(SPAWNED_PID)}\n`
+
+	return undefined
+}
 
 const state: { server: Server | undefined } = { server: undefined }
 
@@ -72,6 +85,11 @@ describe('loopback occupancy', () => {
 })
 
 describe('ownership decision', () => {
+	it('accepts a listener in a new group when it descends from our spawn', () => {
+		expect(port_owner.check_ownership(PORT, SPAWNED_PID, read_separate_group)).toBe('owned')
+		expect(port_owner.check_ownership(PORT, OTHER_GROUP, read_separate_group)).toBe('foreign')
+	})
+
 	it('accepts a listener whose process group is the one we spawned', () => {
 		expect(port_owner.decide_ownership([OUR_GROUP], OUR_GROUP)).toBe('owned')
 	})
@@ -195,7 +213,8 @@ function read_listener_groups(port: number): ReadonlyArray<number> {
 }
 
 describe('ownership of a live socket', () => {
-	// The end-to-end chain — lsof finds the listener, ps maps it to a group, the decision compares it.
+	// The end-to-end chain — lsof finds the listener, ps maps its group and ancestry, and the decision
+	// compares them with the process we started.
 	// The unit tests above cover each link; only these prove they are joined correctly.
 	//
 	// The expectation follows what the INDEPENDENT lookup could see, so one assertion covers both
@@ -206,6 +225,18 @@ describe('ownership of a live socket', () => {
 		const groups = read_listener_groups(port)
 
 		expect(port_owner.check_ownership(port, groups[0] ?? OUR_GROUP)).toBe(
+			groups.length === 0 ? 'unknown' : 'owned',
+		)
+	})
+
+	it('accepts a listener descended from the process that started it', async () => {
+		const port = await hold_loopback()
+		const groups = read_listener_groups(port)
+		const parent = run_tool(PS_BINARY, ['-o', 'ppid=', '-p', String(process.ppid)])
+		const [ancestor] = to_ids(parent ?? '')
+
+		expect(ancestor).toBeDefined()
+		expect(port_owner.check_ownership(port, ancestor ?? OUR_GROUP)).toBe(
 			groups.length === 0 ? 'unknown' : 'owned',
 		)
 	})

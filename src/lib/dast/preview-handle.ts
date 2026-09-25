@@ -8,9 +8,9 @@ interface PreviewHandle {
 	// Whether the spawned process is already gone. A wrangler that could not bind exits within
 	// milliseconds; without this the readiness loop would poll a dead server for the full timeout.
 	has_exited: () => boolean
-	// The spawned process group, which `detached: true` makes equal to the child's own pid. This is
-	// the identity the readiness check compares the listening socket's owner against — the listener
-	// is usually wrangler's workerd descendant, not the child itself.
+	// The spawned process group, which `detached: true` makes equal to the child's own pid. The
+	// readiness check compares this identity against the listener's group and ancestry, since pnpm
+	// may start wrangler and its workerd listener in another group.
 	group_id: () => number | undefined
 }
 

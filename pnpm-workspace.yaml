@@ -24,6 +24,7 @@ minimumReleaseAgeExclude:
   - '@joshuafolkken/kit'
 
 overrides:
+  cookie: 0.7.2
   devalue: ^5.8.1
 
 patchedDependencies:
