@@ -181,7 +181,7 @@ describe('SvelteKit lefthook preset — command coverage (#66)', () => {
 
 		expect(commands_index).toBeGreaterThanOrEqual(0)
 		expect(verify_index).toBeGreaterThan(commands_index)
-		expect(source).toContain('run: pnpm josh-app verify {push_files}')
+		expect(source).toContain('run: pnpm josh-app verify -- {push_files}')
 	})
 })
 
@@ -319,7 +319,7 @@ describe('SvelteKit lefthook preset — unified verify command (#94, #97)', () =
 
 	it('forwards the pushed file list so verify can gate the scan narrowly', () => {
 		// The scan is gated in verify.ts (is_dast_relevant); lefthook just hands verify the files.
-		expect(read_lefthook_preset()).toContain('pnpm josh-app verify {push_files}')
+		expect(read_lefthook_preset()).toContain('pnpm josh-app verify -- {push_files}')
 	})
 
 	it('keeps the lefthook DAST glob and verify.ts is_dast_relevant in lockstep', () => {

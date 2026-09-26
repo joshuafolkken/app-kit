@@ -68,19 +68,23 @@ pnpm add -D @joshuafolkken/app-kit
 
 Run from the root of a SvelteKit project:
 
-| Command                           | What it does                                                               |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| `josh-app init`                   | Apply kit's base then the SvelteKit + Cloudflare overlay to a project      |
-| `josh-app sync`                   | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently  |
-| `josh-app check`                  | Fast incremental SvelteKit type-check (dev loop)                           |
-| `josh-app check:ci`               | Strict SvelteKit type-check (CI variant)                                   |
-| `josh-app dast`                   | Dynamic baseline security scan against the running preview server          |
-| `josh-app load`                   | Manual k6 load test against the running preview server (report-only)       |
-| `josh-app load:stress`            | Manual k6 stress test — drives load to find the throughput ceiling         |
-| `josh-app shot <route...>`        | Screenshot the given routes against a freshly built, once-booted preview   |
-| `josh-app verify`                 | Unified pre-push gate: build once, boot once, run E2E + DAST scan together |
-| `josh-app version` / `v`          | Report installed-vs-latest version                                         |
-| `josh-app version:upgrade` / `vu` | Upgrade to the latest version                                              |
+| Command                      | What it does                                                               |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| `josh-app init` / `i`        | Apply kit's base then the SvelteKit + Cloudflare overlay to a project      |
+| `josh-app sync` / `sy`       | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently  |
+| `josh-app check` / `c`       | Fast incremental SvelteKit type-check (dev loop)                           |
+| `josh-app check:ci`          | Strict SvelteKit type-check (CI variant)                                   |
+| `josh-app dast`              | Dynamic baseline security scan against the running preview server          |
+| `josh-app load`              | Manual k6 load test against the running preview server (report-only)       |
+| `josh-app load:stress`       | Manual k6 stress test — drives load to find the throughput ceiling         |
+| `josh-app shot <route...>`   | Screenshot the given routes against a freshly built, once-booted preview   |
+| `josh-app verify`            | Unified pre-push gate: build once, boot once, run E2E + DAST scan together |
+| `josh-app version` / `v`     | Report installed-vs-latest version                                         |
+| `josh-app version --upgrade` | Upgrade global and project installs to the latest version                  |
+
+Run `josh-app --help` (or `josh-app help`) to list commands. The older
+`josh-app version:upgrade` / `josh-app vu` forms still work. Unsupported arguments fail rather
+than being silently ignored.
 
 `josh-app v` also reports the **effective kit** — the `@joshuafolkken/kit` copy the running CLI
 actually executes. kit is an auto-installed peer of the global app-kit, and pnpm resolves that peer
