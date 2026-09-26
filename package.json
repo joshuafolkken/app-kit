@@ -1,6 +1,6 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.87.0",
+	"version": "0.98.0",
 	"private": false,
 	"packageManager": "pnpm@11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
 	"publishConfig": {
@@ -101,7 +101,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.856.0",
+		"@joshuafolkken/kit": "^1.870.0",
 		"@playwright/test": "^1.63.0",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.5",
 		"@size-limit/file": "^14.0.0",
@@ -136,10 +136,10 @@
 		"vite": "^8.3.1",
 		"vitest": "^5.0.1",
 		"vitest-browser-svelte": "^3.1.0",
-		"wrangler": "^4.137.0"
+		"wrangler": "^4.138.0"
 	},
 	"peerDependencies": {
-		"@joshuafolkken/kit": ">=1.98.0",
+		"@joshuafolkken/kit": ">=1.109.0",
 		"eslint": "^10.0.0",
 		"svelte": "^5.0.0"
 	},

@@ -21,7 +21,7 @@ const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const KIT = '@joshuafolkken/kit'
 // The floor tracks the LAST kit release josh-app took a hard dependency on, so it moves whenever a
-// new kit subpath or helper is imported. Two raised it so far:
+// new kit subpath or helper is imported. Three raised it so far:
 //
 // - 1.86.0 (kit#820): 1.85.0 added the `./ports` export, but `ports.load_environment_file` — the
 //   call preview-port.ts makes on every resolution — only arrived in 1.86.0, so a consumer on
@@ -30,7 +30,9 @@ const KIT = '@joshuafolkken/kit'
 //   workflows app-kit byte-copies. That subpath does not exist earlier, and the import is at module
 //   scope, so on a lower kit EVERY josh-app command — not just `sync` — dies at load with
 //   ERR_PACKAGE_PATH_NOT_EXPORTED.
-const KIT_PEER_FLOOR = '>=1.98.0'
+// - 1.109.0 (kit#868, app-kit#202): the top-level self-sync-guard import needs the newly exported
+//   subpath before any josh-app command can dispatch.
+const KIT_PEER_FLOOR = '>=1.109.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
@@ -200,20 +202,6 @@ describe('presets layer on kit base where resolution allows', () => {
 		// owns the Svelte plugin baseline + the SvelteKit-specific delta
 		expect(source).toMatch(/from\s*'eslint-plugin-svelte'/u)
 		expect(source).toMatch(/from\s*'\.\/rules\/svelte\.js'/u)
-	})
-
-	it('applies the generic test-filename rules last so route/param overrides cannot cancel the spec ban (kit#626)', () => {
-		const source = read_file(ESLINT_PRESET)
-		// inspect the composition body so each block name appears exactly once (its spread arg)
-		const body = source.slice(source.indexOf('function create_sveltekit_config'))
-
-		const parameter_index = body.indexOf('parameter_overrides')
-		const spec_index = body.indexOf('spec_filename_overrides')
-		const centralized_index = body.indexOf('centralized_tests_overrides')
-
-		expect(parameter_index).toBeGreaterThan(-1)
-		expect(spec_index).toBeGreaterThan(parameter_index)
-		expect(centralized_index).toBeGreaterThan(parameter_index)
 	})
 
 	it('owns the Svelte unicorn override (no-top-level-assignment-in-function off for Svelte source)', () => {

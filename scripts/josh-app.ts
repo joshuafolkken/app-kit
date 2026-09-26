@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
+import { app_self_sync } from '#cloudflare/self-sync.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
 import { app_load } from '#load/load.js'
@@ -46,6 +47,8 @@ const FILE_ARGS_START_INDEX = 3
 // Orchestrate kit's framework-agnostic base (`josh init`) first, then apply the app-kit overlay —
 // one command delivers base + overlay without app-kit duplicating kit's managed file list.
 function run_init(): void {
+	if (app_self_sync.did_refuse_self_sync(PACKAGE_ROOT, process.cwd())) return
+
 	cloudflare_orchestrate.run_base_init(process.cwd())
 	const changes = cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
 
@@ -55,6 +58,8 @@ function run_init(): void {
 // Orchestrate kit's base (`josh sync`) first, then apply the app-kit overlay (scripts, seeds, and
 // the SvelteKit-line reconciliation in cspell / tsconfig) — base + overlay in one command.
 function run_sync(): void {
+	if (app_self_sync.did_refuse_self_sync(PACKAGE_ROOT, process.cwd())) return
+
 	cloudflare_orchestrate.run_base_sync(process.cwd())
 	const changes = cloudflare_sync.apply_overlay(process.cwd(), PACKAGE_ROOT)
 
