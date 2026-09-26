@@ -38,16 +38,55 @@ function tracked_file_state(): Map<string, { mtime_ns: bigint; size: bigint }> {
 }
 
 describe('josh-app self-sync preflight', () => {
-	it.each(['init', 'sync'])('refuses %s before writing to its own repository', (command) => {
-		const files_before = tracked_file_state()
-		const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_PATH, command], {
+	it.each(['init', 'sync', 'i', 'sy'])(
+		'refuses %s before writing to its own repository',
+		(command) => {
+			const files_before = tracked_file_state()
+			const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_PATH, command], {
+				cwd: REPO_ROOT,
+				encoding: 'utf8',
+			})
+
+			expect(result.error).toBeUndefined()
+			expect(result.status).toBe(1)
+			expect(result.stderr).toContain('Refusing to sync: this is @joshuafolkken/app-kit')
+			expect(tracked_file_state()).toEqual(files_before)
+		},
+	)
+})
+
+describe('josh-app command help', () => {
+	it.each([
+		{ args: [] },
+		{ args: ['help'] },
+		{ args: ['--help'] },
+		{ args: ['-h'] },
+		{ args: ['--all'] },
+	])('prints help for $args', ({ args }) => {
+		const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_PATH, ...args], {
 			cwd: REPO_ROOT,
 			encoding: 'utf8',
 		})
 
-		expect(result.error).toBeUndefined()
+		expect(result.status).toBe(0)
+		expect(result.stdout).toContain('version [--upgrade]')
+		expect(result.stdout).toContain('check:ci')
+	})
+
+	it.each([
+		{ args: ['unknown'] },
+		{ args: ['version', '--wrong'] },
+		{ args: ['init', '--wrong'] },
+		{ args: ['verify', '--wrong'] },
+	])('rejects $args before side effects', ({ args }) => {
+		const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_PATH, ...args], {
+			cwd: REPO_ROOT,
+			encoding: 'utf8',
+		})
+
 		expect(result.status).toBe(1)
-		expect(result.stderr).toContain('Refusing to sync: this is @joshuafolkken/app-kit')
-		expect(tracked_file_state()).toEqual(files_before)
+		expect(result.stderr).toMatch(
+			/Unknown command|takes no extra arguments|accepts only|does not accept options/u,
+		)
 	})
 })
