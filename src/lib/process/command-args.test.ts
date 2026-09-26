@@ -3,6 +3,7 @@ import { command_args } from './command-args.js'
 
 const VERSION_UPGRADE = 'version:upgrade'
 const PAGE_FILE = 'src/routes/+page.svelte'
+const DASH_FILE = '-theme.css'
 const RESOLVE_CASES = [
 	['version', [], 'version'],
 	['v', [], 'version'],
@@ -17,6 +18,7 @@ const RESOLVE_CASES = [
 	['load', ['custom.js'], 'load'],
 	['shot', ['/', '--mobile'], 'shot'],
 	['verify', [PAGE_FILE], 'verify'],
+	['verify', ['--', DASH_FILE], 'verify'],
 ] as const
 const REJECT_CASES = [
 	['version', ['--wrong']],
@@ -27,6 +29,7 @@ const REJECT_CASES = [
 	['load', ['first.js', 'second.js']],
 	['help', ['--wrong']],
 	['verify', ['--wrong']],
+	['verify', [DASH_FILE]],
 	['verify', [PAGE_FILE, '--wrong']],
 	['unknown', []],
 ] as const
@@ -42,5 +45,10 @@ describe('josh-app command arguments', () => {
 
 	it.each(REJECT_CASES)('rejects %s %j', (command, args) => {
 		expect(command_args.parse(command, args).kind).toBe('error')
+	})
+
+	it('passes a leading-dash filename after the argument separator', () => {
+		expect(command_args.verify_files(['--', DASH_FILE])).toEqual([DASH_FILE])
+		expect(command_args.verify_files([PAGE_FILE])).toEqual([PAGE_FILE])
 	})
 })

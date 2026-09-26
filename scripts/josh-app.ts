@@ -158,7 +158,7 @@ async function run_shot(): Promise<void> {
 // header/cookie-affecting file changed) the ZAP scan against that single server, tear it down.
 // The pushed file list arrives as the trailing arguments (lefthook `{push_files}`).
 async function run_verify(): Promise<void> {
-	const files = process.argv.slice(FILE_ARGS_START_INDEX)
+	const files = command_args.verify_files(process.argv.slice(FILE_ARGS_START_INDEX))
 
 	try {
 		exit_on_failure(await app_verify.run_verify(process.cwd(), files))

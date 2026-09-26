@@ -79,11 +79,17 @@ function parse_load(args: ReadonlyArray<string>): ParsedCommand {
 }
 
 function parse_verify(args: ReadonlyArray<string>): ParsedCommand {
+	if (args[0] === '--') return { kind: 'run', command: 'verify' }
+
 	for (const file of args) {
 		if (file.startsWith('-')) return error('verify does not accept options.')
 	}
 
 	return { kind: 'run', command: 'verify' }
+}
+
+function verify_files(args: ReadonlyArray<string>): ReadonlyArray<string> {
+	return args[0] === '--' ? args.slice(1) : args
 }
 
 function parse_other(canonical: string, args: ReadonlyArray<string>): ParsedCommand {
@@ -107,6 +113,6 @@ function parse(command: string | undefined, args: ReadonlyArray<string>): Parsed
 	return parse_canonical(COMMAND_ALIASES[command] ?? command, args)
 }
 
-const command_args = { HELP_MESSAGE, parse }
+const command_args = { HELP_MESSAGE, parse, verify_files }
 
 export { command_args }

@@ -90,4 +90,4 @@ pre-push:
         - 'src/hooks.server.ts'
         - '**/+server.ts'
         - '**/+*.server.ts'
-      run: pnpm josh-app verify {push_files}
+      run: pnpm josh-app verify -- {push_files}
