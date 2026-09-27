@@ -120,7 +120,9 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Configure GitHub Packages authentication for existing projects
+        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
 
       - name: Resolve pnpm version
         id: pnpm-version
@@ -178,7 +180,7 @@ jobs:
             ${{ runner.os }}-cspell-cache-
 
       - name: Setup safe-chain
-        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+        run: pnpm dlx @aikidosec/safe-chain@1.5.20 setup-ci
 
       - name: Install dependencies
         env:
@@ -360,7 +362,9 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Configure GitHub Packages authentication for existing projects
+        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
 
       - name: Resolve pnpm version
         id: pnpm-version
@@ -398,7 +402,7 @@ jobs:
             ${{ runner.os }}-build-cache-e2e-
 
       - name: Setup safe-chain
-        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+        run: pnpm dlx @aikidosec/safe-chain@1.5.20 setup-ci
 
       - name: Install dependencies
         env:

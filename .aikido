@@ -1,0 +1,7 @@
+safe-chain:
+  npm:
+    minimumPackageAgeExclusions:
+      - vite
+      - '@types/node'
+      - tsx
+      - '@joshuafolkken/kit'

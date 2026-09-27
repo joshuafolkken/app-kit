@@ -6,7 +6,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js pretool; else node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js pretool; fi",
+						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js pretool; else node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js pretool; fi",
 						"timeout": 20
 					}
 				]
@@ -18,7 +18,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js posttool; else node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js posttool; fi",
+						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js posttool; else node ./node_modules/@joshuafolkken/kit/dist/hooks/codex-hook-adapter.js posttool; fi",
 						"timeout": 90
 					}
 				]
@@ -30,7 +30,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "cd \"$(git rev-parse --show-toplevel)\" && node ./node_modules/@joshuafolkken/kit/dist/josh.js audit:provision",
+						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; node ./node_modules/@joshuafolkken/kit/dist/josh.js audit:provision",
 						"timeout": 180
 					}
 				]
@@ -49,7 +49,7 @@
 					},
 					{
 						"type": "command",
-						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js session:lang; fi",
+						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js session:lang; fi",
 						"timeout": 10
 					}
 				]
@@ -61,7 +61,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js stop:guard; fi",
+						"command": "cd \"$(git rev-parse --show-toplevel)\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js stop:guard; fi",
 						"timeout": 20
 					}
 				]
