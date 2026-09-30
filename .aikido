@@ -5,3 +5,4 @@ safe-chain:
       - '@types/node'
       - tsx
       - '@joshuafolkken/kit'
+  minimumPackageAgeHours: 24

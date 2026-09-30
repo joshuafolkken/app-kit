@@ -44,7 +44,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; node ./node_modules/@joshuafolkken/kit/dist/josh.js audit:provision",
+						"command": "if project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null)\"; then unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_NAMESPACE GIT_OBJECT_DIRECTORY GIT_WORK_TREE; else project_root=\"$(git rev-parse --show-toplevel)\" || exit 1; fi; cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; node ./node_modules/@joshuafolkken/kit/dist/josh.js audit:provision",
 						"timeout": 180
 					}
 				]
@@ -64,7 +64,7 @@
 					},
 					{
 						"type": "command",
-						"command": "if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js session:lang; fi",
+						"command": "if project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null)\"; then unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_NAMESPACE GIT_OBJECT_DIRECTORY GIT_WORK_TREE; else project_root=\"$(git rev-parse --show-toplevel)\" || exit 1; fi; cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/session-lang.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js session:lang; fi",
 						"timeout": 10
 					}
 				]
@@ -76,7 +76,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/pretool-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/pretool-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js pretool:guard; fi",
+						"command": "if project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null)\"; then unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_NAMESPACE GIT_OBJECT_DIRECTORY GIT_WORK_TREE; else project_root=\"$(git rev-parse --show-toplevel)\" || exit 1; fi; cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/pretool-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/pretool-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js pretool:guard; fi",
 						"timeout": 20
 					}
 				]
@@ -88,7 +88,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/format-edited.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/format-edited.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js format:edited; fi",
+						"command": "if project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null)\"; then unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_NAMESPACE GIT_OBJECT_DIRECTORY GIT_WORK_TREE; else project_root=\"$(git rev-parse --show-toplevel)\" || exit 1; fi; cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/format-edited.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/format-edited.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js format:edited; fi",
 						"timeout": 90
 					}
 				]
@@ -100,7 +100,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js stop:guard; fi",
+						"command": "if project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null)\"; then unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_NAMESPACE GIT_OBJECT_DIRECTORY GIT_WORK_TREE; else project_root=\"$(git rev-parse --show-toplevel)\" || exit 1; fi; cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; if [ -f ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js ]; then node ./node_modules/@joshuafolkken/kit/dist/hooks/stop-guard.js; else node ./node_modules/@joshuafolkken/kit/dist/josh.js stop:guard; fi",
 						"timeout": 20
 					}
 				]
