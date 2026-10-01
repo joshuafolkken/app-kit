@@ -15,3 +15,5 @@
 - rf:none | none | - | 2026-09-25 | #219
 - rf:security | medium | src/lib/process/command-args.ts | 2026-09-26 | #223
 - rf:bug-risks | medium | src/lib/process/command-args.ts | 2026-09-26 | #223
+- rf:none | none | - | 2026-10-01 | #230
+- rf:none | none | - | 2026-10-01 | #230
