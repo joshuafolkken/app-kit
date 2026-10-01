@@ -101,7 +101,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.972.0",
+		"@joshuafolkken/kit": "^1.978.0",
 		"@playwright/test": "^1.63.0",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
 		"@size-limit/file": "^14.1.0",
@@ -114,7 +114,7 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^26.6.3",
 		"@vitest/browser-playwright": "^5.0.2",
-		"cspell": "^10.3.5",
+		"cspell": "^10.3.6",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.11.0",
 		"eslint-config-prettier": "^10.1.8",
