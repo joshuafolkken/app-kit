@@ -6,11 +6,19 @@ The detailed version of the [Quick start](../README.md#quick-start). app-kit run
 
 - [Node.js](https://nodejs.org/) with [pnpm](https://pnpm.io/).
 - **A POSIX shell.** The `package.json` scripts app-kit distributes are written for `sh`: `dev` and `preview` resolve their port with `$(josh port …)`, and the `prepare` chain gates on `[ … ]` and `command -v`. `cmd.exe` has none of that, so on Windows run them from WSL or Git Bash — a plain `cmd.exe` fails at `pnpm install`, before any server script. pnpm's `shell-emulator` is not a substitute: its shell cannot parse `!`, which breaks the `prepare` guards.
-- The [gh CLI](https://cli.github.com/), signed in — it supplies the GitHub Packages token below. Install it with `brew install gh` (macOS), `winget install GitHub.cli` (Windows), or see the [gh installation docs](https://github.com/cli/cli#installation).
+- The [gh CLI](https://cli.github.com/), signed in — `josh-app version` and kit's Issue workflow call GitHub through it. Install it with `brew install gh` (macOS), `winget install GitHub.cli` (Windows), or see the [gh installation docs](https://github.com/cli/cli#installation).
 
-## 2. Authenticate to GitHub Packages
+## 2. Choose the registry
 
-app-kit is published to the GitHub Packages registry, which requires a token even for public packages. Set it up once per machine:
+Every release of app-kit is published to both [public npm](https://www.npmjs.com/package/@joshuafolkken/app-kit) and GitHub Packages, with the same version on each.
+
+**New users: nothing to set up.** With no `@joshuafolkken:registry` mapping anywhere, pnpm installs app-kit and kit from public npm without a token. Check it with `pnpm config get "@joshuafolkken:registry"`: `undefined` means public npm.
+
+**Existing users: GitHub Packages keeps working.** A machine or project that already routes the `@joshuafolkken` scope to GitHub Packages continues to install from there, and needs the token described below. Moving existing projects to public npm is a later step.
+
+### Authenticate to GitHub Packages
+
+GitHub Packages requires a token even for public packages. Set it up once per machine:
 
 1. Get a token from the `gh` CLI and persist `NODE_AUTH_TOKEN`: kit's [authentication.md §1](https://github.com/joshuafolkken/kit/blob/main/docs/authentication.md#1-get-a-token-from-the-gh-cli).
 2. Route the `@joshuafolkken` scope to GitHub Packages in your user-level `~/.npmrc`:
@@ -24,7 +32,7 @@ app-kit is published to the GitHub Packages registry, which requires a token eve
 
 On a fresh checkout of a project that already uses app-kit, `pnpm config get "@joshuafolkken:registry"` shows the effective registry, including your user-level mapping.
 
-A deploy builder has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](./deploy-authentication.md).
+A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](./deploy-authentication.md). A project that installs from public npm needs none.
 
 ## 3. Install
 

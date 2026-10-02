@@ -35,5 +35,9 @@ words:
   - sveltejs
   - transpiles
   - unstub
+  # npm's `--userconfig` option and the `registry.npmjs.org` / `npmjs.com` hosts, in the publish
+  # workflow, its test and the maintainer publishing doc (#226).
+  - npmjs
+  - userconfig
   - winget
 ignorePaths: []

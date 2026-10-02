@@ -14,7 +14,7 @@ The SvelteKit + Cloudflare layer on top of [`@joshuafolkken/kit`](https://github
 
 ## Quick start
 
-Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), a POSIX shell (WSL or Git Bash on Windows) and the [gh CLI](https://cli.github.com/). app-kit is published to GitHub Packages, so set up [GitHub Packages authentication](https://github.com/joshuafolkken/app-kit/blob/main/docs/setup.md#2-authenticate-to-github-packages) once per machine first. Then, from the root of a SvelteKit project:
+Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), a POSIX shell (WSL or Git Bash on Windows) and the [gh CLI](https://cli.github.com/). app-kit is published to public npm, so installing it needs no token; projects that already install from GitHub Packages keep working ([setup.md → Choose the registry](https://github.com/joshuafolkken/app-kit/blob/main/docs/setup.md#2-choose-the-registry)). From the root of a SvelteKit project:
 
 ```bash
 pnpm add -g @joshuafolkken/app-kit   # the josh-app CLI
@@ -29,8 +29,8 @@ Step by step, with what each command creates: [setup.md](https://github.com/josh
 
 **Set up**
 
-- [setup.md](https://github.com/joshuafolkken/app-kit/blob/main/docs/setup.md) — prerequisites, authentication, install, initialize and update
-- [deploy-authentication.md](https://github.com/joshuafolkken/app-kit/blob/main/docs/deploy-authentication.md) — installing from GitHub Packages on Cloudflare Workers Builds
+- [setup.md](https://github.com/joshuafolkken/app-kit/blob/main/docs/setup.md) — prerequisites, registry choice, install, initialize and update
+- [deploy-authentication.md](https://github.com/joshuafolkken/app-kit/blob/main/docs/deploy-authentication.md) — installing from GitHub Packages on Cloudflare Workers Builds (public npm needs no setup)
 
 **Commands and packages**
 
