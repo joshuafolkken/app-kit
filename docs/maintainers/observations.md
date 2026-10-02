@@ -13,3 +13,12 @@
 - rf:none | none | - | 2026-09-25 | #216
 - rf:tests | medium | src/lib/cloudflare/ci-pnpm-setup.test.ts | 2026-09-25 | #219
 - rf:none | none | - | 2026-09-25 | #219
+- rf:security | medium | src/lib/process/command-args.ts | 2026-09-26 | #223
+- rf:bug-risks | medium | src/lib/process/command-args.ts | 2026-09-26 | #223
+- rf:none | none | - | 2026-10-01 | #230
+- rf:none | none | - | 2026-10-01 | #230
+- rf:none | none | - | 2026-10-01 | #232
+- rf:bug-risks | medium | README.md | 2026-10-02 | #234
+- rf:assumptions | low | docs/dast.md | 2026-10-02 | #234
+- rf:confidence | low | docs/setup.md | 2026-10-02 | #234
+- rf:bug-risks | medium | .github/workflows/publish.yml | 2026-10-02 | #226

@@ -7,6 +7,7 @@ import { app_self_sync } from '#cloudflare/self-sync.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
 import { app_load } from '#load/load.js'
+import { command_args } from '#process/command-args.js'
 import { EnvironmentError } from '#process/environment-error.js'
 import { app_shot } from '#shot/shot.js'
 import { app_verify } from '#verify/verify.js'
@@ -30,9 +31,6 @@ const PACKAGE_ROOT = resolve_package_root(SELF_DIR)
 
 const INIT_MESSAGE = '✅ josh-app: applied the SvelteKit + Cloudflare layer to this project.'
 const SYNC_MESSAGE = '✅ josh-app: re-synced the SvelteKit + Cloudflare overlay.'
-const USAGE_MESSAGE =
-	'Usage: josh-app <init|sync|check|check:ci|dast|load|load:stress|shot|verify|version|v|version:upgrade|vu>'
-
 const EXIT_USAGE = 1
 // A prerequisite the user can fix (e.g. Docker not running) — distinct in intent from a usage
 // error, though both are non-zero so CI and the pre-push hook block either way.
@@ -160,7 +158,7 @@ async function run_shot(): Promise<void> {
 // header/cookie-affecting file changed) the ZAP scan against that single server, tear it down.
 // The pushed file list arrives as the trailing arguments (lefthook `{push_files}`).
 async function run_verify(): Promise<void> {
-	const files = process.argv.slice(FILE_ARGS_START_INDEX)
+	const files = command_args.verify_files(process.argv.slice(FILE_ARGS_START_INDEX))
 
 	try {
 		exit_on_failure(await app_verify.run_verify(process.cwd(), files))
@@ -189,16 +187,24 @@ const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	[VERSION_UPGRADE, run_version_upgrade],
 ])
 
-const COMMAND_ALIASES: Record<string, string> = { v: VERSION, vu: VERSION_UPGRADE }
+function fail_usage(message: string): never {
+	console.error(message)
+	process.exit(EXIT_USAGE)
+}
 
 async function run(command: string | undefined): Promise<void> {
-	const resolved = command === undefined ? '' : (COMMAND_ALIASES[command] ?? command)
-	const handler = COMMAND_HANDLERS.get(resolved)
+	const parsed = command_args.parse(command, process.argv.slice(FILE_ARGS_START_INDEX))
 
-	if (handler === undefined) {
-		console.error(USAGE_MESSAGE)
-		process.exit(EXIT_USAGE)
+	if (parsed.kind === 'help') {
+		console.info(command_args.HELP_MESSAGE)
+
+		return
 	}
+
+	if (parsed.kind === 'error') fail_usage(parsed.message)
+
+	const handler = COMMAND_HANDLERS.get(parsed.command)
+	if (handler === undefined) fail_usage(`Unknown command: ${parsed.command}`)
 
 	await handler()
 }

@@ -9,13 +9,14 @@ import { cloudflare_sync } from './cloudflare/sync.js'
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
 const SCOPED_NAME = '@joshuafolkken/app-kit'
-const GH_PACKAGES_REGISTRY = 'https://npm.pkg.github.com'
+const REPOSITORY_URL = 'git+https://github.com/joshuafolkken/app-kit.git'
 const ESLINT_PRESET_DIR = 'eslint'
 const SCOPED_PACKAGE_SEGMENTS = 2
 
 interface Manifest {
 	name: string
 	publishConfig?: { registry?: string; access?: string }
+	repository?: { url?: string }
 	dependencies?: Record<string, string>
 	peerDependencies?: Record<string, string>
 	files?: ReadonlyArray<string>
@@ -26,18 +27,26 @@ function load_manifest(): Manifest {
 }
 
 // Phase 0 (#30): the whole kit -> app-kit -> consumers program depends on the
-// package being published under the @joshuafolkken scope to GitHub Packages.
-// These lock the published identity so a rename revert / wrong registry fails CI.
+// package being published under the @joshuafolkken scope. These lock the published
+// identity so a rename revert fails CI.
 describe('package publish contract', () => {
 	it('is named under the @joshuafolkken scope', () => {
 		expect(load_manifest().name).toBe(SCOPED_NAME)
 	})
 
-	it('publishes to GitHub Packages with public access', () => {
+	// #226: the same tarball goes to public npm and GitHub Packages, each job naming its own
+	// registry. A manifest-level registry would override the npm job's `--registry` and send the
+	// public publish to GitHub Packages instead.
+	it('publishes with public access and leaves the registry to each publish job', () => {
 		const { publishConfig: publish_config } = load_manifest()
 
-		expect(publish_config?.registry).toBe(GH_PACKAGES_REGISTRY)
+		expect(publish_config?.registry).toBeUndefined()
 		expect(publish_config?.access).toBe('public')
+	})
+
+	// npm trusted publishing checks the provenance against the manifest's repository URL.
+	it('names its GitHub repository for npm provenance', () => {
+		expect(load_manifest().repository?.url).toBe(REPOSITORY_URL)
 	})
 })
 

@@ -6,8 +6,13 @@ on:
   push:
     branches: [main]
 
+  # No `labeled` / `unlabeled`: a label added right after the pull request opens started a second
+  # run on the same commit, the concurrency block below cancelled one of the two, and a cancelled
+  # run left in the newer check suite blocked the merge (joshuafolkken/kit#2712). The one check that
+  # reads labels runs in `pr-classification.yml` instead.
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
 
 # A push run is grouped by the commit it carries, so a later push to the default branch never
 # cancels an earlier one. Without the sha every such push shares one group — `github.ref` is
@@ -26,6 +31,12 @@ concurrency:
 # list (e.g. `chromium firefox webkit`) instead of editing this file, which josh sync overwrites.
 env:
   JOSH_PLAYWRIGHT_BROWSERS: ${{ vars.JOSH_PLAYWRIGHT_BROWSERS || 'chromium' }}
+  # The safe-chain release every "Setup safe-chain" step installs, and the SHA-256 of that release's
+  # install-safe-chain.sh. The installer puts the safe-chain binary under ~/.safe-chain/bin and
+  # adds it to PATH beside the shims; `pnpm dlx … setup-ci` left only the shims, which then let
+  # every install through without a scan (joshuafolkken/kit#2711). `josh latest` moves both together.
+  SAFE_CHAIN_INSTALLER_VERSION: 1.5.20
+  SAFE_CHAIN_INSTALLER_SHA256: 0ad25efe15d1fa56105157a454d647223e78eb0c53d1f85e3d10afcd722e7bfd
 
 jobs:
   playwright-image:
@@ -120,7 +131,9 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Configure GitHub Packages authentication for existing projects
+        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
 
       - name: Resolve pnpm version
         id: pnpm-version
@@ -178,31 +191,56 @@ jobs:
             ${{ runner.os }}-cspell-cache-
 
       - name: Setup safe-chain
-        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+        run: |
+          installer="$RUNNER_TEMP/install-safe-chain.sh"
+          curl --proto '=https' -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$installer"
+          echo "$SAFE_CHAIN_INSTALLER_SHA256  $installer" | sha256sum -c -
+          sh "$installer" --ci
 
       - name: Install dependencies
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      # A `basic` project has no `prepare`, no build and no SvelteKit, so the ordered steps below
+      # would fail on its first pull request (joshuafolkken/kit#2814). The profile is read from
+      # `josh profile` rather than re-derived here, and a basic project hands the whole check set to
+      # `josh gate`, which already decides per profile which checks apply. A `case` instead of a pipe
+      # into `grep -q`, for the `pipefail` reason given at `Detect E2E specs` below.
+      - name: Resolve project profile
+        id: profile
+        run: |
+          profile=$(pnpm --silent josh profile)
+          echo "${profile}"
+          case "${profile}" in
+            *'profile: basic ('*) echo 'is_basic=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'is_basic=false' >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Run spell check
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm josh cspell:dot
 
       - name: Prepare
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm prepare
 
       - name: Run type check
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig ./tsconfig.json --threshold error
 
       - name: Run prettier check
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm exec prettier --check .
 
       # Build before eslint so generated outputs exist for type-aware linting.
       # The same build output is reused by the size check below.
       - name: Build
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm build
 
       - name: Run eslint check
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm exec eslint . --cache --cache-strategy content
 
       # Vitest browser-mode projects (*.svelte.test.ts) drive a real Playwright browser,
@@ -218,9 +256,15 @@ jobs:
         run: ./node_modules/.bin/playwright install --with-deps ${PLAYWRIGHT_BROWSERS}
 
       - name: Run unit tests
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm josh test:unit
 
+      - name: Run verification gate
+        if: steps.profile.outputs.is_basic == 'true'
+        run: pnpm josh gate --verbose
+
       - name: Check bundle size
+        if: steps.profile.outputs.is_basic != 'true'
         run: pnpm size-limit
 
   security:
@@ -360,7 +404,9 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Configure GitHub Packages authentication for existing projects
+        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
 
       - name: Resolve pnpm version
         id: pnpm-version
@@ -398,7 +444,11 @@ jobs:
             ${{ runner.os }}-build-cache-e2e-
 
       - name: Setup safe-chain
-        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+        run: |
+          installer="$RUNNER_TEMP/install-safe-chain.sh"
+          curl --proto '=https' -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$installer"
+          echo "$SAFE_CHAIN_INSTALLER_SHA256  $installer" | sha256sum -c -
+          sh "$installer" --ci
 
       - name: Install dependencies
         env:

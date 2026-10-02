@@ -1,6 +1,6 @@
 // The stack-universal half of a security-headers E2E, shipped so consumers stop re-deriving it.
 //
-// `README.md` and the distributed `dast.yml` both justify running the full ZAP baseline nightly
+// `docs/dast.md` and the distributed `dast.yml` both justify running the full ZAP baseline nightly
 // rather than per-PR by pointing at "the Docker-free E2E assertions" — a net app-kit described but
 // never handed over, so every consumer wrote its own (app-kit#120). These are that net.
 //

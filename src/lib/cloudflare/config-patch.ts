@@ -98,7 +98,7 @@ const APP_KIT_ESLINT_FACTORY = 'create_sveltekit_config'
 // project `.npmrc` itself or in `pnpm-workspace.yaml` does not count, since a committed file that
 // could vouch for itself would void the protection. So app-kit can ship the credential but never
 // the switch; without the switch the line is inert and pnpm prints an `Ignored project-level auth
-// setting` warning. README documents both variables.
+// setting` warning. docs/deploy-authentication.md documents both variables.
 //
 // Appending is durable: kit's `merge_npmrc` has been insert-only since kit#759, and `josh-app sync`
 // runs kit's base before this overlay, so the line survives every subsequent sync.
