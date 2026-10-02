@@ -21,3 +21,4 @@
 - rf:bug-risks | medium | README.md | 2026-10-02 | #234
 - rf:assumptions | low | docs/dast.md | 2026-10-02 | #234
 - rf:confidence | low | docs/setup.md | 2026-10-02 | #234
+- rf:bug-risks | medium | .github/workflows/publish.yml | 2026-10-02 | #226
