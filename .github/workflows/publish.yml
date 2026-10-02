@@ -1,11 +1,14 @@
 name: Publish
+run-name: Publish ${{ github.event.client_payload.tag }}
 
 on:
   repository_dispatch:
     types: [new-tag-created]
 
+# The two registries publish in independent jobs from the same release tag: neither `needs` the
+# other, so one registry failing never skips the other, and each result is visible on its own job.
 jobs:
-  publish:
+  publish-github:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -13,6 +16,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.client_payload.tag }}
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
@@ -26,6 +31,41 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: pnpm publish --no-git-checks --tag latest
+      - run: pnpm publish --no-git-checks --tag latest --registry https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.client_payload.tag }}
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # The install still resolves the @joshuafolkken scope from GitHub Packages (the repository
+      # `.npmrc`), so it needs the read token; the publish below ignores this user config.
+      - name: Configure GitHub Packages authentication for the install
+        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: pnpm pack --out "$RUNNER_TEMP/app-kit.tgz"
+
+      # Published from outside the project with no user config, so neither the repository `.npmrc`
+      # scope mapping nor a `publishConfig` can route it to GitHub Packages. npm authenticates with
+      # the trusted publisher's short-lived OIDC credentials — no long-lived npm token exists.
+      - name: Publish to npm
+        run: cd "$RUNNER_TEMP" && npm publish app-kit.tgz --access public --tag latest --registry https://registry.npmjs.org --userconfig /dev/null

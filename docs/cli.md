@@ -18,6 +18,8 @@
 | `josh-app version` / `v`     | Report installed-vs-latest version                                         | [The effective kit](#the-effective-kit)     |
 | `josh-app version --upgrade` | Upgrade global and project installs to the latest version                  | [The effective kit](#the-effective-kit)     |
 
+`josh-app version` reads the latest version of app-kit and kit from the GitHub Packages versions API through the `gh` CLI, so it needs `gh` signed in with the `read:packages` scope — whichever registry the project installs from ([kit#2882](https://github.com/joshuafolkken/kit/issues/2882) tracks reading it from public npm instead). Each release is published to public npm and GitHub Packages at the same version, so the latest it reports holds for both; `--upgrade` installs from the registry your configuration routes the `@joshuafolkken` scope to.
+
 Run `josh-app --help` (or `josh-app help`) to list commands. The older `josh-app version:upgrade` / `josh-app vu` forms still work. Unsupported arguments fail rather than being silently ignored.
 
 ## The effective kit
