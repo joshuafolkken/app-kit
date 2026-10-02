@@ -18,3 +18,6 @@
 - rf:none | none | - | 2026-10-01 | #230
 - rf:none | none | - | 2026-10-01 | #230
 - rf:none | none | - | 2026-10-01 | #232
+- rf:bug-risks | medium | README.md | 2026-10-02 | #234
+- rf:assumptions | low | docs/dast.md | 2026-10-02 | #234
+- rf:confidence | low | docs/setup.md | 2026-10-02 | #234

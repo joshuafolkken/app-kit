@@ -101,7 +101,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.1003.0",
+		"@joshuafolkken/kit": "^1.1005.0",
 		"@playwright/test": "^1.63.0",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
 		"@size-limit/file": "^14.1.0",
@@ -113,7 +113,7 @@
 		"@tailwindcss/typography": "^0.5.20",
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^26.6.3",
-		"@vitest/browser-playwright": "^5.0.2",
+		"@vitest/browser-playwright": "^5.0.3",
 		"cspell": "^10.3.6",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.11.0",
@@ -134,9 +134,9 @@
 		"tsx": "^4.23.15",
 		"typescript": "^6.0.3",
 		"vite": "^8.3.1",
-		"vitest": "^5.0.2",
+		"vitest": "^5.0.3",
 		"vitest-browser-svelte": "^3.1.0",
-		"wrangler": "^4.144.0"
+		"wrangler": "^4.145.0"
 	},
 	"peerDependencies": {
 		"@joshuafolkken/kit": ">=1.109.0",

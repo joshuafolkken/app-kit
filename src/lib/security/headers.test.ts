@@ -189,7 +189,7 @@ describe('Cross-Origin-Opener-Policy is in the baseline (#164)', () => {
 	})
 
 	// The template's comment block is the guidance consumers actually read; the escape hatch has to
-	// be named there, not only in README — the same prose-as-payload reasoning as #121 below.
+	// be named there, not only in docs/security-headers.md — the same prose-as-payload reasoning as #121 below.
 	it('documents the popup-flow relaxation in the seeded _headers prose', () => {
 		expect(TEMPLATE_SOURCE).toContain(COOP_ALLOW_POPUPS)
 	})
@@ -235,7 +235,7 @@ describe('the seeded _headers presents CSP as already configured in kit.csp (#12
 		expect(TEMPLATE_SOURCE).toContain('never add a CSP line here')
 	})
 
-	// headers.ts and the README both grant this escape hatch. Omitting it here would leave the seed
+	// headers.ts and docs/security-headers.md both grant this escape hatch. Omitting it here would leave the seed
 	// contradicting them — a smaller version of the very drift #121 is closing.
 	it('still names the `extra` escape hatch for a project that needs a header CSP on SSR', () => {
 		expect(TEMPLATE_SOURCE).toContain('apply_security_headers')

@@ -95,7 +95,7 @@ interface OverlayChange {
 // Seed-only for the same reason: CSP, CORS, and cache rules are highly project-specific, and
 // overwriting them on every sync would clobber a consumer's production header policy.
 //
-// src/routes/security-headers.e2e.ts is the per-PR net README and dast.yml both cite as the reason
+// src/routes/security-headers.e2e.ts is the per-PR net docs/dast.md and dast.yml both cite as the reason
 // the full ZAP scan only runs nightly — a claim that was false for consumers until #120, because
 // app-kit described the file without shipping it. Seed-only rather than managed: a consumer extends
 // it with instance-specific cases (their allowlisted origins, their embed routes), which a byte-copy
