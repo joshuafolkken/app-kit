@@ -228,8 +228,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.9.9)(supports-color@10.2.2)
       '@joshuafolkken/kit':
-        specifier: ^1.983.0
-        version: 1.983.0(9d32d03321f952cdf81657e9495eb385)
+        specifier: ^1.1003.0
+        version: 1.1003.0(9d32d03321f952cdf81657e9495eb385)
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
@@ -1250,8 +1250,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@1.983.0':
-    resolution: {integrity: sha512-6ouKWM2XQDskTrjInle1XYaXTaHzJn1HwLWLTRXuDKqatGUIKB1gYZdf3NjxhIii/qvgWUr3wgtkrykUy3C79A==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.983.0/e462c767305f4a340dca4c45506f2714e3062b77}
+  '@joshuafolkken/kit@1.1003.0':
+    resolution: {integrity: sha512-vDHAQou9NmX77ZcoKkjaomTlYDd/q7M32UKe2RCfmUPPYIGYO65eln11PEmAVeMC+WfoGNOMQyg8J2I+FXs1GQ==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.1003.0/359e93e31b23abe067d9aee1a59d1baa3e74e6fd}
     engines: {node: '>=22.19.0'}
     hasBin: true
     peerDependencies:
@@ -4454,7 +4454,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.4':
     optional: true
 
-  '@joshuafolkken/kit@1.983.0(9d32d03321f952cdf81657e9495eb385)':
+  '@joshuafolkken/kit@1.1003.0(9d32d03321f952cdf81657e9495eb385)':
     dependencies:
       '@eslint/compat': 2.1.1(eslint@10.11.0(jiti@2.7.0)(supports-color@10.2.2))
       '@eslint/js': 10.0.1(eslint@10.11.0(jiti@2.7.0)(supports-color@10.2.2))
