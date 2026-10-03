@@ -1,14 +1,8 @@
-# Set up app-kit
+# Install app-kit
 
-The detailed version of the [Quick start](../README.md#quick-start). app-kit runs kit's base setup first and then applies the SvelteKit + Cloudflare overlay, so one command gives a project both.
+The detailed version of the [Quick start](../../README.md#quick-start). app-kit runs kit's base setup first and then applies the SvelteKit + Cloudflare overlay, so one command gives a project both. Check the [prerequisites](./prerequisites.md) first.
 
-## 1. Check the prerequisites
-
-- [Node.js](https://nodejs.org/) with [pnpm](https://pnpm.io/).
-- **A POSIX shell.** The `package.json` scripts app-kit distributes are written for `sh`: `dev` and `preview` resolve their port with `$(josh port …)`, and the `prepare` chain gates on `[ … ]` and `command -v`. `cmd.exe` has none of that, so on Windows run them from WSL or Git Bash — a plain `cmd.exe` fails at `pnpm install`, before any server script. pnpm's `shell-emulator` is not a substitute: its shell cannot parse `!`, which breaks the `prepare` guards.
-- The [gh CLI](https://cli.github.com/), signed in — `josh-app version` and kit's Issue workflow call GitHub through it. Install it with `brew install gh` (macOS), `winget install GitHub.cli` (Windows), or see the [gh installation docs](https://github.com/cli/cli#installation).
-
-## 2. Choose the registry
+## 1. Choose the registry
 
 Every release of app-kit is published to both [public npm](https://www.npmjs.com/package/@joshuafolkken/app-kit) and GitHub Packages, with the same version on each.
 
@@ -32,9 +26,9 @@ GitHub Packages requires a token even for public packages. Set it up once per ma
 
 On a fresh checkout of a project that already uses app-kit, `pnpm config get "@joshuafolkken:registry"` shows the effective registry, including your user-level mapping.
 
-A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](./deploy-authentication.md). A project that installs from public npm needs none.
+A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](../deploy-authentication.md). A project that installs from public npm needs none.
 
-## 3. Install
+## 2. Install
 
 ```bash
 pnpm add -g @joshuafolkken/app-kit   # the josh-app CLI, run from any project directory
@@ -51,7 +45,7 @@ The two installs are separate on purpose. `josh-app init` wires app-kit's preset
 >
 > Once the target version ages past 24h, a bare `pnpm add -g @joshuafolkken/app-kit` resolves to the latest.
 
-## 4. Initialize
+## 3. Initialize
 
 From the root of a SvelteKit project:
 
@@ -62,18 +56,9 @@ pnpm josh gate
 
 `josh-app init` runs kit's framework-agnostic `josh init` first, then applies the SvelteKit + Cloudflare overlay on top: the managed `package.json` scripts, the SvelteKit config lines, the Cloudflare `wrangler.jsonc` worker name and the seeded files (`_headers`, `zap-baseline.conf`, the security-headers E2E spec and the k6 scenarios). What kit's base creates is described in kit's [init.md](https://github.com/joshuafolkken/kit/blob/main/docs/init.md).
 
-## 5. Keep it up to date
-
-```bash
-josh-app version             # installed vs. latest, including the kit the CLI runs
-josh-app version --upgrade   # upgrade the global and project installs
-josh-app sync                # re-apply kit's base and the overlay
-```
-
-`josh-app sync` is idempotent. It overwrites the files app-kit manages (the managed scripts, `dast.yml`, `load.yml`) and never overwrites the seeded files you own (`zap-baseline.conf` only gains missing baseline rules — [dast.md](./dast.md#seeded-files-and-managed-workflows)). How an upgrade reaches the kit bundled with the global CLI: [cli.md → The effective kit](./cli.md#the-effective-kit).
-
 ## Next
 
-- Every command: [cli.md](./cli.md).
-- Import the runtime features and presets: [package-api.md](./package-api.md).
-- Apply the security-header baseline in your server hook: [security-headers.md](./security-headers.md).
+- Keep it current: [Update app-kit](../how-to/update-app-kit.md).
+- Every command: [cli.md](../cli.md).
+- Import the runtime features and presets: [package-api.md](../package-api.md).
+- Apply the security-header baseline in your server hook: [security-headers.md](../security-headers.md).
