@@ -105,7 +105,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.1005.0",
+		"@joshuafolkken/kit": "^1.1035.0",
 		"@playwright/test": "^1.63.0",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
 		"@size-limit/file": "^14.1.0",
