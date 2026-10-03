@@ -1,6 +1,6 @@
 # Package API
 
-Add app-kit as a devDependency ([setup.md](./setup.md#3-install)), then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
+Add app-kit as a devDependency ([install.md](./setup/install.md#2-install)), then import the pieces you need. Every entry point is a separate subpath export, so unused features are tree-shaken away.
 
 | Import                                      | Provides                                                         | Details                                                                      |
 | ------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
