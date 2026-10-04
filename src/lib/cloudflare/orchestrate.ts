@@ -13,9 +13,12 @@ const BIN_NAME = 'josh'
 // the package root from there. config-merge (the library app-kit also consumes) is always present.
 const KIT_RESOLVE_MARKER = '@joshuafolkken/kit/config-merge'
 
-// `josh init` prompts for the project type when it cannot auto-detect; pass it explicitly so the
-// orchestrated run is always non-interactive.
-const SVELTEKIT_TYPE_ARGS: ReadonlyArray<string> = ['--type', 'sveltekit']
+// `josh init` accepts only `--profile` (plus `--no-install`) and otherwise infers the profile from
+// package.json, which reads a bare package.json as `basic`. The overlay always yields a SvelteKit
+// project, so request the full toolchain explicitly. `node` is the pre-rename spelling of `full`
+// (joshuafolkken/kit#2829): every kit with `--profile` reads it, while `full` only reads on kits
+// after the rename, and the kit that runs here can be any version the peer range allows.
+const FULL_PROFILE_ARGS: ReadonlyArray<string> = ['--profile', 'node']
 
 const SUCCESS_STATUS = 0
 
@@ -132,7 +135,7 @@ function run_base_sync(cwd: string, spawn: SpawnRunner = default_spawn): void {
 }
 
 function run_base_init(cwd: string, spawn: SpawnRunner = default_spawn): void {
-	run_kit_base('init', SVELTEKIT_TYPE_ARGS, cwd, spawn)
+	run_kit_base('init', FULL_PROFILE_ARGS, cwd, spawn)
 }
 
 const cloudflare_orchestrate = {
