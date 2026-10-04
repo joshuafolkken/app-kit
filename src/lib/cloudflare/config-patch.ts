@@ -111,6 +111,12 @@ const NPMRC_AUTH_KEY = '//npm.pkg.github.com/:_authToken='
 // Single-quoted: `${NODE_AUTH_TOKEN}` is the literal placeholder pnpm expands, not a TS template.
 const NPMRC_AUTH_VALUE = '${NODE_AUTH_TOKEN}'
 const NPMRC_AUTH_LINE = `${NPMRC_AUTH_KEY}${NPMRC_AUTH_VALUE}`
+// The credential is live only for a consumer that routes the scope to GitHub Packages. kit's
+// `josh init` no longer writes that route, so a new consumer installs from public npm and the line
+// would be pure noise — plus pnpm's `Ignored project-level auth setting` warning (#258). The
+// project `.npmrc` is the gate rather than the effective config: it is what a deploy builder sees.
+// ini allows whitespace around `=`, so a hand-written `key = value` route counts as well.
+const NPMRC_GITHUB_PACKAGES_ROUTE = /^@joshuafolkken:registry\s*=.*npm\.pkg\.github\.com/u
 
 // SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
 // now single-sources these (via position-independent `**/<dir>/**` globs that propagate through the
@@ -181,11 +187,16 @@ function has_auth_setting(content: string): boolean {
 		.some((line) => line.replace(NPMRC_LEADING_NOISE, '').startsWith(NPMRC_AUTH_KEY))
 }
 
-// Append the credential line when the consumer has no setting for that key. Every existing byte is
-// preserved; a file that does not end in a newline gets one first, so the appended line is never
-// glued onto the last entry.
+// Only a live entry routes the scope — unlike the auth key, a commented-out route is no route at all.
+function routes_scope_to_github_packages(content: string): boolean {
+	return content.split('\n').some((line) => NPMRC_GITHUB_PACKAGES_ROUTE.test(line.trim()))
+}
+
+// Append the credential line when the consumer routes the scope to GitHub Packages and has no
+// setting for that key. Every existing byte is preserved; a file that does not end in a newline gets
+// one first, so the appended line is never glued onto the last entry.
 function patch_npmrc_content(content: string): string {
-	if (has_auth_setting(content)) return content
+	if (!routes_scope_to_github_packages(content) || has_auth_setting(content)) return content
 
 	const prefix = content.length > 0 && !content.endsWith('\n') ? `${content}\n` : content
 
@@ -193,8 +204,8 @@ function patch_npmrc_content(content: string): string {
 }
 
 // Reconcile the SvelteKit + Cloudflare config app-kit owns: the eslint.config.js factory swap, the
-// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs, and the GitHub
-// Packages credential line in .npmrc.
+// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs, and — for a consumer
+// on GitHub Packages — the credential line in .npmrc.
 function patch_configs(target: string): Array<OverlayChange> {
 	return [
 		patch_file(target, ESLINT_FILE, patch_eslint_content),

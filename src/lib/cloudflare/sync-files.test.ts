@@ -22,6 +22,8 @@ const NPMRC_AUTH_LINE = '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}'
 // kit's base writes .npmrc first in the orchestrated `josh-app init` / `josh-app sync`, so by the
 // time the overlay runs the file exists with kit's framework-agnostic lines.
 const NPMRC_KIT_BASE = '@joshuafolkken:registry=https://npm.pkg.github.com\nengine-strict=true\n'
+// What kit's current `josh init` writes for a new consumer: no scope route, so public npm (#258).
+const NPMRC_PUBLIC_NPM = 'engine-strict=true\nminimum-release-age=1440\n'
 
 type OverlayChanges = ReturnType<typeof cloudflare_sync.apply_overlay>
 
@@ -159,6 +161,14 @@ describe('cloudflare sync overlay — .npmrc credential line (#160)', () => {
 
 		expect(action_for(changes, NPMRC)).toBe('skipped')
 		expect(sync_fixture.read(NPMRC)).toBe(after_first)
+	})
+
+	it('adds no credential line to a public-npm consumer across repeated overlays', () => {
+		writeFileSync(sync_fixture.path_of(NPMRC), NPMRC_PUBLIC_NPM)
+
+		expect(action_for(apply_overlay(), NPMRC)).toBe('skipped')
+		expect(action_for(apply_overlay(), NPMRC)).toBe('skipped')
+		expect(sync_fixture.read(NPMRC)).toBe(NPMRC_PUBLIC_NPM)
 	})
 
 	it('does not create .npmrc when the consumer has none — kit owns the file', () => {
