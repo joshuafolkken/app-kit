@@ -6,7 +6,8 @@
 
 | Command                      | What it does                                                               | Details                                         |
 | ---------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
-| `josh-app init` / `i`        | Apply kit's base then the SvelteKit + Cloudflare overlay to a project      | [install.md](./setup/install.md#3-initialize)   |
+| `josh-app start`             | kit's `josh start` (Git, GitHub, setup PR) with `josh-app init` as setup   | [install.md](./setup/install.md#3-set-up)       |
+| `josh-app init` / `i`        | Apply kit's base then the SvelteKit + Cloudflare overlay to a project      | [install.md](./setup/install.md#3-set-up)       |
 | `josh-app sync` / `sy`       | Re-sync the overlay (scripts, seeds, SvelteKit config lines) idempotently  | [update-app-kit.md](./how-to/update-app-kit.md) |
 | `josh-app check` / `c`       | Fast incremental SvelteKit type-check (dev loop)                           |                                                 |
 | `josh-app check:ci`          | Strict SvelteKit type-check (CI variant)                                   |                                                 |

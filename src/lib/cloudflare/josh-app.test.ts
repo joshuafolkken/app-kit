@@ -38,7 +38,7 @@ function tracked_file_state(): Map<string, { mtime_ns: bigint; size: bigint }> {
 }
 
 describe('josh-app self-sync preflight', () => {
-	it.each(['init', 'sync', 'i', 'sy'])(
+	it.each(['start', 'init', 'sync', 'i', 'sy'])(
 		'refuses %s before writing to its own repository',
 		(command) => {
 			const files_before = tracked_file_state()
@@ -71,6 +71,7 @@ describe('josh-app command help', () => {
 		expect(result.status).toBe(0)
 		expect(result.stdout).toContain('version [--upgrade]')
 		expect(result.stdout).toContain('check:ci')
+		expect(result.stdout).toContain('start [options]')
 	})
 
 	it.each([

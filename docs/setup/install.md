@@ -31,11 +31,10 @@ A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it nee
 ## 2. Install
 
 ```bash
-pnpm add -g @joshuafolkken/app-kit   # the josh-app CLI, run from any project directory
-pnpm add -D @joshuafolkken/app-kit   # the presets the generated config imports
+pnpm add -D @joshuafolkken/app-kit
 ```
 
-The two installs are separate on purpose. `josh-app init` wires app-kit's presets into the scaffolded `eslint.config.js`, `tsconfig.json`, cspell and lefthook config, and those imports resolve only from the project's own `devDependencies`.
+app-kit has to be one of the project's `devDependencies`: `josh-app init` wires its presets into the scaffolded `eslint.config.js`, `tsconfig.json`, cspell and lefthook config, and those imports resolve only from there. kit comes with it as a peer, and `pnpm exec josh-app` runs the project's copy. A global install (`pnpm add -g @joshuafolkken/app-kit`) is optional; it lets you type `josh-app` without `pnpm exec`.
 
 > **Version-age gotcha.** A supply-chain safety delay (`minimum-release-age`, 24h) can resolve a bare `pnpm add -g @joshuafolkken/app-kit` to an **older** published version. While the version you want is still inside its 24h window, pin it and skip the age gate:
 >
@@ -45,16 +44,18 @@ The two installs are separate on purpose. `josh-app init` wires app-kit's preset
 >
 > Once the target version ages past 24h, a bare `pnpm add -g @joshuafolkken/app-kit` resolves to the latest.
 
-## 3. Initialize
+## 3. Set up
 
 From the root of a SvelteKit project:
 
 ```bash
-josh-app init
+pnpm exec josh-app start
 pnpm josh gate
 ```
 
-`josh-app init` runs kit's framework-agnostic `josh init` first, then applies the SvelteKit + Cloudflare overlay on top: the managed `package.json` scripts, the SvelteKit config lines, the Cloudflare `wrangler.jsonc` worker name and the seeded files (`_headers`, `zap-baseline.conf`, the security-headers E2E spec and the k6 scenarios). What kit's base creates is described in kit's [init.md](https://github.com/joshuafolkken/kit/blob/main/docs/init.md).
+`josh-app start` runs kit's [`josh start`](https://github.com/joshuafolkken/kit/blob/main/docs/init.md) with `josh-app init` as its setup step: it creates the Git repository if there is none, sets the project up, makes the first commit, creates the GitHub repository and its labels, and — when `main` already has history — opens a pull request with the setup instead. It always uses kit's full profile, which the SvelteKit + Cloudflare overlay needs. Its other options are kit's, passed through unchanged: `--yes` (no prompts), `--github` (consent to the GitHub steps when unattended) and `--public`. It needs `gh` signed in and kit 1.1050.0 or later.
+
+To set up the files only, without Git or GitHub, run `pnpm exec josh-app init` instead. `josh-app init` runs kit's framework-agnostic `josh init` first, then applies the SvelteKit + Cloudflare overlay on top: the managed `package.json` scripts, the SvelteKit config lines, the Cloudflare `wrangler.jsonc` worker name and the seeded files (`_headers`, `zap-baseline.conf`, the security-headers E2E spec and the k6 scenarios). What kit's base creates is described in kit's [init.md](https://github.com/joshuafolkken/kit/blob/main/docs/init.md).
 
 ## Next
 

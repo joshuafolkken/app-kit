@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { resolve_effective_upstream_version } from '@joshuafolkken/kit/version'
+import { process_runner } from '#process/runner.js'
 
 const ENCODING = 'utf8'
 const MANIFEST = 'package.json'
@@ -19,6 +20,14 @@ const KIT_RESOLVE_MARKER = '@joshuafolkken/kit/config-merge'
 // (joshuafolkken/kit#2829): every kit with `--profile` reads it, while `full` only reads on kits
 // after the rename, and the kit that runs here can be any version the peer range allows.
 const FULL_PROFILE_ARGS: ReadonlyArray<string> = ['--profile', 'node']
+
+// `josh start` runs this in place of its own `josh init`, resolved through PATH: the project's copy
+// under `pnpm exec josh-app start`, the global one otherwise.
+const INIT_COMMAND_FLAG = '--init-command'
+const INIT_COMMAND = 'josh-app init'
+// Fixed for the same reason as FULL_PROFILE_ARGS, so kit's detection never picks `basic` for an
+// empty directory. Every kit with `--init-command` (1.1050.0+) already reads the renamed `full`.
+const START_PROFILE_ARGS: ReadonlyArray<string> = ['--profile', 'full']
 
 const SUCCESS_STATUS = 0
 
@@ -134,8 +143,28 @@ function run_base_sync(cwd: string, spawn: SpawnRunner = default_spawn): void {
 	run_kit_base('sync', [], cwd, spawn)
 }
 
-function run_base_init(cwd: string, spawn: SpawnRunner = default_spawn): void {
-	run_kit_base('init', FULL_PROFILE_ARGS, cwd, spawn)
+// `profile_args` is the `--profile <profile>` pair `josh start` appends to its initialize command;
+// a bare `josh-app init` has none and keeps requesting the full toolchain.
+function run_base_init(
+	cwd: string,
+	profile_args: ReadonlyArray<string> = [],
+	spawn: SpawnRunner = default_spawn,
+): void {
+	run_kit_base('init', profile_args.length > 0 ? profile_args : FULL_PROFILE_ARGS, cwd, spawn)
+}
+
+// Run kit's `josh start` with `josh-app init` as its initialize step, so kit keeps every guard and
+// GitHub step in one place and app-kit only names its own setup (joshuafolkken/kit#2872). The
+// caller's options pass through untouched; kit validates them. The exit status is returned rather
+// than thrown, because kit has already printed why it refused.
+function run_base_start(
+	cwd: string,
+	args: ReadonlyArray<string>,
+	spawn: SpawnRunner = default_spawn,
+): number {
+	const argv = ['start', INIT_COMMAND_FLAG, INIT_COMMAND, ...START_PROFILE_ARGS, ...args]
+
+	return process_runner.to_exit_status(spawn(resolve_kit_josh_bin(), argv, cwd))
 }
 
 const cloudflare_orchestrate = {
@@ -145,6 +174,7 @@ const cloudflare_orchestrate = {
 	run_kit_base,
 	run_base_sync,
 	run_base_init,
+	run_base_start,
 }
 
 export { cloudflare_orchestrate }
