@@ -70,6 +70,7 @@ async function capture_all(
 	for (const request of plan.requests) {
 		const absolute = to_absolute(cwd, request)
 
+		// eslint-disable-next-line no-await-in-loop -- routes share one preview server and browser, captured in order
 		outcomes.push(await capture.capture_one(browser, plan.viewport, port, absolute))
 	}
 

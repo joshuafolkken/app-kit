@@ -131,9 +131,11 @@ async function wait_until_ready(
 	const deadline = deps.now() + READY_TIMEOUT_MS
 
 	while (deps.now() < deadline) {
+		// eslint-disable-next-line no-await-in-loop -- polling: each read waits on the state the previous one saw
 		const outcome = poll_outcome(await deps.probe(url), port, handle, deps)
 		if (outcome !== undefined) return outcome
 
+		// eslint-disable-next-line no-await-in-loop -- polling: each read waits on the state the previous one saw
 		await deps.sleep(POLL_INTERVAL_MS)
 	}
 
