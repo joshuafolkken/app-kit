@@ -32,8 +32,10 @@ async function wait_for_release(
 	const url = preview_server.build_probe_url(port)
 
 	while (deps.now() < deadline) {
+		// eslint-disable-next-line no-await-in-loop -- polling: each read waits on the state the previous one saw
 		if ((await deps.is_port_free(port)) && !(await deps.probe(url))) return
 
+		// eslint-disable-next-line no-await-in-loop -- polling: each read waits on the state the previous one saw
 		await deps.sleep(RELEASE_POLL_MS)
 	}
 
