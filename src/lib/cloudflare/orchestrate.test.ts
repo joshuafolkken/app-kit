@@ -71,12 +71,14 @@ describe('cloudflare orchestrate — command construction', () => {
 		expect(calls[0]?.bin.endsWith('josh.js')).toBe(true)
 	})
 
-	it('runs josh init with an explicit sveltekit type to stay non-interactive', () => {
+	it('runs josh init with the full profile under the name every kit with --profile reads', () => {
 		const { spawn, calls } = make_spawn(OK)
 
 		cloudflare_orchestrate.run_base_init(CWD, spawn)
 
-		expect(calls[0]?.argv).toEqual(['init', '--type', 'sveltekit'])
+		// Regression (#252): kit's `josh init` rejects the removed `--type` flag with a usage error.
+		// `node` is the pre-rename name of `full`, which kits from before kit#2829 also accept.
+		expect(calls[0]?.argv).toEqual(['init', '--profile', 'node'])
 		expect(calls[0]?.cwd).toBe(CWD)
 	})
 })
