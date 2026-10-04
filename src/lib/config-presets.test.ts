@@ -32,7 +32,11 @@ const KIT = '@joshuafolkken/kit'
 //   ERR_PACKAGE_PATH_NOT_EXPORTED.
 // - 1.109.0 (kit#868, app-kit#202): the top-level self-sync-guard import needs the newly exported
 //   subpath before any josh-app command can dispatch.
-const KIT_PEER_FLOOR = '>=1.109.0'
+// - 1.1128.0 (kit#3084, app-kit#260): the dast.yml / load.yml app-kit byte-copies call
+//   `./.github/actions/setup-node` and `./.github/actions/setup-pnpm`, which kit's `josh sync`
+//   writes; 1.1128.0 is the first release that writes setup-node, so on a lower kit those
+//   workflows fail at their first step.
+const KIT_PEER_FLOOR = '>=1.1128.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'
