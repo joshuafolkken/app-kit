@@ -23,12 +23,10 @@ Requires Node.js, pnpm and the gh CLI — [how to install them](./docs/setup/pre
 From the root of a SvelteKit project:
 
 ```bash
-pnpm add -g @joshuafolkken/app-kit
-pnpm add -D @joshuafolkken/app-kit
-josh-app init
+pnpm add -D @joshuafolkken/app-kit && pnpm exec josh-app start
 ```
 
-Then commit the setup, open your agent and follow kit's [tutorial](https://github.com/joshuafolkken/kit/blob/main/docs/tutorial.md).
+That installs kit's base and the SvelteKit + Cloudflare overlay, makes the first commit, and creates the GitHub repository (or opens a setup pull request when `main` already exists). Then open your agent and follow kit's [tutorial](https://github.com/joshuafolkken/kit/blob/main/docs/tutorial.md).
 
 Already using app-kit? [Update it](./docs/how-to/update-app-kit.md)
 

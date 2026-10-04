@@ -4,6 +4,9 @@ import { cloudflare_orchestrate, type SpawnOutcome } from './orchestrate.js'
 
 const CWD = '/work/consumer-project'
 const KIT_MANIFEST = `${process.cwd()}/node_modules/@joshuafolkken/kit/package.json`
+// The full profile is fixed so kit's detection never picks `basic` under the SvelteKit overlay.
+const START_PREFIX = ['start', '--init-command', 'josh-app init', '--profile', 'full']
+const SPAWN_FAILURE = 'spawn ENOENT'
 
 interface SpawnCall {
 	bin: string
@@ -74,12 +77,37 @@ describe('cloudflare orchestrate — command construction', () => {
 	it('runs josh init with the full profile under the name every kit with --profile reads', () => {
 		const { spawn, calls } = make_spawn(OK)
 
-		cloudflare_orchestrate.run_base_init(CWD, spawn)
+		cloudflare_orchestrate.run_base_init(CWD, [], spawn)
 
 		// Regression (#252): kit's `josh init` rejects the removed `--type` flag with a usage error.
 		// `node` is the pre-rename name of `full`, which kits from before kit#2829 also accept.
 		expect(calls[0]?.argv).toEqual(['init', '--profile', 'node'])
 		expect(calls[0]?.cwd).toBe(CWD)
+	})
+
+	it('forwards the profile josh start appends to josh init', () => {
+		const { spawn, calls } = make_spawn(OK)
+
+		cloudflare_orchestrate.run_base_init(CWD, ['--profile', 'full'], spawn)
+
+		expect(calls[0]?.argv).toEqual(['init', '--profile', 'full'])
+	})
+
+	it('runs josh start with josh-app init as its initialize command', () => {
+		const { spawn, calls } = make_spawn(OK)
+
+		expect(cloudflare_orchestrate.run_base_start(CWD, [], spawn)).toBe(0)
+		expect(calls[0]?.argv).toEqual(START_PREFIX)
+		expect(calls[0]?.cwd).toBe(CWD)
+	})
+
+	it('passes the start options through to kit unchanged and in order', () => {
+		const { spawn, calls } = make_spawn(OK)
+		const options = ['--yes', '--github', '--public']
+
+		cloudflare_orchestrate.run_base_start(CWD, options, spawn)
+
+		expect(calls[0]?.argv).toEqual([...START_PREFIX, ...options])
 	})
 })
 
@@ -93,12 +121,25 @@ describe('cloudflare orchestrate — failure handling', () => {
 	})
 
 	it('rethrows a spawn error ahead of the exit-status check', () => {
-		const failure = new Error('spawn ENOENT')
+		const failure = new Error(SPAWN_FAILURE)
 		const { spawn } = make_spawn({ status: 1, error: failure })
 
 		expect(() => {
-			cloudflare_orchestrate.run_base_init(CWD, spawn)
+			cloudflare_orchestrate.run_base_init(CWD, [], spawn)
 		}).toThrow(failure)
+	})
+
+	it("returns josh start's non-zero exit status instead of throwing", () => {
+		const { spawn } = make_spawn({ status: 1, error: undefined })
+
+		expect(cloudflare_orchestrate.run_base_start(CWD, ['--yes'], spawn)).toBe(1)
+	})
+
+	it('rethrows a josh start spawn error', () => {
+		const failure = new Error(SPAWN_FAILURE)
+		const { spawn } = make_spawn({ status: 1, error: failure })
+
+		expect(() => cloudflare_orchestrate.run_base_start(CWD, [], spawn)).toThrow(failure)
 	})
 
 	it('does not throw on a successful exit', () => {
