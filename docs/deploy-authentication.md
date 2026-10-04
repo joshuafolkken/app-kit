@@ -1,8 +1,8 @@
 # Deploy-time authentication (Cloudflare Workers Builds)
 
-**This page applies only to a project that installs `@joshuafolkken/*` from GitHub Packages** — one whose `@joshuafolkken:registry` points at `https://npm.pkg.github.com`. A project that installs from public npm builds on Cloudflare Workers Builds with no credential at all ([install.md → Choose the registry](./setup/install.md#1-choose-the-registry)).
+**This page applies only to a project that installs `@joshuafolkken/*` from GitHub Packages** — one whose `@joshuafolkken:registry` points at `https://npm.pkg.github.com`. A project that installs from public npm builds on Cloudflare Workers Builds with no credential at all ([install.md → Choose the registry](./setup/install.md#1-choose-the-registry)): it needs neither `NODE_AUTH_TOKEN` nor `PNPM_CONFIG_NPMRC_AUTH_FILE` in the build environment, and `josh-app init` / `josh-app sync` add no GitHub Packages line to its `.npmrc`.
 
-A deploy builder has no `~/.npmrc`, so the user-level setup in [install.md](./setup/install.md#authenticate-to-github-packages) does not carry over — the build installs `@joshuafolkken/*` with no credential and fails with `ERR_PNPM_FETCH_401`. `josh-app init` / `josh-app sync` therefore keep this line in the project `.npmrc`:
+A deploy builder has no `~/.npmrc`, so the user-level setup in [install.md](./setup/install.md#authenticate-to-github-packages) does not carry over — the build installs `@joshuafolkken/*` with no credential and fails with `ERR_PNPM_FETCH_401`. When the project `.npmrc` routes the scope there (`@joshuafolkken:registry=https://npm.pkg.github.com`), `josh-app init` / `josh-app sync` therefore keep this line beside it:
 
 ```ini
 //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}

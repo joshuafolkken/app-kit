@@ -26,7 +26,7 @@ GitHub Packages requires a token even for public packages. Set it up once per ma
 
 On a fresh checkout of a project that already uses app-kit, `pnpm config get "@joshuafolkken:registry"` shows the effective registry, including your user-level mapping.
 
-A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](../deploy-authentication.md). A project that installs from public npm needs none.
+A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](../deploy-authentication.md). A project that installs from public npm needs none: `josh-app init` writes no GitHub Packages credential into its `.npmrc`, and Cloudflare Workers Builds needs no `NODE_AUTH_TOKEN` or `PNPM_CONFIG_NPMRC_AUTH_FILE`.
 
 ## 2. Install
 
