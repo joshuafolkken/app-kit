@@ -6,8 +6,17 @@ const VERSION_UPGRADE = 'version:upgrade'
 const UPGRADE_FLAG = '--upgrade'
 const ALL_FLAG = '--all'
 const HELP_COMMANDS = new Set(['help', '--help', '-h', ALL_FLAG])
+// `josh start --init-command` appends `--profile <profile>` to the command it is handed, so `init`
+// takes exactly that pair (or nothing) and forwards it to kit's `josh init`. Only `full` is taken:
+// the SvelteKit + Cloudflare overlay needs kit's full toolchain, and a basic base under it would be
+// committed and published by `josh start` as a mismatched project.
+const PROFILE_FLAG = '--profile'
+const FULL_PROFILE = 'full'
+const PROFILE_PAIR_LENGTH = 2
+// `start` fixes both itself — the full profile and `josh-app init` — so a caller's copy is refused
+// here instead of reaching kit as a clashing pair.
+const START_RESERVED_FLAGS = new Set([PROFILE_FLAG, '--init-command'])
 const NO_ARGUMENT_COMMANDS = new Set([
-	'init',
 	'sync',
 	'check',
 	'check:ci',
@@ -26,6 +35,7 @@ const COMMAND_ALIASES: Record<string, string> = {
 const HELP_MESSAGE = `josh-app — SvelteKit + Cloudflare toolkit
 
 Project:
+      start [options]       Run kit's josh start with josh-app init as its setup
   i,  init                  Apply kit base and the app-kit overlay
   sy, sync                  Re-sync kit base and the app-kit overlay
 
@@ -72,6 +82,27 @@ function parse_no_arguments(command: string, args: ReadonlyArray<string>): Parse
 	return { kind: 'run', command }
 }
 
+function is_full_profile_pair(args: ReadonlyArray<string>): boolean {
+	const [flag, value] = args
+
+	return args.length === PROFILE_PAIR_LENGTH && flag === PROFILE_FLAG && value === FULL_PROFILE
+}
+
+function parse_init(args: ReadonlyArray<string>): ParsedCommand {
+	if (args.length === 0 || is_full_profile_pair(args)) return { kind: 'run', command: 'init' }
+
+	return error('init accepts only --profile full: the app-kit overlay needs the full toolchain.')
+}
+
+// The remaining options are kit's `josh start` switches, which kit validates.
+function parse_start(args: ReadonlyArray<string>): ParsedCommand {
+	if (args.some((argument) => START_RESERVED_FLAGS.has(argument))) {
+		return error('start sets --profile full and --init-command itself; drop them.')
+	}
+
+	return { kind: 'run', command: 'start' }
+}
+
 function parse_load(args: ReadonlyArray<string>): ParsedCommand {
 	if (args.length > 1) return error('load accepts one scenario path.')
 
@@ -99,12 +130,19 @@ function parse_other(canonical: string, args: ReadonlyArray<string>): ParsedComm
 	return error(`Unknown command: ${canonical}. Run 'josh-app --help' for available commands.`)
 }
 
-function parse_canonical(canonical: string, args: ReadonlyArray<string>): ParsedCommand {
-	if (canonical === VERSION) return parse_version(args)
-	if (canonical === 'load') return parse_load(args)
-	if (canonical === 'verify') return parse_verify(args)
+// The commands with options of their own; a Map keeps the `version:upgrade`-style keys as strings.
+const ARGUMENT_PARSERS = new Map<string, (args: ReadonlyArray<string>) => ParsedCommand>([
+	[VERSION, parse_version],
+	['init', parse_init],
+	['start', parse_start],
+	['load', parse_load],
+	['verify', parse_verify],
+])
 
-	return parse_other(canonical, args)
+function parse_canonical(canonical: string, args: ReadonlyArray<string>): ParsedCommand {
+	const parser = ARGUMENT_PARSERS.get(canonical)
+
+	return parser === undefined ? parse_other(canonical, args) : parser(args)
 }
 
 function parse(command: string | undefined, args: ReadonlyArray<string>): ParsedCommand {

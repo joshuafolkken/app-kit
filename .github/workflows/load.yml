@@ -51,39 +51,17 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: ./.github/actions/setup-node
         with:
-          node-version: '24'
           registry-url: 'https://npm.pkg.github.com'
 
-      # Install pnpm via Corepack (driven by the packageManager pin) instead of
-      # pnpm/action-setup: its self-installer crashes on newer pnpm releases with
-      # "Cannot use 'in' operator to search for 'integrity' in undefined" (kit#662).
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Resolve pnpm store path
-        run: echo "PNPM_STORE_PATH=$(pnpm store path)" >> "$GITHUB_ENV"
-
-      - name: Setup pnpm store cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # kit's shared action, which `josh sync` writes beside ci.yml: the pnpm version, the store
+      # cache, the hash-verified safe-chain installer (app-kit#232) and the install, on the same path
+      # ci.yml runs (joshuafolkken/kit#3095). workflow-safe-chain.test.ts keeps this file on it.
+      - name: Setup pnpm and install dependencies
+        uses: ./.github/actions/setup-pnpm
         with:
-          path: ${{ env.PNPM_STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Setup safe-chain
-        run: |
-          installer="$RUNNER_TEMP/install-safe-chain.sh"
-          curl --proto '=https' -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$installer"
-          echo "$SAFE_CHAIN_INSTALLER_SHA256  $installer" | sha256sum -c -
-          sh "$installer" --ci
-
-      - name: Install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm install --frozen-lockfile --ignore-scripts
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare
         run: pnpm prepare

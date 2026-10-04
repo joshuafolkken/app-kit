@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 // will re-base onto (joshuafolkken/game-kit#355).
 //
 // Every value in this set is written for a POSIX shell, and that is the documented requirement
-// (docs/setup.md → Check the prerequisites) rather than an accident #188 could have designed away. `dev` and
+// (docs/setup/prerequisites.md → Use a POSIX shell) rather than an accident #188 could have designed away. `dev` and
 // `preview` resolve their port with `$(josh port …)`, and the prepare chain gates on `[ … ]` and
 // `command -v`; cmd.exe has none of them, so a Windows consumer already needs WSL or Git Bash to
 // get through `pnpm install`, long before it reaches a server script. The two alternatives were

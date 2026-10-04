@@ -12,6 +12,10 @@ const RESOLVE_CASES = [
 	[VERSION_UPGRADE, [], VERSION_UPGRADE],
 	['vu', [], VERSION_UPGRADE],
 	['i', [], 'init'],
+	// `josh start --init-command` appends the confirmed profile to `josh-app init`.
+	['init', ['--profile', 'full'], 'init'],
+	['start', [], 'start'],
+	['start', ['--yes', '--github', '--public'], 'start'],
 	['sy', [], 'sync'],
 	['c', [], 'check'],
 	['check:ci', [], 'check:ci'],
@@ -26,6 +30,15 @@ const REJECT_CASES = [
 	[VERSION_UPGRADE, ['--upgrade']],
 	['vu', ['--wrong']],
 	['init', ['--wrong']],
+	['init', ['--profile']],
+	['init', ['--profile', '--yes']],
+	['init', ['--profile', 'full', '--yes']],
+	// Regression: a basic base under the SvelteKit overlay would be committed by `josh start`.
+	['init', ['--profile', 'basic']],
+	// `start` sets both itself; a caller's copy would reach kit as a clashing pair.
+	['start', ['--profile', 'basic']],
+	['start', ['--yes', '--profile', 'full']],
+	['start', ['--init-command', 'other init']],
 	['load', ['first.js', 'second.js']],
 	['help', ['--wrong']],
 	['verify', ['--wrong']],

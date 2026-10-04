@@ -47,7 +47,7 @@ const FILE_ARGS_START_INDEX = 3
 function run_init(): void {
 	if (app_self_sync.did_refuse_self_sync(PACKAGE_ROOT, process.cwd())) return
 
-	cloudflare_orchestrate.run_base_init(process.cwd())
+	cloudflare_orchestrate.run_base_init(process.cwd(), process.argv.slice(FILE_ARGS_START_INDEX))
 	const changes = cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
 
 	console.info(`${cloudflare_sync.summarize(changes)}\n${INIT_MESSAGE}`)
@@ -66,6 +66,17 @@ function run_sync(): void {
 
 function exit_on_failure(code: number): void {
 	if (code !== 0) process.exit(code)
+}
+
+// kit's `josh start` (git, the first commit, the GitHub repository, the setup PR) with `josh-app
+// init` as its initialize step, so the overlay lands in the first commit. Refused in app-kit's own
+// repository before kit runs, since kit would otherwise commit and publish whatever init left.
+function run_start(): void {
+	if (app_self_sync.did_refuse_self_sync(PACKAGE_ROOT, process.cwd())) return
+
+	const args = process.argv.slice(FILE_ARGS_START_INDEX)
+
+	exit_on_failure(cloudflare_orchestrate.run_base_start(process.cwd(), args))
 }
 
 // `version` shows the installed-vs-latest report; `version:upgrade` upgrades and exits non-zero
@@ -174,6 +185,7 @@ const VERSION_UPGRADE = 'version:upgrade'
 // plain string key rather than an object property that the naming-convention rule would reject.
 // `dast` is async (it awaits the preview server's readiness), so the handler type admits both.
 const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
+	['start', run_start],
 	['init', run_init],
 	['sync', run_sync],
 	['check', run_check],

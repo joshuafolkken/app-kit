@@ -23,9 +23,14 @@ minimumReleaseAgeExclude:
   - tsx
   - '@joshuafolkken/kit'
 
+# Held until #247: SvelteKit 3 / adapter-cloudflare 8 leave the 7.2.9 patch below unused, and
+# ERR_PNPM_UNUSED_PATCH then fails `josh latest` outright. `josh latest` skips overridden packages,
+# so these two stay on their current majors; the adapter is exact because its patch is (#260).
 overrides:
   cookie: 0.7.2
   devalue: ^5.8.1
+  '@sveltejs/kit': ^2.70.3
+  '@sveltejs/adapter-cloudflare': 7.2.9
 
 patchedDependencies:
   '@sveltejs/adapter-cloudflare@7.2.9': patches/@sveltejs__adapter-cloudflare@7.2.9.patch

@@ -5,25 +5,29 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const WORKFLOW = readFileSync('.github/workflows/ci.yml', 'utf8')
+// kit's shared action that every ci.yml job prepares pnpm through (joshuafolkken/kit#3095).
+const ACTION = readFileSync('.github/actions/setup-pnpm/action.yml', 'utf8')
+const CI_JOBS_USING_ACTION = 2
+const ACTION_STEPS = [...WORKFLOW.matchAll(/ {8}uses: \.\/\.github\/actions\/setup-pnpm\n/gu)]
 const RESOLVE_STEPS = [
-	...WORKFLOW.matchAll(
-		/ {6}- name: Resolve pnpm version\n {8}id: pnpm-version\n {8}run: \|\n((?: {10}.*\n)+)/gu,
+	...ACTION.matchAll(
+		/ {4}- name: Resolve pnpm version\n {6}id: pnpm-version\n {6}shell: bash\n {6}run: \|\n((?: {8}.*\n)+)/gu,
 	),
 ]
 const SETUP_STEPS = [
-	...WORKFLOW.matchAll(
-		/ {6}- name: Setup pnpm\n {8}uses: pnpm\/setup@[a-f0-9]{40}.*\n {8}with:\n {10}version: \$\{\{ steps\.pnpm-version\.outputs\.version \}\}\n {10}install: false/gu,
+	...ACTION.matchAll(
+		/ {4}- name: Setup pnpm\n {6}uses: pnpm\/setup@[a-f0-9]{40}.*\n {6}with:\n {8}version: \$\{\{ steps\.pnpm-version\.outputs\.version \}\}\n/gu,
 	),
 ]
-const SCRIPTS = RESOLVE_STEPS.map((match) => match[1]?.replaceAll(/^ {10}/gmu, '') ?? '')
+const SCRIPTS = RESOLVE_STEPS.map((match) => match[1]?.replaceAll(/^ {8}/gmu, '') ?? '')
 const PINNED_VERSION = '11.27.1'
 const FALLBACK_VERSION = '11.28.0'
 
 describe('CI pnpm setup', () => {
-	it('uses the same version resolver in both CI jobs', () => {
-		expect(SCRIPTS).toHaveLength(2)
-		expect(SCRIPTS[0]).toBe(SCRIPTS[1])
-		expect(SETUP_STEPS).toHaveLength(2)
+	it('prepares pnpm in both CI jobs through the one version resolver', () => {
+		expect(ACTION_STEPS).toHaveLength(CI_JOBS_USING_ACTION)
+		expect(SCRIPTS).toHaveLength(1)
+		expect(SETUP_STEPS).toHaveLength(1)
 	})
 
 	it.each([
