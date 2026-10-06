@@ -14,7 +14,7 @@ allowBuilds:
 # time, so age protection is preserved — only the per-install re-check of a trusted lockfile is skipped.
 trustLockfile: true
 
-# Security fixes often require same-day vite releases; minimum-release-age in .npmrc would block them.
+# Security fixes often require same-day vite releases; minimumReleaseAge below would block them.
 # `@types/node` and `tsx` are also excluded so routine Dependabot-style bumps are not
 # delayed by the minimum-release-age window.
 minimumReleaseAgeExclude:
@@ -31,6 +31,14 @@ overrides:
   devalue: ^5.8.1
   '@sveltejs/kit': ^2.70.3
   '@sveltejs/adapter-cloudflare': 7.2.9
+  # Security floors for exact pins in latest upstream releases (#265); drop each once upstream moves.
+  # GHSA-rj75-hqrm-r3gf: @tailwindcss/typography 0.5.20 pins postcss-selector-parser 6.0.10.
+  '@tailwindcss/typography>postcss-selector-parser': ^7.1.6
+  # GHSA-wq5f-xc86-pv6w: miniflare (via wrangler) pins sharp 0.35.4.
+  'miniflare>sharp': ^0.35.5
 
 patchedDependencies:
   '@sveltejs/adapter-cloudflare@7.2.9': patches/@sveltejs__adapter-cloudflare@7.2.9.patch
+
+minimumReleaseAge: 1440
+engineStrict: true

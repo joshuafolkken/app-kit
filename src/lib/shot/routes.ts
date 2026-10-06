@@ -114,15 +114,9 @@ function is_absolute_route(route: string): boolean {
 // capture would only cost a page load. Two DIFFERENT routes landing on one file is a different
 // thing entirely — see collision_message — and is rejected rather than collapsed.
 function to_requests(routes: ReadonlyArray<string>, is_mobile: boolean): Array<ShotRequest> {
-	const seen = new Set<string>()
+	const unique = [...new Set(routes.map((route) => normalize_route(route)))]
 
-	return routes.flatMap((route) => {
-		const normalized = normalize_route(route)
-		if (seen.has(normalized)) return []
-		seen.add(normalized)
-
-		return [{ route: normalized, file: to_output_path(normalized, is_mobile) }]
-	})
+	return unique.map((route) => ({ route, file: to_output_path(route, is_mobile) }))
 }
 
 function routes_by_file(requests: ReadonlyArray<ShotRequest>): Map<string, Array<string>> {

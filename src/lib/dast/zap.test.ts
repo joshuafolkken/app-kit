@@ -38,7 +38,6 @@ describe('ZAP baseline docker argv', () => {
 		const target = argv[argv.indexOf('-t') + 1]
 
 		// Loopback inside the container is the container itself — the scan would find nothing.
-		// eslint-disable-next-line unicorn/prefer-https -- a local preview server is plain HTTP
 		expect(target).toBe('http://host.docker.internal:4173')
 		expect(target).not.toContain('127.0.0.1')
 		expect(target).not.toContain('localhost')
