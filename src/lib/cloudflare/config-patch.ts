@@ -101,7 +101,8 @@ const APP_KIT_ESLINT_FACTORY = 'create_sveltekit_config'
 // setting` warning. docs/deploy-authentication.md documents both variables.
 //
 // Appending is durable: kit's `merge_npmrc` has been insert-only since kit#759, and `josh-app sync`
-// runs kit's base before this overlay, so the line survives every subsequent sync.
+// runs kit's base before this overlay, so the line survives every subsequent sync until this
+// overlay itself retires it once the scope moves to public npm (see `is_auth_line_retired`).
 //
 // The key is the unit the scan matches on, so the emitted line is composed from it rather than
 // spelled out twice: a consumer who set this token some other way (a literal value, a different
@@ -117,6 +118,14 @@ const NPMRC_AUTH_LINE = `${NPMRC_AUTH_KEY}${NPMRC_AUTH_VALUE}`
 // project `.npmrc` is the gate rather than the effective config: it is what a deploy builder sees.
 // ini allows whitespace around `=`, so a hand-written `key = value` route counts as well.
 const NPMRC_GITHUB_PACKAGES_ROUTE = /^@joshuafolkken:registry\s*=.*npm\.pkg\.github\.com/u
+// kit's `josh registry:migrate` moves an existing consumer by writing this route and rewriting the
+// lockfile, but leaves the credential line above behind (#227). Only an explicit public-npm route
+// retires it: a project with no route may still lock GitHub Packages tarballs that its deploy
+// builder fetches with that credential.
+const NPMRC_PUBLIC_NPM_ROUTE = /^@joshuafolkken:registry\s*=.*registry\.npmjs\.org/u
+// The credential is keyed by host, not scope: while any other scope (or the default registry) still
+// installs from GitHub Packages, the same line authenticates it, so it is not ours to retire.
+const NPMRC_ANY_GITHUB_PACKAGES_ROUTE = /^(?:@[^\s:]+:)?registry\s*=.*npm\.pkg\.github\.com/u
 
 // SvelteKit + Cloudflare build artifacts a consumer should never spell-check. The app-kit preset
 // now single-sources these (via position-independent `**/<dir>/**` globs that propagate through the
@@ -188,24 +197,49 @@ function has_auth_setting(content: string): boolean {
 }
 
 // Only a live entry routes the scope — unlike the auth key, a commented-out route is no route at all.
-function routes_scope_to_github_packages(content: string): boolean {
-	return content.split('\n').some((line) => NPMRC_GITHUB_PACKAGES_ROUTE.test(line.trim()))
+function routes_scope(content: string, route: RegExp): boolean {
+	return content.split('\n').some((line) => route.test(line.trim()))
+}
+
+// Drop only the exact line this overlay appended. A literal token or a commented-out entry is the
+// consumer's own and stays; every other line, and its line ending, is kept byte for byte.
+function remove_auth_line(content: string): string {
+	return content
+		.split(/(?<=\n)/u)
+		.filter((line) => line.trim() !== NPMRC_AUTH_LINE)
+		.join('')
 }
 
 // Append the credential line when the consumer routes the scope to GitHub Packages and has no
 // setting for that key. Every existing byte is preserved; a file that does not end in a newline gets
 // one first, so the appended line is never glued onto the last entry.
-function patch_npmrc_content(content: string): string {
-	if (!routes_scope_to_github_packages(content) || has_auth_setting(content)) return content
+function append_auth_line(content: string): string {
+	if (!routes_scope(content, NPMRC_GITHUB_PACKAGES_ROUTE) || has_auth_setting(content)) {
+		return content
+	}
 
 	const prefix = content.length > 0 && !content.endsWith('\n') ? `${content}\n` : content
 
 	return `${prefix}${NPMRC_AUTH_LINE}\n`
 }
 
+function is_auth_line_retired(content: string): boolean {
+	return (
+		routes_scope(content, NPMRC_PUBLIC_NPM_ROUTE) &&
+		!routes_scope(content, NPMRC_ANY_GITHUB_PACKAGES_ROUTE)
+	)
+}
+
+// Kept for a consumer on GitHub Packages, retired once the scope is routed to public npm.
+function patch_npmrc_content(content: string): string {
+	if (is_auth_line_retired(content)) return remove_auth_line(content)
+
+	return append_auth_line(content)
+}
+
 // Reconcile the SvelteKit + Cloudflare config app-kit owns: the eslint.config.js factory swap, the
-// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs, and — for a consumer
-// on GitHub Packages — the credential line in .npmrc.
+// SvelteKit-specific lines in the layered cspell / tsconfig / lefthook configs, and the credential
+// line in .npmrc — kept for a consumer on GitHub Packages, retired once it moves to public npm.
 function patch_configs(target: string): Array<OverlayChange> {
 	return [
 		patch_file(target, ESLINT_FILE, patch_eslint_content),

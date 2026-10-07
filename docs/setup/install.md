@@ -8,7 +8,7 @@ Every release of app-kit is published to both [public npm](https://www.npmjs.com
 
 **New users: nothing to set up.** With no `@joshuafolkken:registry` mapping anywhere, pnpm installs app-kit and kit from public npm without a token. Check it with `pnpm config get "@joshuafolkken:registry"`: `undefined` means public npm.
 
-**Existing users: GitHub Packages keeps working.** A machine or project that already routes the `@joshuafolkken` scope to GitHub Packages continues to install from there, and needs the token described below. Moving existing projects to public npm is a later step.
+**Existing users: GitHub Packages keeps working.** A machine or project that already routes the `@joshuafolkken` scope to GitHub Packages continues to install from there, and needs the token described below. To move such a project to public npm, see [Move an existing project to public npm](#move-an-existing-project-to-public-npm).
 
 ### Authenticate to GitHub Packages
 
@@ -27,6 +27,24 @@ GitHub Packages requires a token even for public packages. Set it up once per ma
 On a fresh checkout of a project that already uses app-kit, `pnpm config get "@joshuafolkken:registry"` shows the effective registry, including your user-level mapping.
 
 A deploy builder that installs from GitHub Packages has no `~/.npmrc`, so it needs its own setup: [deploy-authentication.md](../deploy-authentication.md). A project that installs from public npm needs none: `josh-app init` writes no GitHub Packages credential into its `.npmrc`, and Cloudflare Workers Builds needs no `NODE_AUTH_TOKEN` or `PNPM_CONFIG_NPMRC_AUTH_FILE`.
+
+### Move an existing project to public npm
+
+kit's `josh registry:migrate` does the move. app-kit adds no command of its own; `josh-app sync` only tidies up after it.
+
+1. **Migrate.** From the project root, on a clean working tree:
+
+   ```bash
+   pnpm josh registry:migrate
+   ```
+
+   It looks up every `@joshuafolkken/*` version in `pnpm-lock.yaml` on public npm, app-kit and kit included. If any of them is not published there, it changes nothing and exits with `Migration blocked: unpublished on npm: …`, naming each one. Upgrade those packages to a version that is on public npm and run it again. Otherwise it points the project `.npmrc` at `@joshuafolkken:registry=https://registry.npmjs.org/`, rewrites the lockfile's tarball and integrity entries to public npm, and confirms the result with a lockfile-only install. If that check fails, it restores the files. It reads `~/.npmrc` but never writes it, keeps every other `.npmrc` line, and a second run reports `Already using public npm; no changes made.`
+
+2. **Sync.** Run `pnpm exec josh-app sync`. It removes the `//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}` line an earlier sync added. A token you wrote yourself, and a line you commented out, stay as they are. A later sync does not add the line back while the project routes the scope to public npm. The credential is keyed by host, not scope, so while another scope or the default registry in the project `.npmrc` still points at `npm.pkg.github.com`, sync keeps the line: those packages still need it.
+
+3. **Reinstall.** Run `pnpm install` and commit `.npmrc` and `pnpm-lock.yaml`. Then, unless another scope or the default registry in the project `.npmrc` still points at GitHub Packages, remove the GitHub Packages credential from the Cloudflare Workers Builds environment ([deploy-authentication.md](../deploy-authentication.md#after-moving-to-public-npm)).
+
+The project `.npmrc` route takes precedence over a user-level `~/.npmrc` mapping, so other projects on the same machine can stay on GitHub Packages. A global install (`pnpm add -g`) reads only the user-level mapping. To install the global CLI from public npm, remove the `@joshuafolkken:registry` line from `~/.npmrc`.
 
 ## 2. Install
 
