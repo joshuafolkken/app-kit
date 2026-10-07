@@ -42,7 +42,7 @@ The static scanners are green, but **none of them ever started the app.** Missin
 
 **Secure defaults, checked against the running app.**
 
-- **Headers by default**: `josh-app sync` seeds a security-header baseline, and SvelteKit emits a Content-Security-Policy with a per-request nonce (a hash on prerendered pages).
+- **A header baseline**: `josh-app sync` seeds it for static assets, one server hook applies it to SSR pages, and SvelteKit emits a Content-Security-Policy with a per-request nonce (a hash on prerendered pages).
 - **Checked on every PR**: an E2E spec asserts the headers and that the page renders with no CSP violation.
 - **Scanned nightly**: an OWASP ZAP baseline scan runs against a real preview server — and before a push that touches a header- or cookie-affecting file.
 
