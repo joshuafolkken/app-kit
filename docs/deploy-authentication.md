@@ -25,7 +25,7 @@ The line is safe to keep either way — it holds a variable name, never a token 
 
 Once `pnpm josh registry:migrate` has pointed the project `.npmrc` at public npm ([install.md → Move an existing project to public npm](./setup/install.md#move-an-existing-project-to-public-npm)), the next `josh-app sync` removes the line above, and the build needs neither variable. Delete the `NODE_AUTH_TOKEN` secret and the `PNPM_CONFIG_NPMRC_AUTH_FILE` variable from the Workers Builds environment, along with any `npm_config_//npm.pkg.github.com/:_authToken` variable from the alternative below. A build that still has them is unaffected, but the token no longer needs to be stored there.
 
-Exception: the credential is keyed by host, not scope. If the project `.npmrc` still routes another scope (or the default registry) to `npm.pkg.github.com`, sync keeps the line and those packages still authenticate with it — keep both variables until that scope moves too.
+Exception: the credential is keyed by host, not scope. If the project `.npmrc` still routes another scope (or the default registry) to `npm.pkg.github.com`, sync keeps the line and those packages still authenticate with it — keep whichever GitHub Packages credential the build uses (both variables above, or the `npm_config_//npm.pkg.github.com/:_authToken` variable from the alternative) until that scope moves too.
 
 ## Alternative: no repository change
 

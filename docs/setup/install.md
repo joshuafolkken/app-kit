@@ -42,7 +42,7 @@ kit's `josh registry:migrate` does the move. app-kit adds no command of its own;
 
 2. **Sync.** Run `pnpm exec josh-app sync`. It removes the `//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}` line an earlier sync added. A token you wrote yourself, and a line you commented out, stay as they are. A later sync does not add the line back while the project routes the scope to public npm. The credential is keyed by host, not scope, so while another scope or the default registry in the project `.npmrc` still points at `npm.pkg.github.com`, sync keeps the line: those packages still need it.
 
-3. **Reinstall.** Run `pnpm install` and commit `.npmrc` and `pnpm-lock.yaml`. Then, unless the project still installs another scope from GitHub Packages, remove `NODE_AUTH_TOKEN` and `PNPM_CONFIG_NPMRC_AUTH_FILE` from the Cloudflare Workers Builds environment ([deploy-authentication.md](../deploy-authentication.md#after-moving-to-public-npm)).
+3. **Reinstall.** Run `pnpm install` and commit `.npmrc` and `pnpm-lock.yaml`. Then, unless another scope or the default registry in the project `.npmrc` still points at GitHub Packages, remove the GitHub Packages credential from the Cloudflare Workers Builds environment ([deploy-authentication.md](../deploy-authentication.md#after-moving-to-public-npm)).
 
 The project `.npmrc` route takes precedence over a user-level `~/.npmrc` mapping, so other projects on the same machine can stay on GitHub Packages. A global install (`pnpm add -g`) reads only the user-level mapping. To install the global CLI from public npm, remove the `@joshuafolkken:registry` line from `~/.npmrc`.
 
