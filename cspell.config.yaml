@@ -6,6 +6,7 @@ words:
   - baselining
   - dedup
   - elifecycle
+  - hqrm
   - hsts
   - idempotently
   - jgame
@@ -33,6 +34,8 @@ words:
   - tabnabbing
   # The npm scope in the patchedDependencies key (pnpm-workspace.yaml). Same lifetime as the patch.
   - sveltejs
+  # The Svelte 3D library game-kit builds on, named in docs/why.md (#264).
+  - threlte
   - transpiles
   - unstub
   # npm's `--userconfig` option and the `registry.npmjs.org` / `npmjs.com` hosts, in the publish

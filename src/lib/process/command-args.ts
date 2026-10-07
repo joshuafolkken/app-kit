@@ -59,9 +59,7 @@ function error(message: string): ParsedCommand {
 }
 
 function parse_help(args: ReadonlyArray<string>): ParsedCommand {
-	if (args.length === 0 || (args.length === 1 && args[0] === ALL_FLAG)) {
-		return { kind: 'help' }
-	}
+	if (args.length === 0 || (args.length === 1 && args[0] === ALL_FLAG)) return { kind: 'help' }
 
 	return error('Help takes no arguments other than --all.')
 }

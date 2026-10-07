@@ -64,3 +64,14 @@ describe('publish workflow', () => {
 		expect(job(NPM_JOB)).not.toMatch(/NPM_TOKEN/u)
 	})
 })
+
+// #265: kit's distributed github-release.yml waits for the run titled `Publish <tag>` of
+// publish.yml before creating the release (joshuafolkken/kit#3138), so the title is a contract.
+describe('publish workflow release hand-off', () => {
+	it('starts on the tag announcement and titles each run Publish <tag>', () => {
+		const source = readFileSync(WORKFLOW, 'utf8')
+
+		expect(source).toMatch(/^run-name: Publish \$\{\{ github\.event\.client_payload\.tag \}\}$/mu)
+		expect(source).toMatch(/repository_dispatch:\n\s+types: \[new-tag-created\]/u)
+	})
+})

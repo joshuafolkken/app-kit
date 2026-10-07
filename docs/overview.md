@@ -1,6 +1,6 @@
 # @joshuafolkken/app-kit — Overview
 
-For anyone deciding whether app-kit fits their project: what it sets up and how it works. `@joshuafolkken/app-kit` is the SvelteKit + Cloudflare layer on top of [`@joshuafolkken/kit`](https://github.com/joshuafolkken/kit). kit gives any project the AI assistant rules, formatting, lint, tests, Git hooks and the Issue workflow ([kit's overview](https://github.com/joshuafolkken/kit/blob/main/docs/overview.md)); app-kit adds what a SvelteKit app on Cloudflare needs.
+For anyone deciding whether app-kit fits their project: what it sets up and how it works. Why each piece exists is in [why.md](./why.md). `@joshuafolkken/app-kit` is the SvelteKit + Cloudflare layer on top of [`@joshuafolkken/kit`](https://github.com/joshuafolkken/kit). kit gives any project the AI assistant rules, formatting, lint, tests, Git hooks and the Issue workflow ([kit's overview](https://github.com/joshuafolkken/kit/blob/main/docs/overview.md)); app-kit adds what a SvelteKit app on Cloudflare needs.
 
 ## What it provides
 

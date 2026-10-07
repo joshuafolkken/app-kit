@@ -1,9 +1,9 @@
 {
 	"name": "@joshuafolkken/app-kit",
-	"version": "0.114.0",
+	"version": "0.120.0",
 	"private": false,
 	"license": "MIT",
-	"packageManager": "pnpm@11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
+	"packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
 	"publishConfig": {
 		"access": "public"
 	},
@@ -80,7 +80,7 @@
 		"#version/*": "./src/lib/version/*"
 	},
 	"scripts": {
-		"preinstall": "pnpm dlx @aikidosec/safe-chain setup-ci",
+		"preinstall": "node -e \"if(!process.env.CI&&!process.env.GLOBAL_AGENT_HTTP_PROXY)console.warn('Warning: safe-chain (@aikidosec/safe-chain) is not scanning this install because its shell integration is not active. Install it with the hash-verified steps at https://github.com/joshuafolkken/kit/blob/main/SECURITY.md#installing-safe-chain - then restart your terminal.')\"",
 		"dev": "DEV_PORT=$(josh port dev) && vite dev --port $DEV_PORT --strictPort",
 		"build": "vite build && pnpm run prepack",
 		"preview": "PREVIEW_PORT=$(josh port preview) && wrangler dev .svelte-kit/cloudflare/_worker.js --port $PREVIEW_PORT --local",
@@ -100,12 +100,12 @@
 	},
 	"dependencies": {
 		"eslint-plugin-svelte": "^3.23.0",
-		"typescript-eslint": "^8.71.0"
+		"typescript-eslint": "^8.71.1"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-		"@joshuafolkken/kit": "^1.1128.0",
+		"@joshuafolkken/kit": "^1.1229.0",
 		"@playwright/test": "^1.63.0",
 		"@secretlint/secretlint-rule-preset-recommend": "^13.0.7",
 		"@size-limit/file": "^14.1.0",
@@ -153,7 +153,7 @@
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
+			"version": "12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
 			"onFail": "error"
 		}
 	},

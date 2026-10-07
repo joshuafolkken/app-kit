@@ -249,7 +249,7 @@ interface FakeProbeResponse {
 function fake_request(answer: FakeAnswer): { request: ProbeRequest; probed: Array<string> } {
 	const probed: Array<string> = []
 
-	const get = async (url: string): Promise<FakeProbeResponse> => {
+	async function get(url: string): Promise<FakeProbeResponse> {
 		probed.push(url)
 
 		return { ok: () => answer.ok, headers: () => ({ [CONTENT_TYPE]: answer.type }) }
@@ -342,7 +342,9 @@ interface ViolationEvent {
 
 type ViolationListener = (event: ViolationEvent) => void
 
-const NO_LISTENER: ViolationListener = () => undefined
+function ignore_violation(): void {
+	// Placeholder until the init script registers the real listener.
+}
 
 // Drives the watcher the way Playwright does: capture the exposed bridge and the init script, then
 // run that script against a stubbed document so the listener it registers can actually be fired.
@@ -350,9 +352,9 @@ function fake_page(): {
 	page: Parameters<typeof security_headers_e2e.watch_violations>[0]
 	fire: ViolationListener
 } {
-	const captured = { listener: NO_LISTENER }
+	const captured: { listener: ViolationListener } = { listener: ignore_violation }
 
-	const stub_document = (): void => {
+	function stub_document(): void {
 		vi.stubGlobal('document', {
 			addEventListener: (_type: string, handler: ViolationListener): void => {
 				captured.listener = handler
