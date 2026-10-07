@@ -41,6 +41,47 @@ it.each(CASES)(
 	ESLINT_LINT_TIMEOUT_MS,
 )
 
+const PROPS_GUARD_PATH = 'src/lib/lint-guards/PropsConstGuard.svelte'
+const SVELTE_PREFER_CONST = 'svelte/prefer-const'
+const PREFER_CONST_RULES = new Set(['prefer-const', SVELTE_PREFER_CONST])
+const LABEL_MARKUP = '<span>{label}</span>'
+
+function svelte_component(script: string): string {
+	return `<script lang="ts">\n\t${script}\n</script>\n\n${LABEL_MARKUP}\n`
+}
+
+async function prefer_const_rule_ids(script: string): Promise<Array<string | null>> {
+	const [result] = await eslint.lintText(svelte_component(script), { filePath: PROPS_GUARD_PATH })
+
+	return (result?.messages ?? [])
+		.filter(function is_prefer_const(message) {
+			return message.ruleId !== null && PREFER_CONST_RULES.has(message.ruleId)
+		})
+		.map(function get_rule_id(message) {
+			return message.ruleId
+		})
+}
+
+it(
+	'allows a let binding from $props in Svelte source',
+	async () => {
+		await expect(
+			prefer_const_rule_ids('let { label }: { label: string } = $props()'),
+		).resolves.toStrictEqual([])
+	},
+	ESLINT_LINT_TIMEOUT_MS,
+)
+
+it(
+	'flags a never-reassigned plain let in Svelte source with svelte/prefer-const',
+	async () => {
+		await expect(prefer_const_rule_ids("let label = 'x'")).resolves.toStrictEqual([
+			SVELTE_PREFER_CONST,
+		])
+	},
+	ESLINT_LINT_TIMEOUT_MS,
+)
+
 it(
 	'keeps the spec ban after the parameter syntax relaxation',
 	async () => {

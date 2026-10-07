@@ -93,10 +93,22 @@ const svelte_named_overrides = {
 	},
 }
 
+// Core prefer-const has no rune awareness: it flags Svelte 5's idiomatic
+// `let { children } = $props()` (the sv scaffold's own +layout.svelte, #271).
+// svelte/prefer-const wraps the core rule and skips $props / $derived by default.
+const svelte_source_overrides = {
+	files: SVELTE_FILE_PATTERNS.svelte_source,
+	rules: {
+		'prefer-const': 'off',
+		'svelte/prefer-const': 'error',
+	},
+}
+
 const hook_overrides = {
 	files: SVELTE_FILE_PATTERNS.hooks,
 	rules: {
 		'prefer-const': 'off',
+		'svelte/prefer-const': 'off',
 		'max-lines-per-function': ['error', HOOK_MAX_LINES],
 		'max-statements': ['error', HOOK_MAX_STATEMENTS],
 	},
@@ -180,6 +192,7 @@ function create_sveltekit_config(options) {
 		...svelte.configs.prettier,
 		svelte_parser_overrides(svelte_config),
 		svelte_named_overrides,
+		svelte_source_overrides,
 		hook_overrides,
 		route_overrides,
 		parameter_overrides,
