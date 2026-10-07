@@ -102,3 +102,75 @@ describe('config patch — .npmrc on public npm (#258)', () => {
 		expect(config_patch.patch_npmrc_content('')).toBe('')
 	})
 })
+
+// The .npmrc `josh registry:migrate` leaves behind: the route rewritten to public npm, the
+// credential line app-kit appended while the project was on GitHub Packages still in place.
+const NPMRC_MIGRATED = `${PUBLIC_SCOPE_LINE}
+engine-strict=true
+${AUTH_LINE}
+${CONSUMER_LINE}
+`
+const NPMRC_MIGRATED_CLEAN = `${PUBLIC_SCOPE_LINE}
+engine-strict=true
+${CONSUMER_LINE}
+`
+
+describe('config patch — .npmrc migrated to public npm (#227)', () => {
+	it('removes the credential line app-kit appended, keeping every other line', () => {
+		expect(config_patch.patch_npmrc_content(NPMRC_MIGRATED)).toBe(NPMRC_MIGRATED_CLEAN)
+	})
+
+	it('is idempotent and never re-adds the line on a later pass', () => {
+		const once = config_patch.patch_npmrc_content(NPMRC_MIGRATED)
+
+		expect(config_patch.patch_npmrc_content(once)).toBe(NPMRC_MIGRATED_CLEAN)
+	})
+
+	it('removes the line written with leading whitespace and a CRLF ending', () => {
+		const crlf = `${PUBLIC_SCOPE_LINE}\r\n  ${AUTH_LINE}\r\n${CONSUMER_LINE}\r\n`
+
+		expect(config_patch.patch_npmrc_content(crlf)).toBe(
+			`${PUBLIC_SCOPE_LINE}\r\n${CONSUMER_LINE}\r\n`,
+		)
+	})
+
+	it('keeps a consumer-owned literal token for the same key', () => {
+		const literal = `${PUBLIC_SCOPE_LINE}\n//npm.pkg.github.com/:_authToken=consumer-owned-literal-value\n`
+
+		expect(config_patch.patch_npmrc_content(literal)).toBe(literal)
+	})
+
+	it('keeps a commented-out credential entry', () => {
+		const commented = `${PUBLIC_SCOPE_LINE}\n# ${AUTH_LINE}\n`
+
+		expect(config_patch.patch_npmrc_content(commented)).toBe(commented)
+	})
+
+	it('keeps the line while the project has no explicit route', () => {
+		const no_route = `engine-strict=true\n${AUTH_LINE}\n`
+
+		expect(config_patch.patch_npmrc_content(no_route)).toBe(no_route)
+	})
+
+	it('removes the line when the public route is written with spaces around the equals sign', () => {
+		const spaced = `@joshuafolkken:registry = https://registry.npmjs.org/\n${AUTH_LINE}\n`
+
+		expect(config_patch.patch_npmrc_content(spaced)).toBe(
+			'@joshuafolkken:registry = https://registry.npmjs.org/\n',
+		)
+	})
+})
+
+describe('config patch — .npmrc migrated while GitHub Packages is still in use (#227)', () => {
+	it('keeps the line while another scope still installs from GitHub Packages', () => {
+		const other_scope = `${PUBLIC_SCOPE_LINE}\n@example:registry=https://npm.pkg.github.com\n${AUTH_LINE}\n`
+
+		expect(config_patch.patch_npmrc_content(other_scope)).toBe(other_scope)
+	})
+
+	it('keeps the line while the default registry is GitHub Packages', () => {
+		const default_registry = `${PUBLIC_SCOPE_LINE}\nregistry=https://npm.pkg.github.com\n${AUTH_LINE}\n`
+
+		expect(config_patch.patch_npmrc_content(default_registry)).toBe(default_registry)
+	})
+})
