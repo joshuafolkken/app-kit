@@ -1,5 +1,21 @@
 # @joshuafolkken/app-kit
 
+[![Claude Code](https://img.shields.io/badge/Claude_Code-supported-D97757?logo=claude&logoColor=white)](https://claude.com/claude-code)
+[![Codex](https://img.shields.io/badge/Codex-supported-412991)](https://openai.com/codex/)
+[![npm version](https://img.shields.io/npm/v/@joshuafolkken/app-kit)](https://www.npmjs.com/package/@joshuafolkken/app-kit)
+[![License](https://img.shields.io/github/license/joshuafolkken/app-kit)](./LICENSE)
+
+[![SvelteKit](https://img.shields.io/github/package-json/dependency-version/joshuafolkken/app-kit/dev/@sveltejs/kit?logo=svelte&label=SvelteKit)](https://svelte.dev/docs/kit)
+[![Svelte](https://img.shields.io/npm/dependency-version/@joshuafolkken/app-kit/peer/svelte?logo=svelte&label=Svelte)](https://svelte.dev/)
+[![Cloudflare Workers](https://img.shields.io/github/package-json/dependency-version/joshuafolkken/app-kit/dev/wrangler?logo=cloudflare&label=Cloudflare%20Workers)](https://workers.cloudflare.com/)
+
+[![Node.js](https://img.shields.io/node/v/@joshuafolkken/app-kit?logo=nodedotjs)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/github/package-json/dependency-version/joshuafolkken/app-kit/dev/typescript?logo=typescript&label=TypeScript)](https://www.typescriptlang.org/)
+[![pnpm](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjoshuafolkken%2Fapp-kit%2Fmain%2Fpackage.json&search=pnpm%40%28%5B0-9.%5D%2B%29&replace=%241&logo=pnpm&label=pnpm)](https://pnpm.io/)
+
+[![CI](https://github.com/joshuafolkken/app-kit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/joshuafolkken/app-kit/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=joshuafolkken_app-kit&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=joshuafolkken_app-kit)
+
 **kit for SvelteKit on Cloudflare — one command sets up the whole project.**
 
 app-kit adds SvelteKit and Cloudflare checks on top of [kit](https://github.com/joshuafolkken/kit)'s rules, checks and Issue-driven workflow.
