@@ -193,8 +193,8 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1(prettier@3.9.9)(supports-color@10.2.2)
       '@joshuafolkken/kit':
-        specifier: ^1.1240.0
-        version: 1.1240.0(bd6e388e17166a5bd2a29e64d3ba6b77)
+        specifier: ^1.1373.0
+        version: 1.1373.0(bd6e388e17166a5bd2a29e64d3ba6b77)
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
@@ -1215,8 +1215,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joshuafolkken/kit@1.1240.0':
-    resolution: {integrity: sha512-MyeNPMxL3GwdHJGlXy9abhDaKinAwSGoxfA4cRfmSIAMcHsZRy0dhVXiGgls+Vc1MYc/GwqC5fZLtdgqd1Fq2w==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.1240.0/c38d826f15d6a1a8291b62483d3e261062e25a54}
+  '@joshuafolkken/kit@1.1373.0':
+    resolution: {integrity: sha512-anr7GIlgoxcLsrwmrl9kHlsmSjJ2HPLnftSe0QpdC4Y26eL52Lq1Fn27vSfhz3URQ6H8ucQ+YmWMp0XohkJPnA==, tarball: https://npm.pkg.github.com/download/@joshuafolkken/kit/1.1373.0/634dc0aaf0124725ade8d7f1208d50baca3af505}
     engines: {node: ^22.19.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
@@ -1225,7 +1225,7 @@ packages:
       '@ianvs/prettier-plugin-sort-imports': ^4.7.1
       '@playwright/test': '>=1.0.0'
       '@stylistic/eslint-plugin': ^5.10.0
-      eslint: ^10.0.0
+      eslint: ^10.4.0
       eslint-config-prettier: ^10.1.8
       eslint-import-resolver-typescript: ^4.4.5
       eslint-plugin-import-x: ^4.17.1
@@ -4419,13 +4419,14 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@joshuafolkken/kit@1.1240.0(bd6e388e17166a5bd2a29e64d3ba6b77)':
+  '@joshuafolkken/kit@1.1373.0(bd6e388e17166a5bd2a29e64d3ba6b77)':
     dependencies:
       '@eslint/compat': 2.1.1(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))
       '@eslint/js': 10.0.1(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))
       '@ianvs/prettier-plugin-sort-imports': 4.7.1(prettier@3.9.9)(supports-color@10.2.2)
       '@playwright/test': 1.63.0
       '@stylistic/eslint-plugin': 5.10.0(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))
+      cli-spinners: 3.4.0
       eslint: 10.12.0(jiti@2.7.0)(supports-color@10.2.2)
       eslint-config-prettier: 10.1.8(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))
       eslint-import-resolver-typescript: 4.4.5(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.71.1(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2))(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)
@@ -4442,6 +4443,8 @@ snapshots:
       prettier-plugin-svelte: 4.1.1(prettier@3.9.9)(svelte@5.57.2(@typescript-eslint/types@8.71.1))
       prettier-plugin-tailwindcss: 0.8.1(@ianvs/prettier-plugin-sort-imports@4.7.1(prettier@3.9.9)(supports-color@10.2.2))(prettier-plugin-svelte@4.1.1(prettier@3.9.9)(svelte@5.57.2(@typescript-eslint/types@8.71.1)))(prettier@3.9.9)
       semver: 7.8.5
+      string-width: 8.3.0
+      terminal-link: 5.0.0
       tsx: 4.23.15
       typescript: 6.0.3
       typescript-eslint: 8.71.1(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)

@@ -71,3 +71,7 @@ e2e/.auth/chrome-profile/
 .tsbuildinfo
 .cspellcache
 .time-history.jsonl
+.claude/tmp/
+/.git-handoff-*.json
+/.josh-handoff-*.json
+.josh/handoff-*.json
