@@ -80,6 +80,7 @@ pre-push:
     #
     # Requires a running Docker daemon WHEN the scan runs (a header/cookie file changed); a missing
     # one fails the push loudly rather than skipping the check (kit#670). Triage in zap-baseline.conf.
+    # A project can turn the scan off with `verify.dast` in josh-app.config.json (app-kit#283).
     verify:
       glob:
         - '{*.{svelte,ts,js,mjs,cjs},package.json}'

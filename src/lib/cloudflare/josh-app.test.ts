@@ -1,10 +1,17 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const REPO_ROOT = process.cwd()
 const CLI_PATH = path.join(REPO_ROOT, 'scripts/josh-app.ts')
+const CONFIG_FILE = 'josh-app.config.json'
+// `--import tsx` resolves from the working directory, which for the preflight is a project outside
+// this repository, so the loader is named by its absolute URL there.
+const TSX_LOADER = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href
 
 function tracked_file_state(): Map<string, { mtime_ns: bigint; size: bigint }> {
 	const files = execFileSync(
@@ -53,6 +60,41 @@ describe('josh-app self-sync preflight', () => {
 			expect(tracked_file_state()).toEqual(files_before)
 		},
 	)
+})
+
+function run_preflight(config: string | undefined): ReturnType<typeof spawnSync> {
+	const project_root = mkdtempSync(path.join(tmpdir(), 'app-kit-start-'))
+
+	if (config !== undefined) writeFileSync(path.join(project_root, CONFIG_FILE), config)
+
+	try {
+		return spawnSync(process.execPath, ['--import', TSX_LOADER, CLI_PATH, 'start:preflight'], {
+			cwd: project_root,
+			encoding: 'utf8',
+			env: { ...process.env, PATH: project_root },
+		})
+	} finally {
+		rmSync(project_root, { recursive: true, force: true })
+	}
+}
+
+// What kit's `josh start` runs before its first step when its plan pushes (#283). The empty project
+// directory doubles as PATH, so no `docker` resolves — the same as a machine without a daemon.
+describe('josh-app start:preflight', () => {
+	it('fails without Docker, naming how to start it and how to turn the scan off', () => {
+		const result = run_preflight(undefined)
+
+		expect(result.status).toBe(1)
+		expect(result.stderr).toContain('Start Docker')
+		expect(result.stderr).toContain('set verify.dast to false in josh-app.config.json')
+	})
+
+	it('passes without Docker once the project turned the scan off', () => {
+		const result = run_preflight('{ "verify": { "dast": false } }')
+
+		expect(result.status).toBe(0)
+		expect(result.stderr).toBe('')
+	})
 })
 
 describe('josh-app command help', () => {

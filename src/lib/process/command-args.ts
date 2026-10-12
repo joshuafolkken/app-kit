@@ -13,10 +13,11 @@ const HELP_COMMANDS = new Set(['help', '--help', '-h', ALL_FLAG])
 const PROFILE_FLAG = '--profile'
 const FULL_PROFILE = 'full'
 const PROFILE_PAIR_LENGTH = 2
-// `start` fixes both itself — the full profile and `josh-app init` — so a caller's copy is refused
-// here instead of reaching kit as a clashing pair.
-const START_RESERVED_FLAGS = new Set([PROFILE_FLAG, '--init-command'])
+// `start` fixes these itself — the full profile, `josh-app init` and its push preflight — so a
+// caller's copy is refused here instead of reaching kit as a clashing pair.
+const START_RESERVED_FLAGS = new Set([PROFILE_FLAG, '--init-command', '--push-preflight-command'])
 const NO_ARGUMENT_COMMANDS = new Set([
+	'start:preflight',
 	'sync',
 	'check',
 	'check:ci',
@@ -36,6 +37,7 @@ const HELP_MESSAGE = `josh-app — SvelteKit + Cloudflare toolkit
 
 Project:
       start [options]       Run kit's josh start with josh-app init as its setup
+      start:preflight       Check what start's first push needs (run by start)
   i,  init                  Apply kit base and the app-kit overlay
   sy, sync                  Re-sync kit base and the app-kit overlay
 
@@ -94,9 +96,9 @@ function parse_init(args: ReadonlyArray<string>): ParsedCommand {
 
 // The remaining options are kit's `josh start` switches, which kit validates.
 function parse_start(args: ReadonlyArray<string>): ParsedCommand {
-	if (args.some((argument) => START_RESERVED_FLAGS.has(argument))) {
-		return error('start sets --profile full and --init-command itself; drop them.')
-	}
+	const reserved = args.find((argument) => START_RESERVED_FLAGS.has(argument))
+
+	if (reserved !== undefined) return error(`start sets ${reserved} itself; drop it.`)
 
 	return { kind: 'run', command: 'start' }
 }

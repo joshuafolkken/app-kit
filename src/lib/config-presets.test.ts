@@ -36,7 +36,9 @@ const KIT = '@joshuafolkken/kit'
 //   `./.github/actions/setup-node` and `./.github/actions/setup-pnpm`, which kit's `josh sync`
 //   writes; 1.1128.0 is the first release that writes setup-node, so on a lower kit those
 //   workflows fail at their first step.
-const KIT_PEER_FLOOR = '>=1.1128.0'
+// - 1.1387.0 (kit#3702, app-kit#283): `josh-app start` hands kit `--push-preflight-command`, which
+//   a lower kit refuses as an unknown option before it does anything.
+const KIT_PEER_FLOOR = '>=1.1387.0'
 const ESLINT_PRESET = 'eslint/sveltekit.js'
 const LEFTHOOK_PRESET = 'lefthook/sveltekit.yml'
 const KIT_LEFTHOOK_BASE = 'node_modules/@joshuafolkken/kit/lefthook/base.yml'

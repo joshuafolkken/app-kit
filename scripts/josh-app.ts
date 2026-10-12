@@ -2,6 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
+import { cloudflare_install } from '#cloudflare/install.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
 import { app_self_sync } from '#cloudflare/self-sync.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
@@ -50,7 +51,9 @@ function run_init(): void {
 	cloudflare_orchestrate.run_base_init(process.cwd(), process.argv.slice(FILE_ARGS_START_INDEX))
 	const changes = cloudflare_init.run_init(process.cwd(), PACKAGE_ROOT)
 
-	console.info(`${cloudflare_sync.summarize(changes)}\n${INIT_MESSAGE}`)
+	console.info(cloudflare_sync.summarize(changes))
+	cloudflare_install.install_added_dependencies(changes, process.cwd())
+	console.info(INIT_MESSAGE)
 }
 
 // Orchestrate kit's base (`josh sync`) first, then apply the app-kit overlay (scripts, seeds, and
@@ -61,7 +64,9 @@ function run_sync(): void {
 	cloudflare_orchestrate.run_base_sync(process.cwd())
 	const changes = cloudflare_sync.apply_overlay(process.cwd(), PACKAGE_ROOT)
 
-	console.info(`${cloudflare_sync.summarize(changes)}\n${SYNC_MESSAGE}`)
+	console.info(cloudflare_sync.summarize(changes))
+	cloudflare_install.install_added_dependencies(changes, process.cwd())
+	console.info(SYNC_MESSAGE)
 }
 
 function exit_on_failure(code: number): void {
@@ -107,6 +112,17 @@ function report_environment_error(error: unknown): never {
 
 	console.error(error.message)
 	process.exit(EXIT_ENVIRONMENT)
+}
+
+// What kit's `josh start` runs before its first step when its plan pushes: the pre-push hook's own
+// prerequisite (a Docker daemon, unless the project turned the scan off), so a push that would be
+// refused is caught before the GitHub repository exists.
+function run_start_preflight(): void {
+	try {
+		app_verify.preflight_push(process.cwd())
+	} catch (error) {
+		report_environment_error(error)
+	}
 }
 
 // Dynamic baseline security scan against the running preview server — the one layer that probes
@@ -186,6 +202,7 @@ const VERSION_UPGRADE = 'version:upgrade'
 // `dast` is async (it awaits the preview server's readiness), so the handler type admits both.
 const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['start', run_start],
+	['start:preflight', run_start_preflight],
 	['init', run_init],
 	['sync', run_sync],
 	['check', run_check],

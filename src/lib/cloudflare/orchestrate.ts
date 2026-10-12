@@ -29,6 +29,12 @@ const INIT_COMMAND = 'josh-app init'
 // empty directory. Every kit with `--init-command` (1.1050.0+) already reads the renamed `full`.
 const START_PROFILE_ARGS: ReadonlyArray<string> = ['--profile', 'full']
 
+// kit runs this before its first step, and only when its plan pushes (joshuafolkken/kit#3702, kit
+// 1.1387.0+): the pre-push `josh-app verify` hook scans on the first push, so a missing Docker
+// daemon is refused before anything exists instead of after `gh repo create` (app-kit#283).
+const PUSH_PREFLIGHT_COMMAND_FLAG = '--push-preflight-command'
+const PUSH_PREFLIGHT_COMMAND = 'josh-app start:preflight'
+
 const SUCCESS_STATUS = 0
 
 interface SpawnOutcome {
@@ -162,7 +168,15 @@ function run_base_start(
 	args: ReadonlyArray<string>,
 	spawn: SpawnRunner = default_spawn,
 ): number {
-	const argv = ['start', INIT_COMMAND_FLAG, INIT_COMMAND, ...START_PROFILE_ARGS, ...args]
+	const argv = [
+		'start',
+		INIT_COMMAND_FLAG,
+		INIT_COMMAND,
+		PUSH_PREFLIGHT_COMMAND_FLAG,
+		PUSH_PREFLIGHT_COMMAND,
+		...START_PROFILE_ARGS,
+		...args,
+	]
 
 	return process_runner.to_exit_status(spawn(resolve_kit_josh_bin(), argv, cwd))
 }
