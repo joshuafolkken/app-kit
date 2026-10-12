@@ -85,6 +85,23 @@ function apply_security_headers(
 	return response
 }
 
-const security_headers = { SECURITY_HEADERS, composed_headers, apply_security_headers }
+interface HandleInput<Event> {
+	event: Event
+	resolve: (event: Event) => Promise<Response> | Response
+}
+
+/**
+ * A ready-made SvelteKit `handle` hook that applies the bare baseline — what `josh-app init` seeds
+ * as `src/hooks.server.ts`, and what this repository's own hook is.
+ *
+ * Typed by shape rather than as SvelteKit's `Handle`: that type moved between entry points
+ * (`@sveltejs/kit` in 2, `@sveltejs/kit/hooks` in 3), and a seeded file importing either one fails
+ * the type-check on the other (app-kit#291). The shape is assignable to both, `sequence()` included.
+ */
+async function handle<Event>({ event, resolve }: HandleInput<Event>): Promise<Response> {
+	return apply_security_headers(await resolve(event))
+}
+
+const security_headers = { SECURITY_HEADERS, composed_headers, apply_security_headers, handle }
 
 export { security_headers }

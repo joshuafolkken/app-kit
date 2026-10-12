@@ -69,6 +69,24 @@ describe('security header application', () => {
 	})
 })
 
+describe('handle — the ready-made hook (#291)', () => {
+	it('applies the baseline to what resolve renders, passing the event through', async () => {
+		const event = { url: '/page' }
+		const seen: Array<unknown> = []
+
+		function resolve(resolved: unknown): Response {
+			seen.push(resolved)
+
+			return new Response('body')
+		}
+
+		const response = await security_headers.handle({ event, resolve })
+
+		expect(seen).toEqual([event])
+		expect(response.headers.get(X_FRAME_OPTIONS)).toBe('DENY')
+	})
+})
+
 describe('composition — extending and overriding the baseline', () => {
 	it('extends the baseline with a header it omits', () => {
 		const response = new Response('body')

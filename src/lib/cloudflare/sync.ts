@@ -71,6 +71,13 @@ interface OverlayChange {
 	// Present only on the manifest change, and only when the overlay added a dependency the
 	// lockfile does not hold yet — what tells the caller an install is owed (#282).
 	dependencies?: ReadonlyArray<string>
+	// Present only when the project needs a dependency app-kit names no range for: the install
+	// step hands these specifiers to `pnpm add`, so the project's own resolution picks the range
+	// (#291).
+	additions?: ReadonlyArray<string>
+	// Present only when a dependency left package.json: the lockfile still holds it, so an install
+	// is owed even when nothing was added (#291).
+	removals?: ReadonlyArray<string>
 }
 
 // Files app-kit seeds once, then the consumer owns. These are heavily customized

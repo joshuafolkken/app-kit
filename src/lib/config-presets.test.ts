@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { config_merge } from '@joshuafolkken/kit/config-merge'
 import { app_verify } from '#verify/verify.js'
 import { describe, expect, it } from 'vitest'
+import { security_csp } from './security/csp.js'
 
 const SVELTE_CONFIG = 'svelte.config.js'
 
@@ -348,11 +349,12 @@ describe('SvelteKit lefthook preset — unified verify command (#94, #97)', () =
 // this test is the real guard: it pins the SCRIPT surface — the actual XSS vector — locked.
 describe('CSP keeps the script surface locked (#96)', () => {
 	it("pins script-src to exactly ['self'] — no unsafe-inline or wildcard can slip in unnoticed", () => {
-		const source = read_file(SVELTE_CONFIG)
+		// The policy object svelte.config.js runs (csp.test.ts pins that wiring), read as a value:
+		// the directives no longer sit in the config's source text (#291).
+		const { directives } = security_csp.POLICY
 
-		// `['self', 'unsafe-inline']` or `['*']` would not contain the exact `['self']` substring.
-		expect(source).toContain("'script-src': ['self']")
-		expect(source).toContain("'object-src': ['none']")
+		expect(directives['script-src']).toEqual(['self'])
+		expect(directives['object-src']).toEqual(['none'])
 	})
 })
 

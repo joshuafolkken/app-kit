@@ -75,7 +75,21 @@ pnpm josh gate
 
 `josh-app start` runs kit's [`josh start`](https://github.com/joshuafolkken/kit/blob/main/docs/init.md) with `josh-app init` as its setup step: it creates the Git repository if there is none, sets the project up, makes the first commit, creates the GitHub repository and its labels, and — when `main` already has history — opens a pull request with the setup instead. It always uses kit's full profile, which the SvelteKit + Cloudflare overlay needs. Its other options are kit's, passed through unchanged: `--yes` (no prompts), `--github` (consent to the GitHub steps when unattended) and `--public`. It needs `gh` signed in, kit 1.1387.0 or later and [a running Docker daemon](./prerequisites.md#4-start-docker-or-turn-the-pre-push-scan-off): the first push runs the ZAP scan in the pre-push hook, so when the run is going to push, `josh-app start` checks for the daemon first and stops before it creates anything when there is none. A project that [turned the pre-push scan off](../dast.md#turn-the-pre-push-scan-off) is not asked for Docker.
 
+The same check reads the adapter: the pre-push hook previews the Cloudflare build output, so a project whose `vite.config.ts` (`svelte.config.js` before SvelteKit 3) imports neither `@sveltejs/adapter-cloudflare` nor `@sveltejs/adapter-auto` is stopped before anything is created, with the adapter to switch to. A project on `adapter-auto` passes, because the setup step switches it.
+
 To set up the files only, without Git or GitHub, run `pnpm exec josh-app init` instead. `josh-app init` runs kit's framework-agnostic `josh init` first, then applies the SvelteKit + Cloudflare overlay on top: the managed `package.json` scripts, the SvelteKit config lines, the Cloudflare `wrangler.jsonc` worker name and the seeded files (`_headers`, `zap-baseline.conf`, `josh-app.config.json`, the security-headers E2E spec and the k6 scenarios). What kit's base creates is described in kit's [init.md](https://github.com/joshuafolkken/kit/blob/main/docs/init.md).
+
+### What init completes in a fresh `sv create` project
+
+`sv create` leaves a project that cannot pass the pre-push `josh-app verify` yet. `josh-app init` fills the three gaps once, and the result is yours — `josh-app sync` never rewrites any of them:
+
+| Gap                                                                                     | What init does                                                                                                                                              | Left alone when                                                                               |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| The scaffold uses `@sveltejs/adapter-auto`, which builds nothing for Cloudflare locally | Switches the import to `@sveltejs/adapter-cloudflare`, drops `adapter-auto` from `package.json` and runs `pnpm add --save-dev @sveltejs/adapter-cloudflare` | The config imports any other adapter                                                          |
+| No server hook applies the header baseline to SSR pages                                 | Seeds `src/hooks.server.ts`                                                                                                                                 | Any `src/hooks.server.*` exists                                                               |
+| No Content-Security-Policy is configured                                                | Adds `csp: security_csp.POLICY` beside the adapter, imported from `@joshuafolkken/app-kit/security`                                                         | The config already sets `csp`, or its adapter line is not the scaffold's `adapter: adapter()` |
+
+The adapter range is pnpm's choice, not app-kit's. app-kit names at most a major: a SvelteKit 2 project gets `@sveltejs/adapter-cloudflare@7`, because the adapter's `latest` is built for SvelteKit 3. A project that keeps its own hook or config adds the baseline and the policy by hand: [security-headers.md](../security-headers.md).
 
 ## Next
 

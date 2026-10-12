@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { cloudflare_scaffold } from './scaffold.js'
 import { cloudflare_sync, type OverlayChange } from './sync.js'
 
 const MANIFEST = 'package.json'
@@ -41,15 +42,16 @@ function set_worker_name(target: string, name: string): void {
 	)
 }
 
-// app-kit's init-time overlay: the sync overlay plus the one init-only step — setting the
-// Worker name from the project name. `sync` never touches the name (the consumer owns it
-// after init), so auto-naming lives here in init rather than in the sync overlay.
+// app-kit's init-time overlay: the sync overlay plus the init-only steps — setting the Worker name
+// from the project name, and completing what a fresh `sv create` scaffold lacks (the Cloudflare
+// adapter, the server hook, the CSP). `sync` never touches any of them (the consumer owns them
+// after init), so they live here in init rather than in the sync overlay.
 function init_overlay(target: string, source: string, project_name: string): Array<OverlayChange> {
 	const changes = cloudflare_sync.apply_overlay(target, source)
 
 	set_worker_name(target, derive_worker_name(project_name))
 
-	return changes
+	return [...changes, ...cloudflare_scaffold.complete(target, source)]
 }
 
 // Entry the `josh-app init` CLI calls: apply the init overlay to `target`, deriving the
