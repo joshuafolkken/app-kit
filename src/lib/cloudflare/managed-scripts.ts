@@ -29,6 +29,9 @@ import { readFileSync } from 'node:fs'
 // to date` without running `prepare`. `pnpm prepare` sets them, and so does the next install that
 // changes a dependency. The predicate is `--show-toplevel`, not `--git-dir`, because lefthook needs
 // a work tree: `--git-dir` also succeeds in a bare repository, where `lefthook install` still fails.
+// Its stderr is left on screen because "not a repository" is only one reason git refuses: in a real
+// work tree it will not trust (dubious ownership, as in a bind-mounted devcontainer) the cure is not
+// `git init`, so git's own reason prints above a notice that does not claim to know the cause.
 const BARE_PREPARE = 'prepare'
 
 const MANAGED_SCRIPT_KEYS = [
