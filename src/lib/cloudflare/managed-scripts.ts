@@ -19,6 +19,16 @@ import { readFileSync } from 'node:fs'
 // runner these values could name from both sides, and there is none: this manifest's script values
 // are copied verbatim into consumers, while app-kit's own `josh-app` bin is not linked into its own
 // node_modules/.bin — only kit's `josh` is, which would put the runner upstream.
+//
+// `prepare:lefthook` installs the hooks only where there is a repository to install them into
+// (#289). `command -v lefthook` finds a machine-wide lefthook the project never installed, and
+// `lefthook install` exits non-zero outside a Git repository — which failed the `pnpm install` that
+// `josh-app init` runs on a freshly scaffolded project nobody has run `git init` in yet. Outside a
+// work tree the hooks are skipped, not failed, and the skip says so and names the command that sets
+// them: a repeat `pnpm install` does not, because on an unchanged project pnpm answers `Already up
+// to date` without running `prepare`. `pnpm prepare` sets them, and so does the next install that
+// changes a dependency. The predicate is `--show-toplevel`, not `--git-dir`, because lefthook needs
+// a work tree: `--git-dir` also succeeds in a bare repository, where `lefthook install` still fails.
 const BARE_PREPARE = 'prepare'
 
 const MANAGED_SCRIPT_KEYS = [
