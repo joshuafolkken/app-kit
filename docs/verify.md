@@ -6,6 +6,8 @@ The E2E suite and the [DAST scan](./dast.md) both need the built app running on 
 
 `verify` receives the pushed file list and keeps the scan narrowly triggered: E2E always runs, but the ~34s ZAP scan runs **only** when a header/cookie-affecting file changed — `_headers`, `src/hooks.server.ts`, `+server.ts` / `+*.server.ts`, `wrangler.jsonc`, `svelte.config.js`, or `zap-baseline.conf`. A baseline scan is passive (it only observes response headers and cookie attributes), so a component or utility change cannot alter its result, and spending ~34s per push on one is how hooks end up bypassed. An empty file list is fail-safe → scan (a security check is never skipped silently).
 
+A project can turn the pre-push scan off altogether by setting `verify.dast` to `false` in `josh-app.config.json`. `verify` then neither scans nor checks for Docker, whatever the push touches: it prints one line saying the setting turned the scan off, and runs E2E as usual. With the file or the key absent the scan is on. See [dast.md → Turn the pre-push scan off](./dast.md#turn-the-pre-push-scan-off).
+
 `package.json` and `pnpm-lock.yaml` are excluded on purpose: a version bump rewrites `package.json` on essentially every commit, so including it would fire the scan every time and undo the narrowing. Dependency-driven header changes are caught by the **nightly** scheduled scan ([dast.md](./dast.md#where-it-runs)), which rebuilds and scans the full app.
 
 ## The preview port

@@ -17,6 +17,8 @@ const ZAP_BASELINE = 'zap-baseline.conf'
 const ZAP_MASTER = readFileSync(ZAP_BASELINE, ENCODING)
 const ZAP_SEED = baseline.distributable(ZAP_MASTER)
 
+const SCAN_CONFIG = 'josh-app.config.json'
+
 const NPMRC = '.npmrc'
 const NPMRC_AUTH_LINE = '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}'
 // kit's base writes .npmrc first in the orchestrated `josh-app init` / `josh-app sync`, so by the
@@ -106,6 +108,25 @@ describe('cloudflare sync overlay — .vscode SvelteKit settings (#67)', () => {
 		// project-specific (sonarlint) and author-only (claudeCode.*) keys must not be distributed
 		expect(settings).not.toHaveProperty('sonarlint.connectedMode.project')
 		expect(Object.keys(settings).some((key) => key.startsWith('claudeCode.'))).toBe(false)
+	})
+})
+
+describe('cloudflare sync overlay — josh-app.config.json (#283)', () => {
+	it('seeds the master app-kit itself runs on when the project has none', () => {
+		const changes = apply_overlay()
+
+		expect(action_for(changes, SCAN_CONFIG)).toBe('created')
+		expect(sync_fixture.read(SCAN_CONFIG)).toBe(readFileSync(SCAN_CONFIG, ENCODING))
+	})
+
+	it('never turns a scan the project switched off back on', () => {
+		const disabled = '{ "verify": { "dast": false } }\n'
+
+		writeFileSync(sync_fixture.path_of(SCAN_CONFIG), disabled)
+		const changes = apply_overlay()
+
+		expect(action_for(changes, SCAN_CONFIG)).toBe('skipped')
+		expect(sync_fixture.read(SCAN_CONFIG)).toBe(disabled)
 	})
 })
 

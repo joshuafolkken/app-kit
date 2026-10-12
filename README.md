@@ -14,7 +14,7 @@ app-kit adds SvelteKit and Cloudflare checks on top of [kit](https://github.com/
 
 ## Quick start
 
-Requires [Node.js, pnpm and the gh CLI](./docs/setup/prerequisites.md).
+Requires [Node.js, pnpm, the gh CLI and a running Docker daemon](./docs/setup/prerequisites.md) — `docker info` tells you whether it is running. No Docker? [Turn the pre-push scan off](./docs/setup/prerequisites.md#4-start-docker-or-turn-the-pre-push-scan-off) first.
 
 From the root of a SvelteKit project:
 

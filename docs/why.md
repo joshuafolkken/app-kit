@@ -91,5 +91,5 @@ You want to try a game idea, but **the scene, the player, the controls and the s
 ## What to know up front
 
 - **It is for SvelteKit on Cloudflare.** Any other stack is better served by kit on its own.
-- **Some checks need tools on your machine**: Docker for the ZAP scan — including the pre-push run when a header- or cookie-affecting file changes — and k6 for the load test.
+- **Some checks need tools on your machine**: Docker for the ZAP scan — including the pre-push run when a header- or cookie-affecting file changes, and the first push of `josh-app start` — and k6 for the load test. A project without Docker can turn the pre-push scan off with `verify.dast` in `josh-app.config.json` ([dast.md](./dast.md#turn-the-pre-push-scan-off)); the nightly CI scan still runs.
 - **Everything kit does comes with it.** app-kit builds on kit, so its rules, checks and Issue workflow apply unchanged.
