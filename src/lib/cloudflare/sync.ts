@@ -5,6 +5,7 @@ import { app_check } from '#check/check.js'
 import { baseline } from '#dast/baseline.js'
 import { scan_config } from '#dast/scan-config.js'
 import { config_patch } from './config-patch.js'
+import { cloudflare_gitignore } from './gitignore.js'
 import { k6_scenarios } from './k6-scenarios.js'
 import { managed_scripts, type ManagedScripts } from './managed-scripts.js'
 import { patch_file, type ContentPatcher } from './patch-file.js'
@@ -410,8 +411,9 @@ function summarize(changes: ReadonlyArray<OverlayChange>): string {
 }
 
 // Idempotent, non-destructive overlay: merge app-kit's Cloudflare lifecycle scripts into
-// package.json, seed the app-shell + wrangler files when absent, and reconcile the SvelteKit
-// lines app-kit owns in the layered cspell / tsconfig / lefthook configs. Re-running an already-overlaid
+// package.json, seed the app-shell + wrangler files when absent, reconcile the SvelteKit lines
+// app-kit owns in the layered cspell / tsconfig / lefthook configs, and keep what its scripts
+// generate out of the checks through `.gitignore`. Re-running an already-overlaid
 // project changes nothing. Touches only app-kit-owned files and the app-kit-owned `*/sveltekit`
 // config lines — never kit's base lines. `source` is app-kit's package root (holds the canonical
 // package.json + templates/); `target` is the consumer project.
@@ -428,7 +430,7 @@ function apply_overlay(target: string, source: string): Array<OverlayChange> {
 		changes.push(copy_managed_file(entry, target, source))
 	}
 
-	changes.push(...config_patch.patch_configs(target))
+	changes.push(...config_patch.patch_configs(target), cloudflare_gitignore.sync_gitignore(target))
 
 	return changes
 }
