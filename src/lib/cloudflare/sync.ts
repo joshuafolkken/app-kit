@@ -66,6 +66,9 @@ interface OverlayChange {
 	// Present only on the manifest change, and only when a managed script actually moved — a
 	// dependency-only update keeps the single-line summary it has always printed.
 	scripts?: ReadonlyArray<ScriptChange>
+	// Present only on the manifest change, and only when the overlay added a dependency the
+	// lockfile does not hold yet — what tells the caller an install is owed (#282).
+	dependencies?: ReadonlyArray<string>
 }
 
 // Files app-kit seeds once, then the consumer owns. These are heavily customized
@@ -224,6 +227,18 @@ function did_seed_fast_check(consumer: ConsumerPackage, range: string): boolean 
 	return true
 }
 
+function manifest_update(
+	script_changes: ReadonlyArray<ScriptChange>,
+	did_dependency: boolean,
+): OverlayChange {
+	return {
+		file: MANIFEST,
+		action: 'updated',
+		...(script_changes.length > 0 && { scripts: script_changes }),
+		...(did_dependency && { dependencies: [app_check.FAST_CHECK_PACKAGE] }),
+	}
+}
+
 // The Cloudflare lifecycle scripts (and the check-command devDependency) are app-kit-owned:
 // a merge that overwrites only the managed keys, leaving the consumer's other entries intact.
 // The source manifest is parsed once and shared by both extractions.
@@ -241,11 +256,7 @@ function sync_scripts(target: string, source: string): OverlayChange {
 
 	writeFileSync(target_manifest, `${JSON.stringify(consumer, undefined, '\t')}\n`)
 
-	return {
-		file: MANIFEST,
-		action: 'updated',
-		...(script_changes.length > 0 && { scripts: script_changes }),
-	}
+	return manifest_update(script_changes, did_dependency)
 }
 
 // An existing file is the consumer's: left untouched unless the entry declares a `patch`, the one
