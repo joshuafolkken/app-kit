@@ -5,6 +5,9 @@ const VERSION_UPGRADE = 'version:upgrade'
 const START_PREFLIGHT = 'start:preflight'
 const PAGE_FILE = 'src/routes/+page.svelte'
 const DASH_FILE = '-theme.css'
+const INIT_COMMAND_FLAG = '--init-command'
+const PUSH_PREFLIGHT_COMMAND_FLAG = '--push-preflight-command'
+const START_RESERVED_FLAGS = ['--profile', INIT_COMMAND_FLAG, PUSH_PREFLIGHT_COMMAND_FLAG] as const
 const RESOLVE_CASES = [
 	['version', [], 'version'],
 	['v', [], 'version'],
@@ -40,8 +43,8 @@ const REJECT_CASES = [
 	// `start` sets both itself; a caller's copy would reach kit as a clashing pair.
 	['start', ['--profile', 'basic']],
 	['start', ['--yes', '--profile', 'full']],
-	['start', ['--init-command', 'other init']],
-	['start', ['--push-preflight-command', 'other preflight']],
+	['start', [INIT_COMMAND_FLAG, 'other init']],
+	['start', [PUSH_PREFLIGHT_COMMAND_FLAG, 'other preflight']],
 	[START_PREFLIGHT, ['--yes']],
 	['load', ['first.js', 'second.js']],
 	['help', ['--wrong']],
@@ -62,6 +65,14 @@ describe('josh-app command arguments', () => {
 
 	it.each(REJECT_CASES)('rejects %s %j', (command, args) => {
 		expect(command_args.parse(command, args).kind).toBe('error')
+	})
+
+	// Regression: the message once named two fixed flags whichever one the caller had passed.
+	it.each(START_RESERVED_FLAGS)('names %s as the flag start refuses', (flag) => {
+		expect(command_args.parse('start', ['--yes', flag, 'value'])).toEqual({
+			kind: 'error',
+			message: `start sets ${flag} itself; drop it.`,
+		})
 	})
 
 	it('passes a leading-dash filename after the argument separator', () => {

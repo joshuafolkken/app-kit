@@ -96,9 +96,9 @@ function parse_init(args: ReadonlyArray<string>): ParsedCommand {
 
 // The remaining options are kit's `josh start` switches, which kit validates.
 function parse_start(args: ReadonlyArray<string>): ParsedCommand {
-	if (args.some((argument) => START_RESERVED_FLAGS.has(argument))) {
-		return error('start sets --profile full and --init-command itself; drop them.')
-	}
+	const reserved = args.find((argument) => START_RESERVED_FLAGS.has(argument))
+
+	if (reserved !== undefined) return error(`start sets ${reserved} itself; drop it.`)
 
 	return { kind: 'run', command: 'start' }
 }
