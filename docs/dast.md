@@ -2,7 +2,7 @@
 
 The static layers inherited from kit (CodeQL, SonarCloud, OSV-Scanner, secretlint) never start the app. `josh-app dast` closes that gap: it builds the project, boots the preview server, runs the [OWASP ZAP](https://www.zaproxy.org/) baseline scan against it, and tears the server down — including on failure. The scan is passive (no attack traffic), so it is safe against a local preview. It catches the class static analysis structurally cannot see: missing security headers, unset or weak CSP, and `Secure` / `HttpOnly` / `SameSite` gaps on cookies.
 
-**Docker is required.** The scan runs in a container, and a missing daemon fails the command loudly rather than skipping it — a security check that silently no-ops is worse than one that is absent, because the green result gets misread as coverage.
+**Docker is required.** The scan runs in a container, and a missing daemon fails the command loudly rather than skipping it — a security check that silently no-ops is worse than one that is absent, because the green result gets misread as coverage. Check the daemon with `docker info`. A project without Docker can [turn the pre-push scan off](#turn-the-pre-push-scan-off); the manual command still needs it.
 
 ## Where it runs
 
@@ -15,6 +15,27 @@ All three share one implementation:
 | CI (scheduled) | `.github/workflows/dast.yml` runs the full scan **nightly**, not per-PR         |
 
 **Why nightly, not per-PR.** The ZAP baseline needs the full ~2.2 GB `zaproxy` image, which ephemeral CI runners re-pull on every run. Paying that on every PR is wasteful — and since `dast.yml` is a distributed default, it would land on every consumer's CI. The per-PR value (the security-header findings the scan reports) is already covered by the Docker-free E2E assertions in `src/routes/security-headers.e2e.ts`, which `josh-app sync` seeds into your project ([security-headers.md → The per-PR E2E spec](./security-headers.md#the-per-pr-e2e-spec)), so the full scan only needs to run **nightly** as the broad safety net. Trigger it on demand anytime via the Actions "Run workflow" button (`workflow_dispatch`) or locally with `pnpm josh-app dast`. A failed scheduled run is surfaced by GitHub (email + a red run in the Actions tab) and never blocks a PR.
+
+## Turn the pre-push scan off
+
+The pre-push scan is on by default. A project that does not keep a Docker daemon can turn it off in `josh-app.config.json`, a file in the project root that you commit:
+
+```json
+{
+	"verify": {
+		"dast": false
+	}
+}
+```
+
+| `verify.dast`                      | Pre-push `josh-app verify`                                | `josh-app start`                   |
+| ---------------------------------- | --------------------------------------------------------- | ---------------------------------- |
+| `true`, key absent, or file absent | Runs the scan when a header/cookie file changed           | Checks for Docker before it pushes |
+| `false`                            | Never scans or asks for Docker; prints one line; runs E2E | Does not ask for Docker            |
+
+The setting covers the pre-push run only. `pnpm josh-app dast` and the nightly `dast.yml` workflow always scan, so turning it off moves the check to CI rather than removing it. A value that is not `true` or `false`, or a file that is not valid JSON, stops the command instead of being guessed at. This is a choice the project makes in a file a reviewer can see — not the silent skip a missing daemon would otherwise be.
+
+`josh-app init` and `josh-app sync` write `josh-app.config.json` (scan on) only when the project has none, and never change an existing one. To start a project without Docker, create the file before `josh-app start`: [prerequisites.md → Start Docker, or turn the pre-push scan off](./setup/prerequisites.md#4-start-docker-or-turn-the-pre-push-scan-off).
 
 ## Triage findings in `zap-baseline.conf`
 

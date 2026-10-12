@@ -136,6 +136,14 @@ function scan_argv(state: HarnessState): ReadonlyArray<string> {
 }
 
 describe('josh-app dast — Docker preflight', () => {
+	it('names both ways out, the second by file and key (#283)', () => {
+		expect(app_dast.DOCKER_UNAVAILABLE_MESSAGE).toMatch(DOCKER_MISSING_PATTERN)
+		expect(app_dast.DOCKER_UNAVAILABLE_MESSAGE).toContain('Start Docker')
+		expect(app_dast.DOCKER_UNAVAILABLE_MESSAGE).toContain(
+			'set verify.dast to false in josh-app.config.json',
+		)
+	})
+
 	it('fails loudly when the Docker daemon is not running', async () => {
 		const { deps } = make_harness({ docker_statuses: [BUILD_FAILURE] })
 

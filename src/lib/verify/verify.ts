@@ -3,6 +3,7 @@ import { app_dast } from '#dast/dast.js'
 import { preview_port } from '#dast/preview-port.js'
 import { preview_release } from '#dast/preview-release.js'
 import { preview_server, type PreviewHandle } from '#dast/preview.js'
+import { scan_config } from '#dast/scan-config.js'
 import { zap } from '#dast/zap.js'
 import { process_runner } from '#process/runner.js'
 import { e2e_retry } from './e2e-retry.js'
@@ -64,7 +65,12 @@ function should_scan(files: ReadonlyArray<string>): boolean {
 	return files.some((file) => is_dast_relevant(file))
 }
 
+// What a push prints in place of the scan when the project turned it off, so the missing check is
+// a visible, attributed line rather than a silence (app-kit#283).
+const SCAN_DISABLED_MESSAGE = `josh-app verify: the ZAP scan is turned off by ${scan_config.DAST_SETTING} in ${scan_config.CONFIG_FILE} — running E2E only.`
+
 interface VerifyDependencies {
+	is_scan_enabled: (cwd: string) => boolean
 	preflight_docker: (cwd: string) => void
 	build: (cwd: string) => number
 	start_preview: (cwd: string, port: number) => Promise<PreviewHandle>
@@ -81,6 +87,7 @@ function default_run_e2e(cwd: string): number {
 }
 
 const DEFAULT_DEPENDENCIES: VerifyDependencies = {
+	is_scan_enabled: scan_config.is_scan_enabled,
 	preflight_docker: app_dast.preflight_docker,
 	build: process_runner.run_build,
 	start_preview: preview_server.start_preview,
@@ -170,12 +177,33 @@ async function run_against_server(context: AttemptContext): Promise<number> {
 	return aggregate_status(second.status, first_finding)
 }
 
+// The project's switch is read before the file list: a project that turned the scan off never
+// scans, whatever the push touches, and says so once.
+function resolve_will_scan(
+	cwd: string,
+	files: ReadonlyArray<string>,
+	deps: VerifyDependencies,
+): boolean {
+	if (deps.is_scan_enabled(cwd)) return should_scan(files)
+
+	process.stdout.write(`${SCAN_DISABLED_MESSAGE}\n`)
+
+	return false
+}
+
+// What `josh-app start` asks before it creates anything: its first push carries `_headers`,
+// `wrangler.jsonc` and `zap-baseline.conf`, so this gate always scans on it — unless the project
+// turned the scan off. Kept beside run_verify so "does a push need Docker" has one answer.
+function preflight_push(cwd: string, deps: VerifyDependencies = DEFAULT_DEPENDENCIES): void {
+	if (deps.is_scan_enabled(cwd)) deps.preflight_docker(cwd)
+}
+
 async function run_verify(
 	cwd: string,
 	files: ReadonlyArray<string>,
 	deps: VerifyDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<number> {
-	const will_scan = should_scan(files)
+	const will_scan = resolve_will_scan(cwd, files, deps)
 
 	// Fail fast on a missing Docker daemon before the expensive build, but only when the scan will
 	// actually run — an E2E-only push must not require Docker.
@@ -198,9 +226,11 @@ async function run_verify(
 const app_verify = {
 	E2E_ARGV,
 	E2E_ENV,
+	SCAN_DISABLED_MESSAGE,
 	is_dast_relevant,
 	should_scan,
 	aggregate_status,
+	preflight_push,
 	run_verify,
 }
 

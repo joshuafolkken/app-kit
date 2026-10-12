@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { command_args } from './command-args.js'
 
 const VERSION_UPGRADE = 'version:upgrade'
+const START_PREFLIGHT = 'start:preflight'
 const PAGE_FILE = 'src/routes/+page.svelte'
 const DASH_FILE = '-theme.css'
 const RESOLVE_CASES = [
@@ -16,6 +17,7 @@ const RESOLVE_CASES = [
 	['init', ['--profile', 'full'], 'init'],
 	['start', [], 'start'],
 	['start', ['--yes', '--github', '--public'], 'start'],
+	[START_PREFLIGHT, [], START_PREFLIGHT],
 	['sy', [], 'sync'],
 	['c', [], 'check'],
 	['check:ci', [], 'check:ci'],
@@ -39,6 +41,8 @@ const REJECT_CASES = [
 	['start', ['--profile', 'basic']],
 	['start', ['--yes', '--profile', 'full']],
 	['start', ['--init-command', 'other init']],
+	['start', ['--push-preflight-command', 'other preflight']],
+	[START_PREFLIGHT, ['--yes']],
 	['load', ['first.js', 'second.js']],
 	['help', ['--wrong']],
 	['verify', ['--wrong']],

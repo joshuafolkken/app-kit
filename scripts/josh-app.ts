@@ -114,6 +114,17 @@ function report_environment_error(error: unknown): never {
 	process.exit(EXIT_ENVIRONMENT)
 }
 
+// What kit's `josh start` runs before its first step when its plan pushes: the pre-push hook's own
+// prerequisite (a Docker daemon, unless the project turned the scan off), so a push that would be
+// refused is caught before the GitHub repository exists.
+function run_start_preflight(): void {
+	try {
+		app_verify.preflight_push(process.cwd())
+	} catch (error) {
+		report_environment_error(error)
+	}
+}
+
 // Dynamic baseline security scan against the running preview server — the one layer that probes
 // the real HTTP surface, which the static analyzers (CodeQL, Sonar, OSV) structurally cannot see.
 async function run_dast(): Promise<void> {
@@ -191,6 +202,7 @@ const VERSION_UPGRADE = 'version:upgrade'
 // `dast` is async (it awaits the preview server's readiness), so the handler type admits both.
 const COMMAND_HANDLERS = new Map<string, () => void | Promise<void>>([
 	['start', run_start],
+	['start:preflight', run_start_preflight],
 	['init', run_init],
 	['sync', run_sync],
 	['check', run_check],

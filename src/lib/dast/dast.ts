@@ -6,6 +6,7 @@ import { EnvironmentError } from '#process/environment-error.js'
 import { process_runner, type CommandRunner } from '#process/runner.js'
 import { preview_port } from './preview-port.js'
 import { preview_server, type PreviewHandle } from './preview.js'
+import { scan_config } from './scan-config.js'
 import { zap } from './zap.js'
 
 // `josh-app dast`: build the app, boot the preview server, run the OWASP ZAP baseline scan
@@ -17,10 +18,12 @@ import { zap } from './zap.js'
 
 // A missing Docker daemon fails loudly instead of skipping: a security check that silently
 // no-ops is worse than one that is absent, because the green result is misread as coverage
-// (the precedent set in joshuafolkken/kit#670).
+// (the precedent set in joshuafolkken/kit#670). It names both ways out: start the daemon, or turn
+// the pre-push scan off in the project's own config (app-kit#283).
 const DOCKER_UNAVAILABLE_MESSAGE = [
 	'josh-app dast requires a running Docker daemon (the ZAP baseline scan runs in a container).',
-	'Start Docker and re-run — the scan is never skipped silently.',
+	'Start Docker (`docker info` answers once the daemon is up) and re-run — the scan is never skipped silently.',
+	`A project without Docker can turn the pre-push scan off: set ${scan_config.DAST_SETTING} to false in ${scan_config.CONFIG_FILE}.`,
 ].join('\n')
 
 // The directory bind-mounted at /zap/wrk, plus the config basename to pass to `-c` (undefined

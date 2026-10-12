@@ -25,6 +25,7 @@
 		".github/workflows/dast.yml",
 		".github/workflows/load.yml",
 		"zap-baseline.conf",
+		"josh-app.config.json",
 		"!dist/**/*.test.*",
 		"!dist/check/**",
 		"!dist/cloudflare/**",
@@ -143,7 +144,7 @@
 		"wrangler": "^4.149.0"
 	},
 	"peerDependencies": {
-		"@joshuafolkken/kit": ">=1.1128.0",
+		"@joshuafolkken/kit": ">=1.1387.0",
 		"eslint": "^10.4.0",
 		"svelte": "^5.0.0"
 	},

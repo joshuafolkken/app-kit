@@ -5,7 +5,17 @@ import { cloudflare_orchestrate, type SpawnOutcome } from './orchestrate.js'
 const CWD = '/work/consumer-project'
 const KIT_MANIFEST = `${process.cwd()}/node_modules/@joshuafolkken/kit/package.json`
 // The full profile is fixed so kit's detection never picks `basic` under the SvelteKit overlay.
-const START_PREFIX = ['start', '--init-command', 'josh-app init', '--profile', 'full']
+// The push preflight is what keeps a missing Docker daemon from leaving an empty GitHub repository
+// behind (#283): kit runs it before its first step, and only when its plan pushes.
+const START_PREFIX = [
+	'start',
+	'--init-command',
+	'josh-app init',
+	'--push-preflight-command',
+	'josh-app start:preflight',
+	'--profile',
+	'full',
+]
 const SPAWN_FAILURE = 'spawn ENOENT'
 
 interface SpawnCall {
