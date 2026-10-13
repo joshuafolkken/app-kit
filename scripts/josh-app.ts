@@ -4,6 +4,7 @@ import { app_check } from '#check/check.js'
 import { cloudflare_init } from '#cloudflare/init.js'
 import { cloudflare_install } from '#cloudflare/install.js'
 import { cloudflare_orchestrate } from '#cloudflare/orchestrate.js'
+import { cloudflare_scaffold } from '#cloudflare/scaffold.js'
 import { app_self_sync } from '#cloudflare/self-sync.js'
 import { cloudflare_sync } from '#cloudflare/sync.js'
 import { app_dast } from '#dast/dast.js'
@@ -115,11 +116,12 @@ function report_environment_error(error: unknown): never {
 }
 
 // What kit's `josh start` runs before its first step when its plan pushes: the pre-push hook's own
-// prerequisite (a Docker daemon, unless the project turned the scan off), so a push that would be
-// refused is caught before the GitHub repository exists.
+// prerequisites (a Docker daemon, unless the project turned the scan off, and a config that builds
+// for Cloudflare), so a push that would be refused is caught before the GitHub repository exists.
 function run_start_preflight(): void {
 	try {
 		app_verify.preflight_push(process.cwd())
+		cloudflare_scaffold.assert_deployable(process.cwd())
 	} catch (error) {
 		report_environment_error(error)
 	}

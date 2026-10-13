@@ -10,12 +10,23 @@ app-kit ships a security-header baseline, a Content-Security-Policy setup and a 
 
 ## Apply the baseline to SSR pages
 
-**`_headers` covers static assets only.** Cloudflare applies it to asset responses; anything the Worker renders — every SSR page — bypasses it. Apply the same baseline in your server hook:
+**`_headers` covers static assets only.** Cloudflare applies it to asset responses; anything the Worker renders — every SSR page — bypasses it. Apply the same baseline in your server hook. `josh-app init` seeds this file when the project has no `src/hooks.server.*` yet:
 
 ```ts
 // src/hooks.server.ts
 import { security_headers } from '@joshuafolkken/app-kit/security'
-import type { Handle } from '@sveltejs/kit'
+
+const { handle } = security_headers
+
+export { handle }
+```
+
+`security_headers.handle` is the whole hook for a project that needs only the baseline. A project with its own hook calls `apply_security_headers` on the response it resolves instead:
+
+```ts
+// src/hooks.server.ts — `Handle` is exported from '@sveltejs/kit' before SvelteKit 3
+import { security_headers } from '@joshuafolkken/app-kit/security'
+import type { Handle } from '@sveltejs/kit/hooks'
 
 export const handle: Handle = async ({ event, resolve }) =>
 	security_headers.apply_security_headers(await resolve(event))
@@ -54,14 +65,33 @@ and mirrors the same value in its `_headers` file so static assets stay in step.
 
 ## Content-Security-Policy
 
-`svelte.config.js` sets `kit.csp` so SvelteKit emits a real `Content-Security-Policy` header on SSR pages (and a `<meta>` tag on prerendered ones), closing the ZAP finding **CSP Header Not Set [10038]**. `mode: 'auto'` augments `script-src` with a per-request **nonce** on dynamic pages and a **hash** on prerendered ones, so the app's own hydration script runs while inline injection is blocked — the E2E in `demo/playwright/page.svelte.e2e.ts` proves hydration still works under it.
+The SvelteKit config sets `csp` (`kit.csp` in `svelte.config.js` before SvelteKit 3) so SvelteKit emits a real `Content-Security-Policy` header on SSR pages (and a `<meta>` tag on prerendered ones), closing the ZAP finding **CSP Header Not Set [10038]**. `mode: 'auto'` augments `script-src` with a per-request **nonce** on dynamic pages and a **hash** on prerendered ones, so the app's own hydration script runs while inline injection is blocked — the E2E in `demo/playwright/page.svelte.e2e.ts` proves hydration still works under it.
 
 The directives are chosen so the **script surface stays locked** (`script-src 'self'` + nonce, no `unsafe-inline`) — that is the real XSS defense. Two deliberate relaxations:
 
 - `style-src` keeps `'unsafe-inline'`. SvelteKit's `app.html` ships an inline `style="display: contents"` body wrapper and Svelte transitions inject inline `<style>` at runtime; a stricter `style-src` white-screens any consumer that uses a transition (the SvelteKit docs call this out). Inline _style_ cannot execute JS, so this relaxes the style surface only. ZAP notes it as the sole `10055` sub-alert; it is triaged in `zap-baseline.conf`, and a unit test in `config-presets.test.ts` guards that `script-src` never gains `unsafe-inline` behind that IGNORE.
 - `frame-ancestors 'none'` and `form-action 'self'` are listed explicitly because they do **not** fall back to `default-src` — omitting them re-opens `10055`'s "no fallback" sub-alert.
 
-**`svelte.config.js` is yours** — `josh-app sync` does not distribute it. Copy the `kit.csp` block from this repo's `svelte.config.js` as a starting point and adjust the directives for your app (e.g. add `connect-src` / `img-src` origins for third-party APIs or CDNs you call).
+**The config is yours** — `josh-app sync` does not distribute it. The policy itself is published as `security_csp.POLICY`, the same object this repo's `svelte.config.js` runs, and `josh-app init` wires a fresh `sv create` config to it:
+
+```ts
+// vite.config.ts (SvelteKit 3) — in svelte.config.js before it, under `kit`
+import { security_csp } from '@joshuafolkken/app-kit/security'
+
+sveltekit({
+	adapter: adapter(),
+	csp: security_csp.POLICY,
+})
+```
+
+Adjust the directives for your app by spreading it (e.g. `connect-src` / `img-src` origins for third-party APIs or CDNs you call):
+
+```ts
+csp: {
+	...security_csp.POLICY,
+	directives: { ...security_csp.POLICY.directives, 'connect-src': ['self', 'https://api.example.com'] },
+},
+```
 
 ## The per-PR E2E spec
 

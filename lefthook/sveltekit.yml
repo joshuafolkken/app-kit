@@ -64,7 +64,8 @@ pre-push:
     #
     # The glob is the UNION of the old two: the broad E2E trigger PLUS the narrow DAST files, each
     # pattern verbatim so per-file behavior is unchanged. Header/cookie files (`_headers`,
-    # `+server.ts`, `+*.server.ts`, `hooks.server.ts`, `wrangler.jsonc`, `svelte.config.js`,
+    # `+server.ts`, `+*.server.ts`, `hooks.server.ts`, `wrangler.jsonc`, the SvelteKit config
+    # (`vite.config.*` / `svelte.config.*`), a `csp.ts` module that config reads,
     # `zap-baseline.conf`) are what can move a verdict; `+server.ts` variants are the only place a
     # route emits its own `Set-Cookie`, so dropping them would let an HttpOnly/SameSite gap through.
     #
@@ -88,6 +89,12 @@ pre-push:
         - 'zap-baseline.conf'
         - 'wrangler.jsonc'
         - 'svelte.config.js'
+        - 'svelte.config.ts'
+        - 'vite.config.ts'
+        - 'vite.config.js'
+        - 'vite.config.mts'
+        - 'vite.config.mjs'
+        - '**/csp.ts'
         - 'src/hooks.server.ts'
         - '**/+server.ts'
         - '**/+*.server.ts'

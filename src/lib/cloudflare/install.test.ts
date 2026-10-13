@@ -14,9 +14,20 @@ const FAILURE_STATUS = 1
 // the flag would make the install fail on exactly the mismatch it is there to repair.
 const INSTALL_ARGV = ['install', '--no-frozen-lockfile']
 
+const ADAPTER = '@sveltejs/adapter-cloudflare'
+// `--save-dev`, and no version: the project's own resolution picks the adapter's range (#291).
+const ADD_ARGV = ['add', '--save-dev', ADAPTER]
+
 const OK: SpawnOutcome = { status: 0, error: undefined }
+const UNVERSIONED: ReadonlyArray<OverlayChange> = [
+	{ file: PACKAGE_JSON, action: 'updated', dependencies: [FAST_CHECK_PACKAGE] },
+	{ file: PACKAGE_JSON, action: 'updated', additions: [ADAPTER] },
+]
 const SEEDED: ReadonlyArray<OverlayChange> = [
 	{ file: PACKAGE_JSON, action: 'updated', dependencies: [FAST_CHECK_PACKAGE] },
+]
+const REMOVED_ONLY: ReadonlyArray<OverlayChange> = [
+	{ file: PACKAGE_JSON, action: 'updated', removals: ['@sveltejs/adapter-auto'] },
 ]
 const SCRIPTS_ONLY: ReadonlyArray<OverlayChange> = [
 	{ file: PACKAGE_JSON, action: 'updated', scripts: [{ key: 'dev', kind: 'added' }] },
@@ -71,7 +82,7 @@ describe('cloudflare install — added dependencies (#282)', () => {
 		const { run } = make_run({ status: FAILURE_STATUS, error: undefined })
 
 		expect(() => cloudflare_install.install_added_dependencies(SEEDED, CWD, run)).toThrow(
-			/pnpm install exited with status 1.*then run: pnpm install --no-frozen-lockfile$/u,
+			/pnpm install --no-frozen-lockfile exited with status 1.*then run: pnpm install --no-frozen-lockfile$/u,
 		)
 	})
 
@@ -81,6 +92,39 @@ describe('cloudflare install — added dependencies (#282)', () => {
 		expect(() => cloudflare_install.install_added_dependencies(SEEDED, CWD, run)).toThrow(
 			SPAWN_FAILURE,
 		)
+	})
+})
+
+describe('cloudflare install — dependencies app-kit names no version for (#291)', () => {
+	it('hands them to one pnpm add, which also installs what the overlay seeded', () => {
+		const { run, calls } = make_run(OK)
+
+		const did_install = cloudflare_install.install_added_dependencies(UNVERSIONED, CWD, run)
+
+		expect(did_install).toBe(true)
+		expect(calls).toEqual([{ argv: ADD_ARGV, cwd: CWD }])
+	})
+
+	// The lockfile keeps a dependency the overlay took out of package.json until an install runs.
+	it('runs pnpm install when the overlay only removed a dependency', () => {
+		const { run, calls } = make_run(OK)
+
+		const did_install = cloudflare_install.install_added_dependencies(REMOVED_ONLY, CWD, run)
+
+		expect(did_install).toBe(true)
+		expect(calls).toEqual([{ argv: INSTALL_ARGV, cwd: CWD }])
+	})
+
+	// Not `pnpm install` as the retry: it would succeed on a manifest still missing the adapter.
+	it('names pnpm add as the failed command and as the one to run again', () => {
+		const { run } = make_run({ status: FAILURE_STATUS, error: undefined })
+
+		function install(): void {
+			cloudflare_install.install_added_dependencies(UNVERSIONED, CWD, run)
+		}
+
+		expect(install).toThrow(`pnpm add --save-dev ${ADAPTER} exited with status 1`)
+		expect(install).toThrow(`then run: pnpm add --save-dev ${ADAPTER}`)
 	})
 })
 

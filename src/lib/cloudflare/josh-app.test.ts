@@ -9,6 +9,11 @@ import { describe, expect, it } from 'vitest'
 const REPO_ROOT = process.cwd()
 const CLI_PATH = path.join(REPO_ROOT, 'scripts/josh-app.ts')
 const CONFIG_FILE = 'josh-app.config.json'
+const SCAN_OFF = '{ "verify": { "dast": false } }'
+const VITE_CONFIG = 'vite.config.ts'
+// What `sv create` scaffolds, and what `josh-app init` switches to the Cloudflare adapter.
+const ADAPTER_AUTO = '@sveltejs/adapter-auto'
+const ADAPTER_STATIC = '@sveltejs/adapter-static'
 // `--import tsx` resolves from the working directory, which for the preflight is a project outside
 // this repository, so the loader is named by its absolute URL there.
 const TSX_LOADER = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href
@@ -62,10 +67,18 @@ describe('josh-app self-sync preflight', () => {
 	)
 })
 
-function run_preflight(config: string | undefined): ReturnType<typeof spawnSync> {
+// `adapter` is what the project's vite.config.ts imports; undefined is a project without one.
+function run_preflight(
+	config: string | undefined,
+	adapter: string | undefined,
+): ReturnType<typeof spawnSync> {
 	const project_root = mkdtempSync(path.join(tmpdir(), 'app-kit-start-'))
 
 	if (config !== undefined) writeFileSync(path.join(project_root, CONFIG_FILE), config)
+
+	if (adapter !== undefined) {
+		writeFileSync(path.join(project_root, VITE_CONFIG), `import adapter from '${adapter}'\n`)
+	}
 
 	try {
 		return spawnSync(process.execPath, ['--import', TSX_LOADER, CLI_PATH, 'start:preflight'], {
@@ -82,7 +95,7 @@ function run_preflight(config: string | undefined): ReturnType<typeof spawnSync>
 // directory doubles as PATH, so no `docker` resolves — the same as a machine without a daemon.
 describe('josh-app start:preflight', () => {
 	it('fails without Docker, naming how to start it and how to turn the scan off', () => {
-		const result = run_preflight(undefined)
+		const result = run_preflight(undefined, ADAPTER_AUTO)
 
 		expect(result.status).toBe(1)
 		expect(result.stderr).toContain('Start Docker')
@@ -90,11 +103,24 @@ describe('josh-app start:preflight', () => {
 	})
 
 	it('passes without Docker once the project turned the scan off', () => {
-		const result = run_preflight('{ "verify": { "dast": false } }')
+		const result = run_preflight(SCAN_OFF, ADAPTER_AUTO)
 
 		expect(result.status).toBe(0)
 		expect(result.stderr).toBe('')
 	})
+
+	// #291: the pre-push hook previews the Cloudflare build output, so a project that cannot produce
+	// it is refused here — before `gh repo create` — instead of leaving an empty repository behind.
+	it.each([{ adapter: ADAPTER_STATIC }, { adapter: undefined }])(
+		'fails a project whose config is on $adapter, naming the Cloudflare adapter',
+		({ adapter }) => {
+			const result = run_preflight(SCAN_OFF, adapter)
+
+			expect(result.status).toBe(1)
+			expect(result.stderr).toContain('no SvelteKit config here uses @sveltejs/adapter-cloudflare')
+			expect(result.stderr).toContain('https://svelte.dev/docs/kit/adapter-cloudflare')
+		},
+	)
 })
 
 describe('josh-app command help', () => {

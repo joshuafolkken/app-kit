@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { cloudflare_scaffold } from '#cloudflare/scaffold.js'
 import { app_dast } from '#dast/dast.js'
 import { preview_port } from '#dast/preview-port.js'
 import { preview_release } from '#dast/preview-release.js'
@@ -36,11 +37,15 @@ const E2E_ENV: Readonly<Record<string, string>> = {
 // in lockstep with the DAST glob in lefthook/sveltekit.yml (see #94). A change to anything else
 // (a component, a lib function) cannot alter the scan result, so the ~34s scan is skipped for it.
 const HEADER_ROUTE_SUFFIXES: ReadonlyArray<string> = ['+server.ts', 'hooks.server.ts']
+// The CSP is a response header too: it is set in the SvelteKit config — whichever file the project
+// keeps it in — or in a module that config reads, as app-kit's own `src/lib/security/csp.ts` (#291).
+const CSP_MODULE = 'csp.ts'
 const DAST_BASENAMES: ReadonlySet<string> = new Set([
 	'_headers',
 	'zap-baseline.conf',
 	'wrangler.jsonc',
-	'svelte.config.js',
+	...cloudflare_scaffold.CONFIG_FILES,
+	CSP_MODULE,
 ])
 
 function is_dast_relevant(file: string): boolean {

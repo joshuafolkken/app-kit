@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cloudflare_init } from './init.js'
 import { managed_scripts } from './managed-scripts.js'
+import { cloudflare_scaffold } from './scaffold.js'
 
 const ENCODING = 'utf8'
 const SOURCE_DIR = '.'
@@ -11,6 +12,17 @@ const WRANGLER_JSONC = 'wrangler.jsonc'
 const WRANGLER_TEMPLATE = 'templates/wrangler.jsonc'
 const PACKAGE_JSON = 'package.json'
 const PLACEHOLDER_MARKER = 'your-project-name'
+const VITE_CONFIG = 'vite.config.ts'
+const ADAPTER_AUTO = '@sveltejs/adapter-auto'
+const { ADAPTER_CLOUDFLARE, HOOK_FILE } = cloudflare_scaffold
+// The scaffold steps report last: the config, the manifest and the hook.
+const SCAFFOLD_CHANGES = -3
+const SV_CONFIG = `import adapter from '${ADAPTER_AUTO}'
+
+export default { plugins: [sveltekit({
+	adapter: adapter(),
+})] }
+`
 
 const state = { directory: '' }
 
@@ -83,6 +95,29 @@ describe('init_overlay', () => {
 		}
 
 		expect(read_fixture(WRANGLER_JSONC)).toContain('"name": "my-app",')
+	})
+
+	// #291: a fresh `sv create` project could not pass its first push — the scaffold's adapter-auto
+	// builds nothing for Cloudflare, and nothing applied the headers the seeded E2E spec asserts.
+	it('completes a fresh sv scaffold after the sync overlay', () => {
+		const manifest = { name: 'fixture', devDependencies: { [ADAPTER_AUTO]: '^8.0.0' } }
+
+		writeFileSync(fixture_path(PACKAGE_JSON), `${JSON.stringify(manifest, undefined, '\t')}\n`)
+		writeFileSync(fixture_path(VITE_CONFIG), SV_CONFIG)
+		const changes = cloudflare_init.init_overlay(state.directory, SOURCE_DIR, 'fixture')
+
+		expect(changes.slice(SCAFFOLD_CHANGES)).toEqual([
+			{ file: VITE_CONFIG, action: 'updated' },
+			{
+				file: PACKAGE_JSON,
+				action: 'updated',
+				additions: [ADAPTER_CLOUDFLARE],
+				removals: [ADAPTER_AUTO],
+			},
+			{ file: HOOK_FILE, action: 'created' },
+		])
+		expect(read_fixture(VITE_CONFIG)).toContain(`import adapter from '${ADAPTER_CLOUDFLARE}'`)
+		expect(read_fixture(VITE_CONFIG)).toContain('csp: security_csp.POLICY,')
 	})
 })
 
