@@ -497,7 +497,7 @@ jobs:
       # did. if-no-files-found: ignore covers the directory the move could not rename, and the
       # consumer whose preview script is not wrangler and writes no log at all.
       - name: Upload first attempt test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -510,7 +510,7 @@ jobs:
           retention-days: 30
 
       - name: Upload first attempt web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -579,7 +579,7 @@ jobs:
       # (#809). The failure is not swallowed: continue-on-error keeps the step's own outcome
       # `failure`, so it stays marked red on the run and a missing report is never silent.
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:
@@ -601,7 +601,7 @@ jobs:
       # the job publishes instead of for the ones that need it today — a later condition change
       # here would otherwise reintroduce #809 in a step nobody re-audits.
       - name: Upload web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure() || cancelled()
         continue-on-error: true
         with:
