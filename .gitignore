@@ -75,3 +75,8 @@ e2e/.auth/chrome-profile/
 /.git-handoff-*.json
 /.josh-handoff-*.json
 .josh/handoff-*.json
+.eslintcache.commit
+.cspellcache.commit
+.prettiercache
+.prettiercache.related
+.josh/tmp/

@@ -7,8 +7,11 @@
 			"command": "pnpm josh run:board",
 			"isBackground": true,
 			"problemMatcher": [],
-			"presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
-			"runOptions": { "runOn": "folderOpen" }
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": false
+			}
 		}
 	]
 }

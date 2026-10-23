@@ -82,8 +82,7 @@ function build_lsof_argv(port: number): ReadonlyArray<string> {
 // distinguish two shapes of the same non-answer.
 function read_command(command: string, argv: ReadonlyArray<string>): string | undefined {
 	const result = spawnSync(command, [...argv], { encoding: 'utf8' })
-	if (result.error !== undefined) return undefined
-	if (result.status !== 0) return undefined
+	if (result.error !== undefined || result.status !== 0) return undefined
 
 	return result.stdout
 }
