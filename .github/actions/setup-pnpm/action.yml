@@ -51,7 +51,7 @@ runs:
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Setup pnpm
-      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
       with:
         version: ${{ steps.pnpm-version.outputs.version }}
         runtime: ${{ inputs.runtime }}
@@ -79,8 +79,8 @@ runs:
       if: inputs.install == 'true'
       shell: bash
       env:
-        SAFE_CHAIN_INSTALLER_VERSION: 1.5.20
-        SAFE_CHAIN_INSTALLER_SHA256: 0ad25efe15d1fa56105157a454d647223e78eb0c53d1f85e3d10afcd722e7bfd
+        SAFE_CHAIN_INSTALLER_VERSION: 1.5.25
+        SAFE_CHAIN_INSTALLER_SHA256: 83069f6db4215cccf6a26bdd6e65a5c2366b9d24322b2d5d2862d47385e56682
       run: |
         installer="$RUNNER_TEMP/install-safe-chain.sh"
         curl --proto '=https' -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$installer"

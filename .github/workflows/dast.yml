@@ -31,8 +31,8 @@ concurrency:
 # The earlier `pnpm dlx` shim install let the install below run without a scan (app-kit#232).
 # workflow-safe-chain.test.ts fails when this pin and ci.yml's drift apart.
 env:
-  SAFE_CHAIN_INSTALLER_VERSION: 1.5.20
-  SAFE_CHAIN_INSTALLER_SHA256: 0ad25efe15d1fa56105157a454d647223e78eb0c53d1f85e3d10afcd722e7bfd
+  SAFE_CHAIN_INSTALLER_VERSION: 1.5.25
+  SAFE_CHAIN_INSTALLER_SHA256: 83069f6db4215cccf6a26bdd6e65a5c2366b9d24322b2d5d2862d47385e56682
 
 jobs:
   zap-baseline:

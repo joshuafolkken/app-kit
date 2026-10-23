@@ -127,6 +127,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
+        id: setup-node
         uses: ./.github/actions/setup-node
 
       - name: Configure GitHub Packages authentication for existing projects
@@ -146,11 +147,18 @@ jobs:
           # save nothing back under the key it already hit — a cold lint on every later run.
           # joshuafolkken/kit#2054: the commit sha makes each run save its warmed cache under a fresh
           # key, while the sha-less prefix restores the newest entry from an earlier run.
-          key: ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-${{ github.sha }}
+          # joshuafolkken/kit#4346: ESLint hashes `process.version` into every entry, and runner
+          # images carry different Node.js patch releases for `'24'`, so a restore across two of them
+          # lints cold. The resolved version leads every key: each release keeps its own lineage.
+          # joshuafolkken/kit#4496: the key is not built from kit's toolchain input list — the cache
+          # is restored before the install, and this workflow has no kit source to run. The lockfile
+          # and eslint config hashes move it with the two inputs ESLint's own per-entry check does
+          # not cover.
+          key: ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-
-            ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-
-            ${{ runner.os }}-eslint-cache-
+            ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-
+            ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-
 
       - name: Setup cspell cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -254,7 +262,7 @@ jobs:
           persist-credentials: false
 
       - name: Run security audit
-        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
         with:
           scan-args: --lockfile=pnpm-lock.yaml
 
@@ -497,7 +505,7 @@ jobs:
       # did. if-no-files-found: ignore covers the directory the move could not rename, and the
       # consumer whose preview script is not wrangler and writes no log at all.
       - name: Upload first attempt test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -510,7 +518,7 @@ jobs:
           retention-days: 30
 
       - name: Upload first attempt web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -579,7 +587,7 @@ jobs:
       # (#809). The failure is not swallowed: continue-on-error keeps the step's own outcome
       # `failure`, so it stays marked red on the run and a missing report is never silent.
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:
@@ -601,7 +609,7 @@ jobs:
       # the job publishes instead of for the ones that need it today — a later condition change
       # here would otherwise reintroduce #809 in a step nobody re-audits.
       - name: Upload web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure() || cancelled()
         continue-on-error: true
         with:
