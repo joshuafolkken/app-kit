@@ -5,11 +5,17 @@ words:
   - basenames
   - baselining
   - dedup
+  - deepmerge
   - elifecycle
+  - execpath
+  - gcqx
   - hqrm
   - hsts
   - idempotently
   - jgame
+  - pfhg
+  - phjj
+  - Vulns
   # POSIX process identifiers, in port-owner.ts's comments and in the `ps -o pgid=` column it parses.
   # Not ours to rename: `pgid` is the literal ps output selector, and `pids` reads as the plural of
   # the identifier the surrounding code already calls a pid (#175).

@@ -23,14 +23,16 @@ minimumReleaseAgeExclude:
   - tsx
   - '@joshuafolkken/kit'
 
-# Held until #247: SvelteKit 3 / adapter-cloudflare 8 leave the 7.2.9 patch below unused, and
+# Held until #247: SvelteKit 3 / adapter-cloudflare 8 leave the 7.2.10 patch below unused, and
 # ERR_PNPM_UNUSED_PATCH then fails `josh latest` outright. `josh latest` skips overridden packages,
 # so these two stay on their current majors; the adapter is exact because its patch is (#260).
 overrides:
   cookie: 0.7.2
   devalue: ^5.8.1
+  # Drop once ESLint and typescript-eslint require a fixed minimatch release (#307).
+  minimatch: ^11.0.8
   '@sveltejs/kit': ^2.70.3
-  '@sveltejs/adapter-cloudflare': 7.2.9
+  '@sveltejs/adapter-cloudflare': 7.2.10
   # Security floors for exact pins in latest upstream releases (#265); drop each once upstream moves.
   # GHSA-rj75-hqrm-r3gf: @tailwindcss/typography 0.5.20 pins postcss-selector-parser 6.0.10.
   '@tailwindcss/typography>postcss-selector-parser': ^7.1.6
@@ -38,7 +40,7 @@ overrides:
   'miniflare>sharp': ^0.35.5
 
 patchedDependencies:
-  '@sveltejs/adapter-cloudflare@7.2.9': patches/@sveltejs__adapter-cloudflare@7.2.9.patch
+  '@sveltejs/adapter-cloudflare@7.2.10': patches/@sveltejs__adapter-cloudflare@7.2.10.patch
 
 minimumReleaseAge: 1440
 engineStrict: true

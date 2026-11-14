@@ -25,8 +25,7 @@ function read_manifest(directory: string): Manifest {
 	return JSON.parse(readFileSync(path.join(directory, MANIFEST), ENCODING)) as Manifest
 }
 
-// pnpm auto-installs peers, optional ones included (#270: kit's optional
-// eslint-import-resolver-typescript peer is what brings unrs-resolver in), so they are walked too.
+// Walk resolvable peers too; an optional peer absent from the installed tree contributes no build.
 function dependency_names(manifest: Manifest): Array<string> {
 	return [
 		...Object.keys(manifest.dependencies ?? {}),
@@ -102,7 +101,7 @@ function allowed_builds(flags: string): Array<string> {
 
 describe('documented install command', () => {
 	it('finds a build-script package in the install closure', () => {
-		expect(packages_needing_build()).toContain('unrs-resolver')
+		expect(packages_needing_build()).toContain('esbuild')
 	})
 
 	it.each(INSTALL_DOCS)('%s approves exactly the builds the install closure runs', (document) => {

@@ -19,8 +19,24 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'push' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: true
 jobs:
+  change-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/change-scope
+        id: scope
   sonarqube:
     name: SonarQube
+    needs: change-scope
+    if: ${{ always() && (needs.change-scope.result != 'success' || needs.change-scope.outputs.runtime != 'false') }}
     permissions:
       contents: read
       packages: read
@@ -38,10 +54,14 @@ jobs:
       - name: Skip SonarQube Scan
         if: env.SONAR_TOKEN == ''
         run: echo "SonarQube scan skipped because SONAR_TOKEN is not set."
+      - name: Require change classification
+        if: needs.change-scope.result != 'success'
+        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: env.SONAR_TOKEN != ''
         with:
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+          persist-credentials: false
       # The dependencies are installed before the scan, on a push as well as on a pull request:
       # `tsconfig.sonar.json` extends `@joshuafolkken/kit/tsconfig/base`, which a consumer resolves
       # only from node_modules, so a scan ahead of the install read a config it could not load
@@ -49,14 +69,9 @@ jobs:
       - name: Setup Node.js
         if: env.SONAR_TOKEN != ''
         uses: ./.github/actions/setup-node
-      - name: Configure GitHub Packages authentication for existing projects
-        if: env.SONAR_TOKEN != ''
-        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
       - name: Setup pnpm and install dependencies
         if: env.SONAR_TOKEN != ''
         uses: ./.github/actions/setup-pnpm
-        with:
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
       # SonarCloud's New Code starts at the previous version, so an analysis without
       # `sonar.projectVersion` never moves that start and New Code grows without end, diluting every
       # ratio the Quality Gate judges (joshuafolkken/kit#3045). The version is `package.json`'s, so
@@ -67,9 +82,17 @@ jobs:
         run: |
           version=$(jq -r '.version // empty' package.json)
           echo "args=${version:+-Dsonar.projectVersion=$version}" >> "$GITHUB_OUTPUT"
+      # Keep analyzer downloads across source changes; a workflow change (including the pinned
+      # scanner action version) rotates the cache key.
+      - name: Cache SonarQube scanner
+        if: env.SONAR_TOKEN != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar-${{ hashFiles('.github/workflows/sonar-qube.yml') }}
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
         with:
           # Wait for the SonarCloud Quality Gate and fail this job when the gate is red. The gate
           # judges ratings and ratios, not counts, so it alone lets a few new code smells or a small

@@ -11,6 +11,8 @@ const INLINE_SETUP_RE = / {6}- name: Setup safe-chain\n/u
 const INLINE_INSTALL = 'pnpm install'
 const CHECKED_INSTALLER = 'sha256sum -c -'
 const LEGACY_SETUP = 'setup-ci'
+// The action pins the installer in its own step; a workflow-level copy is read by no step and drifts.
+const INSTALLER_PIN = 'SAFE_CHAIN_INSTALLER_VERSION'
 
 function read_workflow(file: string): string {
 	return readFileSync(file, 'utf8')
@@ -35,6 +37,10 @@ describe.each(APP_KIT_WORKFLOWS)('safe-chain setup in %s', (file) => {
 	it('carries no inline safe-chain or install step of its own', () => {
 		expect(content).not.toMatch(INLINE_SETUP_RE)
 		expect(content).not.toContain(INLINE_INSTALL)
+	})
+
+	it('leaves the safe-chain installer pin to the shared action', () => {
+		expect(content).not.toContain(INSTALLER_PIN)
 	})
 
 	it('no longer calls the legacy setup-ci shim installer', () => {

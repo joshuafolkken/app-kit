@@ -1,6 +1,5 @@
 {
 	"permissions": {
-		"defaultMode": "bypassPermissions",
 		"allow": ["Bash(*)"],
 		"deny": [
 			"Bash(rm -rf *)",
@@ -14,6 +13,10 @@
 			"Read(!.env.example)",
 			"Read(!.env.test)",
 			"Read(./.dev.vars)",
+			"Read(~/.config/gh/**)",
+			"Read(~/.codex/auth.json)",
+			"Read(~/.netrc)",
+			"Read(~/.ssh/**)",
 			"Bash(git push --force*)",
 			"Bash(git push -f*)",
 			"Bash(git push *--force*)",
@@ -40,11 +43,21 @@
 			"Bash(gh pr merge*)",
 			"Bash(gh api *pulls/*/merge*)",
 			"Bash(gh api graphql*mergePullRequest*)",
-			"Bash(sudo *)"
-		]
+			"Bash(sudo *)",
+			"Bash(curl *)",
+			"Bash(wget *)",
+			"Bash(nc *)",
+			"Bash(gh auth token*)",
+			"Bash(printenv)"
+		],
+		"defaultMode": "bypassPermissions"
 	},
 	"env": {
 		"BASH_MAX_OUTPUT_LENGTH": "8000"
+	},
+	"statusLine": {
+		"type": "command",
+		"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; node \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/dist/josh.js\" usage:tee"
 	},
 	"hooks": {
 		"SessionStart": [
@@ -53,8 +66,18 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)\" && cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh ./node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh audit-provision",
-						"timeout": 180
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" audit-provision --session-start",
+						"timeout": 90
+					}
+				]
+			},
+			{
+				"matcher": "clear",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" audit-provision --session-model",
+						"timeout": 10
 					}
 				]
 			}
@@ -65,7 +88,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)\" && cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh ./node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh session-lang",
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" session-lang",
 						"timeout": 10
 					}
 				]
@@ -73,11 +96,11 @@
 		],
 		"PreToolUse": [
 			{
-				"matcher": "Bash|Edit|Read|Write|AskUserQuestion",
+				"matcher": "Bash|Edit|Read|Write|AskUserQuestion|Agent|Task|Glob|Grep|WebFetch",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)\" && cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh ./node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh pretool-guard",
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" pretool-guard",
 						"timeout": 20
 					}
 				]
@@ -85,11 +108,11 @@
 		],
 		"PostToolUse": [
 			{
-				"matcher": "Edit|Write",
+				"matcher": "Edit|Write|Bash",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)\" && cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh ./node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh format-edited",
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" format-edited",
 						"timeout": 90
 					}
 				]
@@ -101,7 +124,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "project_root=\"$(env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_DIR -u GIT_INDEX_FILE -u GIT_NAMESPACE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE git rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)\" && cd \"$project_root\" && if [ ! -f ./node_modules/@joshuafolkken/kit/package.json ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh ./node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh stop-guard",
+						"command": "if [ ! -f \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/package.json\" ]; then echo 'kit hooks inactive: run pnpm install, then reread CLAUDE.md' >&2; exit 0; fi; sh \"$CLAUDE_PROJECT_DIR/node_modules/@joshuafolkken/kit/scripts/hooks/run-hook.sh\" stop-guard",
 						"timeout": 20
 					}
 				]

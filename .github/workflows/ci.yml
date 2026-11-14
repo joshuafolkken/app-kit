@@ -127,10 +127,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
+        id: setup-node
         uses: ./.github/actions/setup-node
-
-      - name: Configure GitHub Packages authentication for existing projects
-        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
 
       - name: Setup ESLint cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -146,11 +144,19 @@ jobs:
           # save nothing back under the key it already hit — a cold lint on every later run.
           # joshuafolkken/kit#2054: the commit sha makes each run save its warmed cache under a fresh
           # key, while the sha-less prefix restores the newest entry from an earlier run.
-          key: ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-${{ github.sha }}
+          # joshuafolkken/kit#4346: ESLint hashes `process.version` into every entry, and runner
+          # images carry different Node.js patch releases for `'24'`, so a restore across two of them
+          # lints cold. The resolved version leads every key: each release keeps its own lineage.
+          # joshuafolkken/kit#4496: the key is not built from kit's toolchain input list — the cache
+          # is restored before the install, and this workflow has no kit source to run. The lockfile
+          # and eslint config hashes move it with the two inputs ESLint's own per-entry check does
+          # not cover.
+          # joshuafolkken/kit#6118: PR-local restore-keys are tried before main's entries.
+          # Keep the config hash in every prefix so an old PR cache cannot hide main's warm lineage.
+          key: ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-
-            ${{ runner.os }}-eslint-cache-${{ hashFiles('pnpm-lock.yaml') }}-
-            ${{ runner.os }}-eslint-cache-
+            ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-eslint-cache-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('eslint.config.js', 'eslint/**/*.js') }}-
 
       - name: Setup cspell cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -165,8 +171,6 @@ jobs:
 
       - name: Setup pnpm and install dependencies
         uses: ./.github/actions/setup-pnpm
-        with:
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       # A `basic` project has no `prepare`, no build and no SvelteKit, so the ordered steps below
       # would fail on its first pull request (joshuafolkken/kit#2814). The profile is read from
@@ -241,6 +245,42 @@ jobs:
             echo 'size-limit is not installed — skipping the bundle-size check.'
           fi
 
+  # The pre-commit secretlint scan skips when its binary is missing and never runs on a commit made
+  # with `--no-verify`, so this job scans the pull request's changes again where neither applies
+  # (joshuafolkken/kit#4657). It needs no other job and none needs it, so it stays off the critical
+  # path, and its own `Secret Scan` context is what makes a finding block the merge. Only the files
+  # the pull request adds or changes are read: the merge commit's first parent is the base, which is
+  # why the checkout fetches two commits. secretlint comes from the same store cache every other job
+  # installs from, and `JOSH_SECRETLINT_REQUIRE` turns the hook's missing-binary skip into a failure.
+  # `shell: bash` adds `pipefail`, so a diff that fails cannot hand `xargs` an empty list and pass.
+  secret-scan:
+    name: Secret Scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Setup pnpm and install dependencies
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Scan the changed files for secrets
+        id: scan
+        shell: bash
+        env:
+          JOSH_SECRETLINT_REQUIRE: '1'
+        run: git diff -z --name-only --diff-filter=d HEAD^1 HEAD | xargs -0 -r pnpm josh secretlint-scan
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -254,7 +294,7 @@ jobs:
           persist-credentials: false
 
       - name: Run security audit
-        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
         with:
           scan-args: --lockfile=pnpm-lock.yaml
 
@@ -377,9 +417,6 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
 
-      - name: Configure GitHub Packages authentication for existing projects
-        run: printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$HOME/.npmrc"
-
       - name: Setup build cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: build-cache
@@ -393,8 +430,6 @@ jobs:
 
       - name: Setup pnpm and install dependencies
         uses: ./.github/actions/setup-pnpm
-        with:
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       # --ignore-scripts suppresses the install-time `prepare`, so generated framework
       # files never appear. Playwright >= 1.62 hard-throws when a tsconfig `extends`
@@ -497,7 +532,7 @@ jobs:
       # did. if-no-files-found: ignore covers the directory the move could not rename, and the
       # consumer whose preview script is not wrangler and writes no log at all.
       - name: Upload first attempt test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -510,7 +545,7 @@ jobs:
           retention-days: 30
 
       - name: Upload first attempt web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ !cancelled() && env.E2E_RETRY_ENABLED == 'true' && steps.e2e_tests.outcome ==
           'failure' && (env.E2E_RETRY_UNCONDITIONAL == 'true' ||
@@ -579,7 +614,7 @@ jobs:
       # (#809). The failure is not swallowed: continue-on-error keeps the step's own outcome
       # `failure`, so it stays marked red on the run and a missing report is never silent.
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:
@@ -601,7 +636,7 @@ jobs:
       # the job publishes instead of for the ones that need it today — a later condition change
       # here would otherwise reintroduce #809 in a step nobody re-audits.
       - name: Upload web server log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure() || cancelled()
         continue-on-error: true
         with:
