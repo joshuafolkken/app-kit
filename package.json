@@ -113,7 +113,7 @@
 		"@size-limit/file": "^14.3.0",
 		"@stylistic/eslint-plugin": "^6.0.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.10",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/kit": "^3.1.1",
 		"@sveltejs/package": "^3.0.2",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@tailwindcss/forms": "^0.5.11",
