@@ -27,7 +27,8 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.test.{js,ts}'],
+					// scripts/ carries the CI helpers kit syncs together with their tests.
+					include: ['src/**/*.test.{js,ts}', 'scripts/**/*.test.{js,ts}'],
 					exclude: ['src/**/*.svelte.test.{js,ts}'],
 				},
 			},

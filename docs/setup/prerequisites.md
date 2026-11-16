@@ -1,11 +1,11 @@
 # Install the prerequisites
 
-The tools the [Quick start](../../README.md#quick-start) needs: **Node.js 22.19.0 or later** (kit's `engines.node`, which every app-kit project installs), **pnpm**, **a POSIX shell**, the **gh CLI** and **a running Docker daemon**. Then continue with [Install app-kit](./install.md).
+The tools the [Quick start](../../README.md#quick-start) needs: **Node.js 22.22.0 or later**, **pnpm**, **a POSIX shell**, the **gh CLI** and **a running Docker daemon**. Then continue with [Install app-kit](./install.md).
 
 ## 1. Check what you have
 
 ```bash
-node --version   # v22.19.0 or later
+node --version   # v22.22.0 or later
 pnpm --version
 gh --version
 docker info      # prints the server details only while the daemon is running

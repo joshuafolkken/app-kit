@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 const WORKFLOW = readFileSync('.github/workflows/ci.yml', 'utf8')
 // kit's shared action that every ci.yml job prepares pnpm through (joshuafolkken/kit#3095).
 const ACTION = readFileSync('.github/actions/setup-pnpm/action.yml', 'utf8')
-const CI_JOBS_USING_ACTION = 2
+const CI_JOBS_USING_ACTION = 3
 const ACTION_STEPS = [...WORKFLOW.matchAll(/ {8}uses: \.\/\.github\/actions\/setup-pnpm\n/gu)]
 const RESOLVE_STEPS = [
 	...ACTION.matchAll(
@@ -24,7 +24,7 @@ const PINNED_VERSION = '11.27.1'
 const FALLBACK_VERSION = '11.28.0'
 
 describe('CI pnpm setup', () => {
-	it('prepares pnpm in both CI jobs through the one version resolver', () => {
+	it('prepares pnpm in CI jobs through the one version resolver', () => {
 		expect(ACTION_STEPS).toHaveLength(CI_JOBS_USING_ACTION)
 		expect(SCRIPTS).toHaveLength(1)
 		expect(SETUP_STEPS).toHaveLength(1)

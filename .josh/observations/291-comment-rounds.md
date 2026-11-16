@@ -1,0 +1,3 @@
+- rf:tests | low | src/lib/config-presets.test.ts:11 | 2026-10-13 | #291
+- rf:assumptions | low | src/lib/cloudflare/scaffold.ts:18 | 2026-10-13 | #291
+- rf:bug-risks | low | src/lib/cloudflare/sync.ts:406 | 2026-10-13 | #291

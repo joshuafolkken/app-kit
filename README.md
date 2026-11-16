@@ -20,7 +20,7 @@ From the root of a SvelteKit project:
 
 ```bash
 gh auth login # once
-pnpm add -D --allow-build=esbuild --allow-build=unrs-resolver @joshuafolkken/app-kit
+pnpm add -D --allow-build=esbuild @joshuafolkken/app-kit
 pnpm exec josh-app start
 ```
 

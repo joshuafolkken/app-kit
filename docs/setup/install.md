@@ -49,10 +49,10 @@ The project `.npmrc` route takes precedence over a user-level `~/.npmrc` mapping
 ## 2. Install
 
 ```bash
-pnpm add -D --allow-build=esbuild --allow-build=unrs-resolver @joshuafolkken/app-kit
+pnpm add -D --allow-build=esbuild @joshuafolkken/app-kit
 ```
 
-The two `--allow-build` flags approve the only build scripts app-kit's dependencies bring in: `esbuild`, and `unrs-resolver` from kit's ESLint import resolver. pnpm 12 refuses to finish an install that ignored a build script, so without them `pnpm add` exits with `ERR_PNPM_IGNORED_BUILDS`. The flags also record both approvals under `allowBuilds` in `pnpm-workspace.yaml`, so later installs need no flags.
+The `--allow-build` flag approves the `esbuild` build script app-kit's dependencies bring in. pnpm 12 refuses to finish an install that ignored a build script, so without it `pnpm add` exits with `ERR_PNPM_IGNORED_BUILDS`. The flag also records the approval under `allowBuilds` in `pnpm-workspace.yaml`, so later installs need no flags.
 
 app-kit has to be one of the project's `devDependencies`: `josh-app init` wires its presets into the scaffolded `eslint.config.js`, `tsconfig.json`, cspell and lefthook config, and those imports resolve only from there. kit comes with it as a peer, and `pnpm exec josh-app` runs the project's copy. A global install (`pnpm add -g @joshuafolkken/app-kit`) is optional; it lets you type `josh-app` without `pnpm exec`.
 

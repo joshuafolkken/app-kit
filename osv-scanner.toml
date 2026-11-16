@@ -1,0 +1,28 @@
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2026-12-12
+reason = """
+app-kit#307 で承認済み。deepmerge は vite-plugin-svelte がビルド設定を統合する際に使用し、
+信頼できるリポジトリ内の設定だけを渡す。未信頼オブジェクトを渡すと prototype poisoning が成立する。
+修正版公開時、依存経路・入力条件の変更時、または期限までに再確認する。
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-27mw-82g8-phjj"
+ignoreUntil = 2026-12-12
+reason = """
+app-kit#307 で承認済み。修正版は SvelteKit 3.0.0 で、移行は app-kit#247 で扱う。
+未信頼の cache-control を setHeaders に渡して prerender すると XSS が成立する。
+現在の app-kit はこの処理を使用しない。導入時は固定の信頼済みキャッシュ方針だけを使用する。
+2 系修正版公開時、該当処理の導入時、3 系移行時、または期限までに再確認する。
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-pfhg-q3qv-9q6r"
+ignoreUntil = 2026-12-12
+reason = """
+app-kit#307 で承認済み。修正版は SvelteKit 3.0.0 で、移行は app-kit#247 で扱う。
+// で始まるパスを受け入れるルートで use:enhance を使用すると外部サイトへのリダイレクトが成立する。
+現在の app-kit は enhanced form actions を使用しない。導入時は // で始まるパスをルート解決前に拒否する。
+2 系修正版公開時、該当処理の導入時、3 系移行時、または期限までに再確認する。
+"""
