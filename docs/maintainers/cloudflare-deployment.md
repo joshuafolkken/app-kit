@@ -26,7 +26,7 @@ These have not been checked on the Cloudflare side. The verification Issue confi
 
 ## Build authentication
 
-None. app-kit installs `@joshuafolkken` packages from public npm, so the build needs no token. Remove any GitHub Packages variables left from before the move: [deploy-authentication.md → After moving to public npm](./deploy-authentication.md#after-moving-to-public-npm).
+None. app-kit installs `@joshuafolkken` packages from public npm, so the build needs no token. Remove any GitHub Packages variables left from before the move: [deploy-authentication.md → After moving to public npm](../deploy-authentication.md#after-moving-to-public-npm).
 
 ## Initial setup (a person)
 
@@ -66,7 +66,7 @@ Write these on the verification Issue ([#313](https://github.com/joshuafolkken/a
 The verification Issue's run does this after the record above exists.
 
 - **Preview** — push to a pull request branch. The Cloudflare bot comments on the pull request with the build result, the build log and the commit and branch preview URLs. Open the preview URL and check the site renders.
-- **Production** — after a release reaches the `production` branch, Workers Builds deploys that commit. Open `https://app-kit.joshuafolkken.com` and check the site renders and the response carries the security headers ([security-headers.md](./security-headers.md)).
+- **Production** — after a release reaches the `production` branch, Workers Builds deploys that commit. Open `https://app-kit.joshuafolkken.com` and check the site renders and the response carries the security headers ([security-headers.md](../security-headers.md)).
 - **Finish** — replace the assumptions above with the confirmed settings.
 
 ## When it fails

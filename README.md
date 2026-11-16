@@ -32,4 +32,4 @@ Already using app-kit? [Update it](./docs/how-to/update-app-kit.md)
 
 [How-to](./docs/how-to.md) · [All docs](./docs/overview.md)
 
-[kit](https://github.com/joshuafolkken/kit) · [game-kit](https://github.com/joshuafolkken/game-kit) · [Releases](https://github.com/joshuafolkken/app-kit/releases) · [Contributing](./CLAUDE.md) · [Site deployment](./docs/cloudflare-deployment.md)
+[kit](https://github.com/joshuafolkken/kit) · [game-kit](https://github.com/joshuafolkken/game-kit) · [Releases](https://github.com/joshuafolkken/app-kit/releases) · [Contributing](./CLAUDE.md) · [Site deployment](./docs/maintainers/cloudflare-deployment.md)

@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const ENCODING = 'utf8'
-const RUNBOOK = 'docs/cloudflare-deployment.md'
-const RUNBOOK_LINK = 'cloudflare-deployment.md'
-const AUTH_LINK = './deploy-authentication.md#after-moving-to-public-npm'
+const RUNBOOK = 'docs/maintainers/cloudflare-deployment.md'
+const RUNBOOK_LINK = 'maintainers/cloudflare-deployment.md'
+const AUTH_LINK = '../deploy-authentication.md#after-moving-to-public-npm'
 const LINE_COMMENT = /^\s*\/\//u
 
 interface WranglerRoute {

@@ -59,5 +59,5 @@ To find the steps for a task, start at [how-to.md](./how-to.md). The full list o
 **Maintaining app-kit**
 
 - [maintainers/publishing.md](./maintainers/publishing.md) — releasing a new version
-- [cloudflare-deployment.md](./cloudflare-deployment.md) — deploying the app-kit site with Cloudflare Workers Builds
+- [maintainers/cloudflare-deployment.md](./maintainers/cloudflare-deployment.md) — deploying the app-kit site with Cloudflare Workers Builds
 - [maintainers/](./maintainers/) — maintainer records
