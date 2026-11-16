@@ -4,14 +4,14 @@ For app-kit maintainers releasing the package; projects that use app-kit can ski
 
 ## How a release publishes
 
-A version bump merged to `main` makes `auto-tag.yml` push the `v<version>` tag and dispatch `publish.yml`. That workflow runs two independent jobs, both checking out the dispatched tag so they publish the same source revision:
+A version bump merged to `main` makes `auto-tag.yml` push the `v<version>` tag and start `publish.yml` with `gh workflow run publish.yml --ref <tag>`, so the run's commit is the tag's. The `pack` job installs, builds and packs the tarball once, with no publish credentials, and uploads it as an artifact. Two publish jobs then download that one tarball, install nothing and run no repository code:
 
 | Job              | Registry                     | Credential                                        |
 | ---------------- | ---------------------------- | ------------------------------------------------- |
 | `publish-github` | `https://npm.pkg.github.com` | The workflow's `GITHUB_TOKEN` (`packages: write`) |
 | `publish-npm`    | `https://registry.npmjs.org` | npm trusted publishing (OIDC, `id-token: write`)  |
 
-Neither job `needs` the other, so a failure in one does not stop the other; each result is on its own job in the run. `package.json` sets no `publishConfig.registry` — each job names its registry on the command line. The npm job packs the tarball and publishes it from outside the project with `--userconfig /dev/null`, so the repository `.npmrc` mapping of the `@joshuafolkken` scope to GitHub Packages cannot redirect it. No long-lived npm token exists.
+Both publish jobs `need` only `pack`, so a failure in one does not stop the other; each result is on its own job in the run. A failed build or pack shows on `pack`, and both publish jobs are skipped. `update-production` and `create-release` run after both publish jobs. `package.json` sets no `publishConfig.registry` — each job names its registry on the command line, and the npm job publishes from outside the project with `--userconfig /dev/null`, so no user or repository `.npmrc` can redirect it. No long-lived npm token exists.
 
 ## One-time public npm setup
 
