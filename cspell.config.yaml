@@ -6,6 +6,9 @@ words:
   - baselining
   - dedup
   - deepmerge
+  # npm's error code for a `devEngines` mismatch, quoted from a Workers Builds log in the
+  # Cloudflare deployment runbook (#316).
+  - ebaddevengines
   - elifecycle
   - execpath
   - gcqx
