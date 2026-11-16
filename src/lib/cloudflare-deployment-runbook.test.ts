@@ -7,6 +7,7 @@ const RUNBOOK_LINK = 'maintainers/cloudflare-deployment.md'
 const AUTH_LINK = '../deploy-authentication.md#after-moving-to-public-npm'
 const LINE_COMMENT = /^\s*\/\//u
 const ON_FAIL = /`onFail: (\w+)`/gu
+const PREVIEW_COMMAND = 'pnpm exec wrangler preview'
 
 interface PackageJson {
 	devEngines: { packageManager: { onFail: string } }
@@ -20,6 +21,7 @@ interface WranglerRoute {
 interface WranglerConfig {
 	name: string
 	routes: Array<WranglerRoute>
+	previews?: object
 }
 
 // wrangler.jsonc carries only whole-line `//` comments, so dropping those lines leaves plain JSON.
@@ -55,6 +57,12 @@ describe('Cloudflare deployment runbook', () => {
 
 		expect(domains).not.toHaveLength(0)
 		for (const domain of domains) expect(runbook).toContain(`\`${domain}\``)
+	})
+
+	// #316: `wrangler preview` refuses to run without a `previews` block, so the preview build fails.
+	it('keeps the previews block the runbook preview command needs', () => {
+		expect(runbook).toContain(`\`${PREVIEW_COMMAND}\``)
+		expect(config.previews).toBeTypeOf('object')
 	})
 
 	it('quotes the pnpm onFail policy from package.json', () => {
