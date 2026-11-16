@@ -8,6 +8,10 @@ const AUTH_LINK = '../deploy-authentication.md#after-moving-to-public-npm'
 const LINE_COMMENT = /^\s*\/\//u
 const ON_FAIL = /`onFail: (\w+)`/gu
 const PREVIEW_COMMAND = 'pnpm exec wrangler preview'
+const INITIAL_SETUP_HEADING = '\n## Initial setup (a person)\n'
+const BRANCH_SWITCH_HEADING = '\n## Switching the production branch (a person)\n'
+const RELEASE_PUSH = /git push origin (\S+)/u
+const PRODUCTION_BRANCH_ROW = /^\| Production branch \| `([^`]+)`/mu
 
 interface PackageJson {
 	devEngines: { packageManager: { onFail: string } }
@@ -80,5 +84,28 @@ describe('Cloudflare deployment runbook', () => {
 
 	it.each(['README.md', 'docs/overview.md'])('is linked from %s', (file) => {
 		expect(readFileSync(file, ENCODING)).toContain(RUNBOOK_LINK)
+	})
+})
+
+describe('Cloudflare deployment runbook production branch', () => {
+	const runbook = readFileSync(RUNBOOK, ENCODING)
+
+	// #313: the switch to `production` happens later than the first deploy, so it is a section of its own.
+	it('puts the initial setup before the production branch switch, as separate sections', () => {
+		const setup = runbook.indexOf(INITIAL_SETUP_HEADING)
+		const branch_switch = runbook.indexOf(BRANCH_SWITCH_HEADING)
+
+		expect(setup).toBeGreaterThan(-1)
+		expect(branch_switch).toBeGreaterThan(setup)
+	})
+
+	// #313: Workers Builds treats every other branch, `main` included, as a preview, so a production
+	// branch other than the one releases reach would leave the site on its first version.
+	it('names the branch production.yml releases to as the production branch', () => {
+		const workflow = readFileSync('.github/workflows/production.yml', ENCODING)
+		const released = RELEASE_PUSH.exec(workflow)?.[1]
+
+		expect(released).toBeDefined()
+		expect(PRODUCTION_BRANCH_ROW.exec(runbook)?.[1]).toBe(released)
 	})
 })
